@@ -1,0 +1,40 @@
+# Apple's public movie catalog across storefronts. The Search API needs no key.
+# Converted from the legacy scout provider; its parity test lives in
+# internal/crawler/driver_test.go.
+name: apple-movies
+provider: Apple TV / iTunes
+hosts: [itunes.apple.com, tv.apple.com]
+rate:
+  per_minute: 20
+  concurrency: 2
+search:
+  url: https://itunes.apple.com/search
+  params:
+    term: "{query}"
+    country: "{market}"
+    entity: movie
+    limit: "20"
+  # The documented entity=movie endpoint has intermittently returned nothing
+  # while an unfiltered search still lists feature movies. One bounded retry.
+  retry_without: [entity]
+  markets: [US, GB, IN, ZA, DE, FR, JP, AU]
+  response: json
+  items: results
+  require:
+    kind: feature-movie
+  limit: 20
+  fields:
+    title: { path: trackName }
+    url: { path: trackViewUrl, match: '^https://(itunes|tv)\.apple\.com/[^?#]*/movie/' }
+    year: { path: releaseDate, transform: year_of_date }
+    duration: { path: trackTimeMillis, transform: duration_from_millis }
+    description: { paths: [shortDescription, longDescription], default: Movie detail page in the Apple movie store. }
+  offers:
+    currency: currency
+    prices:
+      - { label: Rent, paths: [trackRentalPrice, trackHdRentalPrice] }
+      - { label: Buy, paths: [trackPrice, trackHdPrice] }
+    access_when_priced: paid
+    access_otherwise: unknown
+  constants:
+    source_type: Movie Store

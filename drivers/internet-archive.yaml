@@ -1,0 +1,34 @@
+# Internet Archive's Advanced Search over the movies media type. Metadata is
+# a discovery hint; public media identity and playback are checked later by
+# Probe. https://archive.org/developers/ (Item Search APIs), checked 2026-10-18.
+name: internet-archive
+provider: Internet Archive
+hosts: [archive.org]
+rate:
+  per_minute: 30
+  concurrency: 2
+search:
+  url: https://archive.org/advancedsearch.php
+  params:
+    # The title is a literal phrase, never Lucene operators.
+    q: 'title:("{query_phrase}") AND mediatype:movies'
+    fl[]: identifier,title,year,collection,runtime
+    rows: "30"
+    page: "1"
+    output: json
+    sort[]: downloads desc
+  response: json
+  items: response.docs
+  limit: 30
+  fields:
+    title: { path: title, transform: scalar }
+    # Identifiers are letters, digits, dots, dashes and underscores; anything
+    # that needed escaping is not an Archive item.
+    url: { template: "https://archive.org/details/{identifier|path}", match: '^https://archive\.org/details/[A-Za-z0-9][A-Za-z0-9_.-]{0,199}$' }
+    year: { path: year, transform: year_in_text }
+    duration: { path: runtime, transform: scalar }
+    thumbnail: { template: "https://archive.org/services/img/{identifier|path}" }
+    description: { default: Movie listing from Internet Archive. Access and rights depend on the item. }
+  constants:
+    source_type: Archive video
+    access_type: unknown
