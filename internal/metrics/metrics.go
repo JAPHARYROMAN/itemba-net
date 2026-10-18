@@ -25,7 +25,7 @@ import (
 // Metrics owns a private registry so tests and processes never collide.
 type Metrics struct {
 	registry        *prometheus.Registry
-	searchDuration  *prometheus.HistogramVec
+	searchDuration  prometheus.Histogram
 	searchSources   *prometheus.CounterVec
 	providerResults *prometheus.CounterVec
 	probeOutcomes   *prometheus.CounterVec
@@ -36,13 +36,13 @@ type Metrics struct {
 func New() *Metrics {
 	m := &Metrics{
 		registry: prometheus.NewRegistry(),
-		searchDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		searchDuration: prometheus.NewHistogram(prometheus.HistogramOpts{
 			Namespace: "itemba",
 			Subsystem: "search",
 			Name:      "duration_seconds",
-			Help:      "Time to answer a search request, by whether the report came from the cache.",
+			Help:      "Time to answer a search request.",
 			Buckets:   []float64{0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 30, 45, 60},
-		}, []string{"cached"}),
+		}),
 		searchSources: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "itemba",
 			Subsystem: "search",
@@ -87,7 +87,7 @@ func (m *Metrics) Handler() http.Handler {
 
 // ObserveSearch records one completed search report.
 func (m *Metrics) ObserveSearch(report scout.SearchReport, elapsed time.Duration) {
-	m.searchDuration.WithLabelValues(strconv.FormatBool(report.Cached)).Observe(elapsed.Seconds())
+	m.searchDuration.Observe(elapsed.Seconds())
 	m.searchSources.WithLabelValues("verified").Add(float64(report.VerifiedCount))
 	m.searchSources.WithLabelValues("listed").Add(float64(report.ListedCount))
 	m.searchSources.WithLabelValues("pruned").Add(float64(report.PrunedCount))

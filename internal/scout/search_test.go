@@ -9,7 +9,6 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/itemba-net/core/internal/shield"
 )
@@ -326,7 +325,7 @@ func TestSearchWithRegionPreservesFreeMediaAndUnverifiedPaidListings(t *testing.
 		return skippedPlayback(region, country, "Fixture does not contain a decodable movie.")
 	}
 	report := s.SearchWithRegion(context.Background(), "Fixture Film (2014)", "us")
-	if report.Cached || report.Region != "US" || report.ListedCount != 2 || report.VerifiedCount != 1 || report.PrunedCount != 0 {
+	if report.Region != "US" || report.ListedCount != 2 || report.VerifiedCount != 1 || report.PrunedCount != 0 {
 		t.Fatalf("unexpected first search: %+v", report)
 	}
 	for _, source := range report.Sources {
@@ -348,29 +347,19 @@ func TestSearchWithRegionPreservesFreeMediaAndUnverifiedPaidListings(t *testing.
 	}
 
 	requestCount := requests.Load()
-	cached := s.SearchWithRegion(context.Background(), "fixture film (2014)", " US ")
-	if !cached.Cached || requests.Load() != requestCount || cached.Query != "fixture film (2014)" || len(cached.Sources) != 2 {
-		t.Fatalf("equivalent query/region did not reuse search: cached=%v requests=%d→%d", cached.Cached, requestCount, requests.Load())
+	repeat := s.SearchWithRegion(context.Background(), "fixture film (2014)", " US ")
+	if requests.Load() <= requestCount || repeat.Region != "US" || repeat.Query != "fixture film (2014)" || len(repeat.Sources) != 2 {
+		t.Fatalf("a repeated search must run the providers again now that Atlas holds the memory: requests=%d→%d %+v", requestCount, requests.Load(), repeat)
 	}
+	requestCount = requests.Load()
 	otherRegion := s.SearchWithRegion(context.Background(), "Fixture Film (2014)", "KE")
-	if otherRegion.Cached || otherRegion.Region != "KE" || requests.Load() <= requestCount || otherRegion.ListedCount != 2 {
-		t.Fatalf("regional search reused another region's cache: %+v", otherRegion)
+	if otherRegion.Region != "KE" || requests.Load() <= requestCount || otherRegion.ListedCount != 2 {
+		t.Fatalf("regional search did not run for its own region: %+v", otherRegion)
 	}
 	for _, source := range otherRegion.Sources {
 		if source.ListingOnly && source.Region != "KE" {
-			t.Errorf("wrong-region paid listing survived cache separation: %+v", source)
+			t.Errorf("wrong-region paid listing appeared in a regional search: %+v", source)
 		}
-	}
-
-	s.cacheMu.Lock()
-	entry := s.cache["fixture film (2014)|US"]
-	entry.at = time.Now().Add(-6 * time.Minute)
-	s.cache["fixture film (2014)|US"] = entry
-	s.cacheMu.Unlock()
-	requestCount = requests.Load()
-	refreshed := s.SearchWithRegion(context.Background(), "Fixture Film (2014)", "US")
-	if refreshed.Cached || requests.Load() <= requestCount {
-		t.Fatal("expired search cache was reused without checking providers")
 	}
 }
 

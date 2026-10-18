@@ -37,7 +37,6 @@ func TestObserveSearchRecordsDurationSourcesProvidersAndProbes(t *testing.T) {
 	m := New()
 	started := "started"
 	report := scout.SearchReport{
-		Cached:        false,
 		VerifiedCount: 2,
 		ListedCount:   5,
 		PrunedCount:   1,
@@ -52,12 +51,11 @@ func TestObserveSearchRecordsDurationSourcesProvidersAndProbes(t *testing.T) {
 		},
 	}
 	m.ObserveSearch(report, 1500*time.Millisecond)
-	m.ObserveSearch(scout.SearchReport{Cached: true}, 20*time.Millisecond)
+	m.ObserveSearch(scout.SearchReport{}, 20*time.Millisecond)
 
 	mustContain(t, scrape(t, m),
-		`itemba_search_duration_seconds_count{cached="false"} 1`,
-		`itemba_search_duration_seconds_count{cached="true"} 1`,
-		`itemba_search_duration_seconds_bucket{cached="false",le="2"} 1`,
+		`itemba_search_duration_seconds_count 2`,
+		`itemba_search_duration_seconds_bucket{le="2"} 2`,
 		`itemba_search_sources_total{kind="verified"} 2`,
 		`itemba_search_sources_total{kind="listed"} 5`,
 		`itemba_search_sources_total{kind="pruned"} 1`,

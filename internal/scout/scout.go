@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -31,7 +30,6 @@ type SearchReport struct {
 	Region             string                     `json:"region"`
 	FullLengthOnly     bool                       `json:"fullLengthOnly"`
 	Providers          []ProviderStatus           `json:"providers"`
-	Cached             bool                       `json:"cached"`
 	AvailabilityChecks *AvailabilityCheckCoverage `json:"availabilityChecks,omitempty"`
 }
 
@@ -39,11 +37,6 @@ type ProviderStatus struct {
 	Name   string `json:"name"`
 	Status string `json:"status"`
 	Detail string `json:"detail"`
-}
-
-type cachedSearch struct {
-	report SearchReport
-	at     time.Time
 }
 
 // Scout is the Federated Discovery & Headless Stream Verifier engine.
@@ -57,8 +50,6 @@ type Scout struct {
 
 	poolMu          sync.Mutex
 	poolBrowser     *cdp.BrowserInstance
-	cacheMu         sync.Mutex
-	cache           map[string]cachedSearch
 	countryMu       sync.Mutex
 	country         string
 	countryAt       time.Time
@@ -79,7 +70,6 @@ func New(sh *shield.Shield, localServerURL string) *Scout {
 			Timeout: 5500 * time.Millisecond,
 		},
 		availabilityHTTPClient: newMovieAvailabilityClient(),
-		cache:                  make(map[string]cachedSearch),
 		playbackSlots:          make(chan struct{}, maxAutomaticPlaybackChecks),
 	}
 	s.playbackProbe = s.probeFreeMoviePlayback
@@ -154,26 +144,6 @@ func (s *Scout) SearchWithOptions(ctx context.Context, query, region string, opt
 		// An explicit URL is an inspection request, even when the search form
 		// currently prefers features. Echo the effective filter accurately.
 		options.FullLengthOnly = false
-	}
-	// Keep web-enabled reports out of this cross-request cache, including reports
-	// cached before setup. Brave's standard API terms do not permit retained results.
-	webConfigured := strings.TrimSpace(os.Getenv("TAVILY_API_KEY")) != "" || strings.TrimSpace(os.Getenv("BRAVE_SEARCH_API_KEY")) != ""
-	cacheAllowed := !isDirectURL && !webConfigured
-	cacheKey := strings.ToLower(query) + "|" + region
-	if options.FullLengthOnly {
-		cacheKey += "|feature"
-	}
-	if cacheAllowed {
-		s.cacheMu.Lock()
-		cached, exists := s.cache[cacheKey]
-		s.cacheMu.Unlock()
-		if exists && time.Since(cached.at) < 5*time.Minute {
-			report := cached.report
-			report.Query = query
-			report.Cached = true
-			report.DurationMs = time.Since(start).Milliseconds()
-			return report
-		}
 	}
 	type checkLocation struct{ country, detail string }
 	locationResult := make(chan checkLocation, 1)
@@ -389,25 +359,6 @@ func (s *Scout) SearchWithOptions(ctx context.Context, query, region string, opt
 	}
 	if !isDirectURL || isProviderMovieURL {
 		report.AvailabilityChecks = movieAvailabilityCoverage(region, location.country, location.detail, sources)
-	}
-	if cacheAllowed && ctx.Err() == nil && len(sources) > 0 {
-		s.cacheMu.Lock()
-		if s.cache == nil {
-			s.cache = make(map[string]cachedSearch)
-		}
-		if len(s.cache) >= 128 {
-			// Bound memory even if every request uses a different title.
-			var oldestKey string
-			var oldest time.Time
-			for key, item := range s.cache {
-				if oldest.IsZero() || item.at.Before(oldest) {
-					oldest, oldestKey = item.at, key
-				}
-			}
-			delete(s.cache, oldestKey)
-		}
-		s.cache[cacheKey] = cachedSearch{report: report, at: time.Now()}
-		s.cacheMu.Unlock()
 	}
 	return report
 }

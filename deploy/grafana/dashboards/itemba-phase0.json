@@ -30,7 +30,7 @@
       "datasource": { "type": "prometheus", "uid": "itemba-prometheus" },
       "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
       "targets": [
-        { "refId": "A", "expr": "sum by (cached) (rate(itemba_search_duration_seconds_count[5m])) * 60", "legendFormat": "cached={{cached}}" }
+        { "refId": "A", "expr": "sum(rate(itemba_search_duration_seconds_count[5m])) * 60", "legendFormat": "searches" }
       ]
     },
     {

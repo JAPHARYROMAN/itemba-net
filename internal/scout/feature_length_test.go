@@ -93,11 +93,11 @@ func TestFullLengthSearchFiltersKnownShortsKeepsUnknownAndSeparatesCache(t *test
 		}
 	}
 	all := s.SearchWithRegion(context.Background(), "Fixture Film 2014", "US")
-	if all.Cached || all.FullLengthOnly || len(all.Sources) != 3 {
-		t.Fatalf("length preference cache mixed or shorts toggle lost: %+v", all)
+	if all.FullLengthOnly || len(all.Sources) != 3 {
+		t.Fatalf("shorts toggle lost or lengths mixed between searches: %+v", all)
 	}
 	features = s.SearchWithOptions(context.Background(), "Fixture Film 2014", "US", SearchOptions{FullLengthOnly: true})
-	if !features.Cached || !features.FullLengthOnly || len(features.Sources) != 1 {
-		t.Fatal("feature-mode cache was lost")
+	if !features.FullLengthOnly || len(features.Sources) != 1 {
+		t.Fatal("feature filter was lost on a repeated search")
 	}
 }
