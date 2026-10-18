@@ -1,3 +1,7 @@
+// Package config loads process configuration: an optional local file of
+// NAME=value lines, overridden by the process environment, reduced to a typed
+// Config. Values are literal: no variable interpolation, shell commands or
+// escapes. Diagnostics name keys and line numbers but never echo values.
 package config
 
 import (
@@ -13,6 +17,47 @@ const (
 	maxLocalConfigBytes = 16 * 1024
 	maxLocalConfigLine  = 4 * 1024
 )
+
+// allowedKeys are the only variables the local configuration file may set.
+// Anything else must come from the process environment or a flag.
+var allowedKeys = []string{"PORT", "BRAVE_SEARCH_API_KEY", "TAVILY_API_KEY", "ITEMBA_DATABASE_URL"}
+
+func allowedKey(name string) bool {
+	for _, allowed := range allowedKeys {
+		if name == allowed {
+			return true
+		}
+	}
+	return false
+}
+
+// Config is the typed process configuration after the file and the
+// environment have been merged. Provider API keys stay in the environment,
+// where the scout providers read them.
+type Config struct {
+	// Port is the TCP port the console listens on.
+	Port string
+	// DatabaseURL connects Atlas to PostgreSQL. Empty means no database is
+	// configured and nothing is persisted.
+	DatabaseURL string
+}
+
+// Load applies the optional local file at path, then reads the typed settings
+// from the environment. Explicit process environment variables take
+// precedence over the file, even when set to blank.
+func Load(path string) (Config, error) {
+	if err := LoadLocal(path); err != nil {
+		return Config{}, err
+	}
+	cfg := Config{
+		Port:        strings.TrimSpace(os.Getenv("PORT")),
+		DatabaseURL: strings.TrimSpace(os.Getenv("ITEMBA_DATABASE_URL")),
+	}
+	if cfg.Port == "" {
+		cfg.Port = "8080"
+	}
+	return cfg, nil
+}
 
 // LoadLocal reads optional local process configuration. Explicit process
 // environment variables take precedence, even when explicitly set to blank.
@@ -43,7 +88,7 @@ func LoadLocal(path string) error {
 	}
 	// Parse everything before applying anything, so an invalid later line cannot
 	// leave a partially applied configuration behind.
-	for _, name := range []string{"PORT", "BRAVE_SEARCH_API_KEY", "TAVILY_API_KEY"} {
+	for _, name := range allowedKeys {
 		value, present := values[name]
 		if _, explicit := os.LookupEnv(name); !present || explicit {
 			continue
@@ -62,7 +107,7 @@ func parseLocalConfig(contents []byte) (map[string]string, error) {
 	if !utf8.Valid(contents) {
 		return nil, fmt.Errorf("local configuration must contain UTF-8 text")
 	}
-	text := strings.TrimPrefix(string(contents), "\ufeff")
+	text := strings.TrimPrefix(string(contents), string(rune(0xFEFF)))
 	values := make(map[string]string)
 	seen := make(map[string]bool)
 	for i, raw := range strings.Split(text, "\n") {
@@ -78,7 +123,7 @@ func parseLocalConfig(contents []byte) (map[string]string, error) {
 		name = strings.TrimSpace(name)
 		if !assignment {
 			// A missing equals sign must not echo a line that may contain a key.
-			for _, allowed := range []string{"PORT", "BRAVE_SEARCH_API_KEY", "TAVILY_API_KEY"} {
+			for _, allowed := range allowedKeys {
 				if line == allowed || strings.HasPrefix(line, allowed+" ") || strings.HasPrefix(line, allowed+"\t") || strings.HasPrefix(line, allowed+":") {
 					return nil, fmt.Errorf("line %d %s: expected NAME=value", lineNumber, allowed)
 				}
@@ -88,7 +133,7 @@ func parseLocalConfig(contents []byte) (map[string]string, error) {
 		if !validConfigName(name) {
 			return nil, fmt.Errorf("line %d: invalid configuration variable name", lineNumber)
 		}
-		if name != "PORT" && name != "BRAVE_SEARCH_API_KEY" && name != "TAVILY_API_KEY" {
+		if !allowedKey(name) {
 			return nil, fmt.Errorf("line %d %s: unsupported configuration variable", lineNumber, name)
 		}
 		if seen[name] {
