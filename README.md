@@ -67,7 +67,7 @@ Title searches also consult the full current chart cache for exact movie matches
 
 **Worldwide** searches eight Apple storefronts (United States, United Kingdom, India, South Africa, Germany, France, Japan and Australia), alongside Internet Archive, Blender's public movie catalog, federated PeerTube search, Wikimedia Commons and configured global web discovery. Blender's public PeerTube search supplies movie candidates without an API key, independently of the wider PeerTube index; its metadata resolver must confirm public media before sampling. Storefront requests share a ten-second budget with at most four active requests. Choose a country preference to search its storefront instead. Each offer retains its market; a listing does not establish availability elsewhere. No URLs are rewritten into a local storefront, and no guessed movie IDs are generated.
 
-Results show free, subscription, rental, purchase, paid or unconfirmed access. Catalog prices include their currency and market. A known paid service model (for example Netflix subscriptions) is labeled separately from a confirmed offer for this movie; YouTube videos and unfamiliar sites retain unconfirmed access. Evidence links open through the protected browser. Regional badges distinguish a catalog listing in the selected country, a supported service with the movie unconfirmed, an unknown region and a foreign-market offer. Check time and verification status distinguish listings, reachable pages and reachable media; a successful media probe is not a full playback test. Failed static reference streams are excluded. Recent nonempty catalog-only searches are cached in memory for five minutes, separately by query and region. Searches with a web provider enabled bypass that report cache.
+Results show free, subscription, rental, purchase, paid or unconfirmed access. Catalog prices include their currency and market. A known paid service model (for example Netflix subscriptions) is labeled separately from a confirmed offer for this movie; YouTube videos and unfamiliar sites retain unconfirmed access. Evidence links open through the protected browser. Regional badges distinguish a catalog listing in the selected country, a supported service with the movie unconfirmed, an unknown region and a foreign-market offer. Check time and verification status distinguish listings, reachable pages and reachable media; a successful media probe is not a full playback test. Failed static reference streams are excluded. The server keeps no in-memory copy of search reports; repeat searches are answered from Atlas when a database is configured, as described under Phase 1 below.
 
 Every **Open with ad blocking** action opens the source inside Vault. Required network interception and page protection must initialize successfully before navigation; failures appear in the interface. Sign-in, payment and regional requirements remain with the provider. Paid listings are never converted into preview streams or offered through the free-media relay. Ad blocking reduces advertising and tracking; effectiveness and playback compatibility vary by site.
 
@@ -125,7 +125,7 @@ Success requires decoded video-frame progress, positive video dimensions, and at
 
 Recent commercial titles can be discovered and opened in the protected browser. Automatic native playback checks continue to cover supported public free media; a free service label on Pluto TV, Filmzie or another provider does not imply that ITEMBA has tested its player. Provider-specific sign-in, DRM, country restrictions and unsupported media remain explicit limitations, and ad blocking may affect compatibility.
 
-This is federated discovery with a short-lived cache. Continuous global crawling and a persistent index remain future work.
+This is federated discovery writing into a persistent index. Continuous global crawling is Phase 2 work.
 
 ### Enable Tavily web discovery
 
@@ -147,7 +147,7 @@ When both keys are configured, Tavily takes precedence. The app sends one web-pr
 
 Brave searches the worldwide index (`country=ALL`); a selected country supplies a location hint. Recognized movie-site page titles are normalized for matching, while the original title is preserved in the description. Web listings remain unverified with unknown access until there is evidence of price or availability. Opening a result uses the same protected browser as catalog results.
 
-Reports with web discovery enabled are not kept in the server's cross-request search cache. See [Brave's retention guidance](https://api-dashboard.search.brave.com/documentation/resources/help-feedback) for its current standard terms. Setup and connection errors never include key values.
+Reports are not kept in memory between requests. When a database is configured, web-discovery listings are recorded in Atlas like any other location, so the retention terms of a configured web-search provider are the operator's to observe. See [Brave's retention guidance](https://api-dashboard.search.brave.com/documentation/resources/help-feedback) for its current standard terms. Setup and connection errors never include key values.
 
 ### Build and verify
 
@@ -250,7 +250,13 @@ Then set `listen_addresses = '*'` in `/etc/postgresql/17/main/postgresql.conf`, 
 
 Verified on 18 October 2026 on the WSL2 host with that database: a cold search for *Sintel* wrote three objects, two locations and three evidence rows; the repeat search received its known locations from Atlas in the first event within ten milliseconds, with the rendered Internet Archive location first and the egress country shown.
 
-Still open in Phase 1: moving scout's matching into Lens, retiring the in-memory search cache once Atlas answers repeat searches, typed results and the evidence panel in the Console, and golden fixtures from the runtime proofs.
+**Title identity in one place.** Scout's title helpers now delegate to Lens: canonical queries, release labels versus years in a title, derivative detection (trailers, reviews, clips and so on), file-name year conflicts and same-feature comparison all live in `internal/lens/title.go` with their own tests, so Atlas, the console and the providers agree on what a title is.
+
+**Golden fixtures.** Four search reports captured from live runs on 18 October 2026 live in `testdata/reports`: a worldwide *Sintel* search with two decoded starts, a Tanzanian *Sintel* search where the sampler could not play the media, a worldwide *Interstellar* search of storefront and web listings, and a Tanzanian *Night of the Living Dead* search. The console test checks that each merges onto the ladder exactly as recorded, and the live Atlas test writes each into a disposable database and reads it back.
+
+**No search cache.** The five-minute in-memory report cache is gone. The server keeps nothing between requests; Atlas is the memory, and the streamed search is the path that benefits. The discovery and shelf feeds keep their short provider throttles until Phase 2 turns providers into drivers.
+
+Still open in Phase 1: typed results and the evidence panel in the Console.
 
 For hot-reloading frontend development on `http://127.0.0.1:5173`:
 

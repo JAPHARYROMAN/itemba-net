@@ -1,0 +1,260 @@
+{
+  "query": "Night of the Living Dead 1968",
+  "totalCandidates": 4,
+  "verifiedCount": 3,
+  "prunedCount": 0,
+  "durationMs": 9287,
+  "verifiedSources": [
+    {
+      "id": "ia-5-living-dead.-ultra-cinema.-compressed.",
+      "title": "NIGHT OF THE LIVING DEAD (1968). ULTRA-CINEMA (Eng).",
+      "url": "https://archive.org/embed/living-dead.-ultra-cinema.-compressed.",
+      "directStreamUrl": "https://archive.org/download/living-dead.-ultra-cinema.-compressed./Living%20Dead.%20Ultra-Cinema.%20Compressed..mp4",
+      "provider": "Internet Archive",
+      "sourceType": "Archive video",
+      "description": "\"Night of the Living Dead\" is a 1968 American independent horror film written by John Russo and George A. Romero, and directed and edited by George A....",
+      "thumbnail": "https://archive.org/services/img/living-dead.-ultra-cinema.-compressed.",
+      "duration": "5810.26",
+      "knownManifests": [
+        "https://archive.org/download/living-dead.-ultra-cinema.-compressed./Living%20Dead.%20Ultra-Cinema.%20Compressed..mp4"
+      ],
+      "accessType": "free",
+      "accessNote": "Listed on Internet Archive; access and regional availability may vary.",
+      "verified": true,
+      "hasVideoDom": false,
+      "hasIframePlayer": false,
+      "detectedManifests": [
+        "https://archive.org/download/living-dead.-ultra-cinema.-compressed./Living%20Dead.%20Ultra-Cinema.%20Compressed..mp4"
+      ],
+      "streamFormat": "Direct MP4",
+      "cleanlinessScore": 100,
+      "threatsBlocked": 0,
+      "verifyDurationMs": 3167,
+      "verificationMode": "Stream Manifest Probe",
+      "verificationStatus": "media_reachable",
+      "checkedAt": "2026-10-18T09:37:27Z",
+      "relevanceScore": 100
+    },
+    {
+      "id": "ia-2-PhantasmagoriaTheater-NightOfTheLivingDead1968321-3",
+      "title": "Night of the Living Dead (1968)",
+      "url": "https://archive.org/embed/PhantasmagoriaTheater-NightOfTheLivingDead1968321-3",
+      "directStreamUrl": "https://archive.org/download/PhantasmagoriaTheater-NightOfTheLivingDead1968321-3/PhantasmagoriaTheater-NightOfTheLivingDead1968321_512kb.mp4",
+      "provider": "Internet Archive",
+      "sourceType": "Archive video",
+      "description": "The dead come back to life and eat the living in this low budget, black and white film. Several people barricade themselves inside a rural house in an...",
+      "thumbnail": "https://archive.org/services/img/PhantasmagoriaTheater-NightOfTheLivingDead1968321-3",
+      "duration": "5740.5",
+      "knownManifests": [
+        "https://archive.org/download/PhantasmagoriaTheater-NightOfTheLivingDead1968321-3/PhantasmagoriaTheater-NightOfTheLivingDead1968321_512kb.mp4"
+      ],
+      "accessType": "free",
+      "accessNote": "Listed on Internet Archive; access and regional availability may vary.",
+      "verified": true,
+      "hasVideoDom": false,
+      "hasIframePlayer": false,
+      "detectedManifests": [
+        "https://archive.org/download/PhantasmagoriaTheater-NightOfTheLivingDead1968321-3/PhantasmagoriaTheater-NightOfTheLivingDead1968321_512kb.mp4"
+      ],
+      "streamFormat": "Direct MP4",
+      "cleanlinessScore": 100,
+      "threatsBlocked": 0,
+      "verifyDurationMs": 3167,
+      "verificationMode": "Stream Manifest Probe",
+      "verificationStatus": "media_reachable",
+      "checkedAt": "2026-10-18T09:37:27Z",
+      "relevanceScore": 100
+    },
+    {
+      "id": "ia-3-NightOfTheLivingDeadHD",
+      "title": "Night Of The Living Dead HD",
+      "url": "https://archive.org/embed/NightOfTheLivingDeadHD",
+      "directStreamUrl": "https://archive.org/download/NightOfTheLivingDeadHD/NightOfTheLivingDeadRemasteredHD.mp4",
+      "provider": "Internet Archive",
+      "sourceType": "Archive video",
+      "description": "George A. Romero's 1968 classic, the grandfather of zombie films! (public domain film for all to enjoy)",
+      "thumbnail": "https://archive.org/services/img/NightOfTheLivingDeadHD",
+      "duration": "5738.63",
+      "knownManifests": [
+        "https://archive.org/download/NightOfTheLivingDeadHD/NightOfTheLivingDeadRemasteredHD.mp4"
+      ],
+      "accessType": "free",
+      "accessNote": "Listed on Internet Archive; access and regional availability may vary.",
+      "verified": true,
+      "hasVideoDom": false,
+      "hasIframePlayer": false,
+      "detectedManifests": [
+        "https://archive.org/download/NightOfTheLivingDeadHD/NightOfTheLivingDeadRemasteredHD.mp4"
+      ],
+      "streamFormat": "Direct MP4",
+      "cleanlinessScore": 100,
+      "threatsBlocked": 0,
+      "verifyDurationMs": 3458,
+      "verificationMode": "Stream Manifest Probe",
+      "verificationStatus": "media_reachable",
+      "checkedAt": "2026-10-18T09:37:27Z",
+      "relevanceScore": 65
+    }
+  ],
+  "prunedSources": [],
+  "sources": [
+    {
+      "id": "ia-5-living-dead.-ultra-cinema.-compressed.",
+      "title": "NIGHT OF THE LIVING DEAD (1968). ULTRA-CINEMA (Eng).",
+      "url": "https://archive.org/embed/living-dead.-ultra-cinema.-compressed.",
+      "directStreamUrl": "https://archive.org/download/living-dead.-ultra-cinema.-compressed./Living%20Dead.%20Ultra-Cinema.%20Compressed..mp4",
+      "provider": "Internet Archive",
+      "sourceType": "Archive video",
+      "description": "\"Night of the Living Dead\" is a 1968 American independent horror film written by John Russo and George A. Romero, and directed and edited by George A....",
+      "thumbnail": "https://archive.org/services/img/living-dead.-ultra-cinema.-compressed.",
+      "duration": "5810.26",
+      "knownManifests": [
+        "https://archive.org/download/living-dead.-ultra-cinema.-compressed./Living%20Dead.%20Ultra-Cinema.%20Compressed..mp4"
+      ],
+      "accessType": "free",
+      "accessNote": "Listed on Internet Archive; access and regional availability may vary.",
+      "verified": true,
+      "hasVideoDom": false,
+      "hasIframePlayer": false,
+      "detectedManifests": [
+        "https://archive.org/download/living-dead.-ultra-cinema.-compressed./Living%20Dead.%20Ultra-Cinema.%20Compressed..mp4"
+      ],
+      "streamFormat": "Direct MP4",
+      "cleanlinessScore": 100,
+      "threatsBlocked": 0,
+      "verifyDurationMs": 3167,
+      "verificationMode": "Stream Manifest Probe",
+      "verificationStatus": "media_reachable",
+      "checkedAt": "2026-10-18T09:37:27Z",
+      "relevanceScore": 100
+    },
+    {
+      "id": "ref-notld-1968",
+      "title": "Night of the Living Dead (1968 — George A. Romero Feature Film)",
+      "url": "https://archive.org/embed/night_of_the_living_dead",
+      "directStreamUrl": "https://archive.org/download/night_of_the_living_dead/night_of_the_living_dead_512kb.mp4",
+      "provider": "Internet Archive Cinema",
+      "sourceType": "Public Domain",
+      "description": "Full-length 1968 cult classic feature film in the public domain with verified direct MP4 and sandbox embed streams.",
+      "thumbnail": "https://archive.org/services/img/night_of_the_living_dead",
+      "duration": "1:35:52",
+      "resolution": "720p HD",
+      "knownManifests": [
+        "https://archive.org/download/night_of_the_living_dead/night_of_the_living_dead_512kb.mp4"
+      ],
+      "accessType": "free",
+      "accessNote": "Listed free access; regional availability may vary. Media check: Media returned HTTP 404 Not Found. Open the source to check access.",
+      "releaseYear": 1968,
+      "verified": false,
+      "prunedReason": "Media returned HTTP 404 Not Found",
+      "hasVideoDom": false,
+      "hasIframePlayer": false,
+      "detectedManifests": [
+        "https://archive.org/download/night_of_the_living_dead/night_of_the_living_dead_512kb.mp4"
+      ],
+      "streamFormat": "",
+      "cleanlinessScore": 100,
+      "threatsBlocked": 0,
+      "verifyDurationMs": 988,
+      "verificationMode": "Listing; access check failed",
+      "verificationStatus": "listing",
+      "checkedAt": "2026-10-18T09:37:27Z",
+      "relevanceScore": 100
+    },
+    {
+      "id": "ia-2-PhantasmagoriaTheater-NightOfTheLivingDead1968321-3",
+      "title": "Night of the Living Dead (1968)",
+      "url": "https://archive.org/embed/PhantasmagoriaTheater-NightOfTheLivingDead1968321-3",
+      "directStreamUrl": "https://archive.org/download/PhantasmagoriaTheater-NightOfTheLivingDead1968321-3/PhantasmagoriaTheater-NightOfTheLivingDead1968321_512kb.mp4",
+      "provider": "Internet Archive",
+      "sourceType": "Archive video",
+      "description": "The dead come back to life and eat the living in this low budget, black and white film. Several people barricade themselves inside a rural house in an...",
+      "thumbnail": "https://archive.org/services/img/PhantasmagoriaTheater-NightOfTheLivingDead1968321-3",
+      "duration": "5740.5",
+      "knownManifests": [
+        "https://archive.org/download/PhantasmagoriaTheater-NightOfTheLivingDead1968321-3/PhantasmagoriaTheater-NightOfTheLivingDead1968321_512kb.mp4"
+      ],
+      "accessType": "free",
+      "accessNote": "Listed on Internet Archive; access and regional availability may vary.",
+      "verified": true,
+      "hasVideoDom": false,
+      "hasIframePlayer": false,
+      "detectedManifests": [
+        "https://archive.org/download/PhantasmagoriaTheater-NightOfTheLivingDead1968321-3/PhantasmagoriaTheater-NightOfTheLivingDead1968321_512kb.mp4"
+      ],
+      "streamFormat": "Direct MP4",
+      "cleanlinessScore": 100,
+      "threatsBlocked": 0,
+      "verifyDurationMs": 3167,
+      "verificationMode": "Stream Manifest Probe",
+      "verificationStatus": "media_reachable",
+      "checkedAt": "2026-10-18T09:37:27Z",
+      "relevanceScore": 100
+    },
+    {
+      "id": "ia-3-NightOfTheLivingDeadHD",
+      "title": "Night Of The Living Dead HD",
+      "url": "https://archive.org/embed/NightOfTheLivingDeadHD",
+      "directStreamUrl": "https://archive.org/download/NightOfTheLivingDeadHD/NightOfTheLivingDeadRemasteredHD.mp4",
+      "provider": "Internet Archive",
+      "sourceType": "Archive video",
+      "description": "George A. Romero's 1968 classic, the grandfather of zombie films! (public domain film for all to enjoy)",
+      "thumbnail": "https://archive.org/services/img/NightOfTheLivingDeadHD",
+      "duration": "5738.63",
+      "knownManifests": [
+        "https://archive.org/download/NightOfTheLivingDeadHD/NightOfTheLivingDeadRemasteredHD.mp4"
+      ],
+      "accessType": "free",
+      "accessNote": "Listed on Internet Archive; access and regional availability may vary.",
+      "verified": true,
+      "hasVideoDom": false,
+      "hasIframePlayer": false,
+      "detectedManifests": [
+        "https://archive.org/download/NightOfTheLivingDeadHD/NightOfTheLivingDeadRemasteredHD.mp4"
+      ],
+      "streamFormat": "Direct MP4",
+      "cleanlinessScore": 100,
+      "threatsBlocked": 0,
+      "verifyDurationMs": 3458,
+      "verificationMode": "Stream Manifest Probe",
+      "verificationStatus": "media_reachable",
+      "checkedAt": "2026-10-18T09:37:27Z",
+      "relevanceScore": 65
+    }
+  ],
+  "listedCount": 4,
+  "region": "TZ",
+  "providers": [
+    {
+      "name": "Apple movie catalog (TZ)",
+      "status": "ok",
+      "detail": "1 movie listings returned for TZ; playback and current availability are unverified."
+    },
+    {
+      "name": "Internet Archive",
+      "status": "ok",
+      "detail": "6 catalog entries returned; regional access may vary"
+    },
+    {
+      "name": "Open movie catalog",
+      "status": "ok",
+      "detail": "1 matching reference films"
+    },
+    {
+      "name": "PeerTube",
+      "status": "error",
+      "detail": "Provider unavailable; results may be incomplete."
+    },
+    {
+      "name": "Tavily web search",
+      "status": "error",
+      "detail": "Tavily search failed: network request failed. Try again."
+    },
+    {
+      "name": "Wikimedia Commons",
+      "status": "ok",
+      "detail": "0 catalog entries returned; regional access may vary"
+    }
+  ],
+  "cached": false
+}

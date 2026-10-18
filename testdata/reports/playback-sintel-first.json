@@ -1,0 +1,403 @@
+{
+  "query": "Sintel",
+  "totalCandidates": 4,
+  "verifiedCount": 2,
+  "prunedCount": 1,
+  "durationMs": 10904,
+  "verifiedSources": [
+    {
+      "id": "ia-5-sintel-dvd",
+      "title": "Sintel (the Durian Open Movie project) 4-DVD Box set",
+      "url": "https://archive.org/embed/sintel-dvd",
+      "directStreamUrl": "https://archive.org/download/sintel-dvd/Sintel_PAL6.mp4",
+      "provider": "Internet Archive",
+      "sourceType": "Archive video",
+      "description": "I decided to upload this here, since Blender is no longer selling copies of it, especially since it's been 15 years. I am aware someone did originally...",
+      "thumbnail": "https://archive.org/services/img/sintel-dvd",
+      "duration": "107.24",
+      "knownManifests": [
+        "https://archive.org/download/sintel-dvd/Sintel_PAL6.mp4"
+      ],
+      "accessType": "free",
+      "accessNote": "Listed on Internet Archive; access and regional availability may vary.",
+      "destinationType": "watch",
+      "accessBasis": "catalog",
+      "accessEvidenceUrl": "https://archive.org/embed/sintel-dvd",
+      "availabilityStatus": "unknown",
+      "availabilityNote": "Regional title availability and playback are unconfirmed.",
+      "playbackCheck": {
+        "status": "unsupported",
+        "country": "TZ",
+        "requestedRegion": "TZ",
+        "checkedAt": "2026-10-18T11:10:50Z",
+        "detail": "This video format is unsupported by the isolated browser; playback remains unconfirmed.",
+        "evidenceUrl": "https://archive.org/embed/sintel-dvd",
+        "secondsAdvanced": 0,
+        "decodedFrames": 0,
+        "width": 0,
+        "height": 0,
+        "durationSeconds": 0,
+        "method": "isolated_video_sample",
+        "playbackConfirmed": false
+      },
+      "availabilityCheck": {
+        "status": "media_reachable",
+        "country": "TZ",
+        "requestedRegion": "TZ",
+        "checkedAt": "2026-10-18T11:10:48Z",
+        "detail": "The media URL returned recognizable video or streaming data from Tanzania. Full movie playback and account access are unconfirmed.",
+        "evidenceUrl": "https://archive.org/download/sintel-dvd/Sintel_PAL6.mp4",
+        "playbackConfirmed": false,
+        "method": "http_media_probe"
+      },
+      "verified": true,
+      "hasVideoDom": false,
+      "hasIframePlayer": false,
+      "detectedManifests": [
+        "https://archive.org/download/sintel-dvd/Sintel_PAL6.mp4"
+      ],
+      "streamFormat": "Direct MP4",
+      "cleanlinessScore": 100,
+      "threatsBlocked": 0,
+      "verifyDurationMs": 1739,
+      "verificationMode": "Stream Manifest Probe",
+      "verificationStatus": "media_reachable",
+      "checkedAt": "2026-10-18T11:10:48Z",
+      "relevanceScore": 100
+    },
+    {
+      "id": "ia-2-sintel_202409",
+      "title": "sintel",
+      "url": "https://archive.org/embed/sintel_202409",
+      "directStreamUrl": "https://archive.org/download/sintel_202409/Sintel%2FSintel.mp4",
+      "provider": "Internet Archive",
+      "sourceType": "Archive video",
+      "description": "Sintel",
+      "thumbnail": "https://archive.org/services/img/sintel_202409",
+      "duration": "888.06",
+      "knownManifests": [
+        "https://archive.org/download/sintel_202409/Sintel%2FSintel.mp4"
+      ],
+      "accessType": "free",
+      "accessNote": "Listed on Internet Archive; access and regional availability may vary.",
+      "destinationType": "watch",
+      "accessBasis": "catalog",
+      "accessEvidenceUrl": "https://archive.org/embed/sintel_202409",
+      "availabilityStatus": "unknown",
+      "availabilityNote": "Regional title availability and playback are unconfirmed.",
+      "playbackCheck": {
+        "status": "unsupported",
+        "country": "TZ",
+        "requestedRegion": "TZ",
+        "checkedAt": "2026-10-18T11:10:50Z",
+        "detail": "This video format is unsupported by the isolated browser; playback remains unconfirmed.",
+        "evidenceUrl": "https://archive.org/embed/sintel_202409",
+        "secondsAdvanced": 0,
+        "decodedFrames": 0,
+        "width": 0,
+        "height": 0,
+        "durationSeconds": 0,
+        "method": "isolated_video_sample",
+        "playbackConfirmed": false
+      },
+      "availabilityCheck": {
+        "status": "media_reachable",
+        "country": "TZ",
+        "requestedRegion": "TZ",
+        "checkedAt": "2026-10-18T11:10:48Z",
+        "detail": "The media URL returned recognizable video or streaming data from Tanzania. Full movie playback and account access are unconfirmed.",
+        "evidenceUrl": "https://archive.org/download/sintel_202409/Sintel%2FSintel.mp4",
+        "playbackConfirmed": false,
+        "method": "http_media_probe"
+      },
+      "verified": true,
+      "hasVideoDom": false,
+      "hasIframePlayer": false,
+      "detectedManifests": [
+        "https://archive.org/download/sintel_202409/Sintel%2FSintel.mp4"
+      ],
+      "streamFormat": "Direct MP4",
+      "cleanlinessScore": 100,
+      "threatsBlocked": 0,
+      "verifyDurationMs": 2389,
+      "verificationMode": "Stream Manifest Probe",
+      "verificationStatus": "media_reachable",
+      "checkedAt": "2026-10-18T11:10:48Z",
+      "relevanceScore": 100
+    }
+  ],
+  "prunedSources": [
+    {
+      "id": "ref-sintel",
+      "title": "Sintel (Blender Open Movie — 1080p HLS Master)",
+      "url": "https://durian.blender.org/",
+      "directStreamUrl": "https://bitdash-a.akamaihd.net/content/sintel/hls/playlist.m3u8",
+      "provider": "Akamai / Blender Foundation",
+      "sourceType": "HLS Reference",
+      "description": "4K/1080p adaptive HLS (.m3u8) fantasy short film with multi-track surround audio.",
+      "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8f/Sintel_poster.jpg/320px-Sintel_poster.jpg",
+      "duration": "14:48",
+      "resolution": "1080p FHD",
+      "knownManifests": [
+        "https://bitdash-a.akamaihd.net/content/sintel/hls/playlist.m3u8"
+      ],
+      "accessType": "free",
+      "accessNote": "Listed free access; regional availability may vary.",
+      "releaseYear": 2010,
+      "destinationType": "watch",
+      "accessBasis": "catalog",
+      "accessEvidenceUrl": "https://durian.blender.org/",
+      "availabilityStatus": "unknown",
+      "availabilityNote": "Regional title availability and playback are unconfirmed.",
+      "playbackCheck": {
+        "status": "skipped",
+        "country": "TZ",
+        "requestedRegion": "TZ",
+        "checkedAt": "",
+        "detail": "Automatic playback needs a reachable free video from a supported movie catalog. Open the source to check playback.",
+        "secondsAdvanced": 0,
+        "decodedFrames": 0,
+        "width": 0,
+        "height": 0,
+        "durationSeconds": 0,
+        "method": "not_checked",
+        "playbackConfirmed": false
+      },
+      "availabilityCheck": {
+        "status": "access_restricted",
+        "country": "TZ",
+        "requestedRegion": "TZ",
+        "checkedAt": "2026-10-18T11:10:48Z",
+        "detail": "Media response not confirmed: Media returned HTTP 403 Forbidden. The movie page may still be accessible.",
+        "httpStatus": 403,
+        "evidenceUrl": "https://bitdash-a.akamaihd.net/content/sintel/hls/playlist.m3u8",
+        "playbackConfirmed": false,
+        "method": "http_media_probe"
+      },
+      "verified": false,
+      "prunedReason": "Media returned HTTP 403 Forbidden",
+      "hasVideoDom": false,
+      "hasIframePlayer": false,
+      "detectedManifests": [
+        "https://bitdash-a.akamaihd.net/content/sintel/hls/playlist.m3u8"
+      ],
+      "streamFormat": "",
+      "cleanlinessScore": 100,
+      "threatsBlocked": 0,
+      "verifyDurationMs": 760,
+      "verificationMode": "Stream Manifest Probe",
+      "verificationStatus": "unavailable",
+      "checkedAt": "2026-10-18T11:10:48Z",
+      "relevanceScore": 100
+    }
+  ],
+  "sources": [
+    {
+      "id": "ia-5-sintel-dvd",
+      "title": "Sintel (the Durian Open Movie project) 4-DVD Box set",
+      "url": "https://archive.org/embed/sintel-dvd",
+      "directStreamUrl": "https://archive.org/download/sintel-dvd/Sintel_PAL6.mp4",
+      "provider": "Internet Archive",
+      "sourceType": "Archive video",
+      "description": "I decided to upload this here, since Blender is no longer selling copies of it, especially since it's been 15 years. I am aware someone did originally...",
+      "thumbnail": "https://archive.org/services/img/sintel-dvd",
+      "duration": "107.24",
+      "knownManifests": [
+        "https://archive.org/download/sintel-dvd/Sintel_PAL6.mp4"
+      ],
+      "accessType": "free",
+      "accessNote": "Listed on Internet Archive; access and regional availability may vary.",
+      "destinationType": "watch",
+      "accessBasis": "catalog",
+      "accessEvidenceUrl": "https://archive.org/embed/sintel-dvd",
+      "availabilityStatus": "unknown",
+      "availabilityNote": "Regional title availability and playback are unconfirmed.",
+      "playbackCheck": {
+        "status": "unsupported",
+        "country": "TZ",
+        "requestedRegion": "TZ",
+        "checkedAt": "2026-10-18T11:10:50Z",
+        "detail": "This video format is unsupported by the isolated browser; playback remains unconfirmed.",
+        "evidenceUrl": "https://archive.org/embed/sintel-dvd",
+        "secondsAdvanced": 0,
+        "decodedFrames": 0,
+        "width": 0,
+        "height": 0,
+        "durationSeconds": 0,
+        "method": "isolated_video_sample",
+        "playbackConfirmed": false
+      },
+      "availabilityCheck": {
+        "status": "media_reachable",
+        "country": "TZ",
+        "requestedRegion": "TZ",
+        "checkedAt": "2026-10-18T11:10:48Z",
+        "detail": "The media URL returned recognizable video or streaming data from Tanzania. Full movie playback and account access are unconfirmed.",
+        "evidenceUrl": "https://archive.org/download/sintel-dvd/Sintel_PAL6.mp4",
+        "playbackConfirmed": false,
+        "method": "http_media_probe"
+      },
+      "verified": true,
+      "hasVideoDom": false,
+      "hasIframePlayer": false,
+      "detectedManifests": [
+        "https://archive.org/download/sintel-dvd/Sintel_PAL6.mp4"
+      ],
+      "streamFormat": "Direct MP4",
+      "cleanlinessScore": 100,
+      "threatsBlocked": 0,
+      "verifyDurationMs": 1739,
+      "verificationMode": "Stream Manifest Probe",
+      "verificationStatus": "media_reachable",
+      "checkedAt": "2026-10-18T11:10:48Z",
+      "relevanceScore": 100
+    },
+    {
+      "id": "ia-2-sintel_202409",
+      "title": "sintel",
+      "url": "https://archive.org/embed/sintel_202409",
+      "directStreamUrl": "https://archive.org/download/sintel_202409/Sintel%2FSintel.mp4",
+      "provider": "Internet Archive",
+      "sourceType": "Archive video",
+      "description": "Sintel",
+      "thumbnail": "https://archive.org/services/img/sintel_202409",
+      "duration": "888.06",
+      "knownManifests": [
+        "https://archive.org/download/sintel_202409/Sintel%2FSintel.mp4"
+      ],
+      "accessType": "free",
+      "accessNote": "Listed on Internet Archive; access and regional availability may vary.",
+      "destinationType": "watch",
+      "accessBasis": "catalog",
+      "accessEvidenceUrl": "https://archive.org/embed/sintel_202409",
+      "availabilityStatus": "unknown",
+      "availabilityNote": "Regional title availability and playback are unconfirmed.",
+      "playbackCheck": {
+        "status": "unsupported",
+        "country": "TZ",
+        "requestedRegion": "TZ",
+        "checkedAt": "2026-10-18T11:10:50Z",
+        "detail": "This video format is unsupported by the isolated browser; playback remains unconfirmed.",
+        "evidenceUrl": "https://archive.org/embed/sintel_202409",
+        "secondsAdvanced": 0,
+        "decodedFrames": 0,
+        "width": 0,
+        "height": 0,
+        "durationSeconds": 0,
+        "method": "isolated_video_sample",
+        "playbackConfirmed": false
+      },
+      "availabilityCheck": {
+        "status": "media_reachable",
+        "country": "TZ",
+        "requestedRegion": "TZ",
+        "checkedAt": "2026-10-18T11:10:48Z",
+        "detail": "The media URL returned recognizable video or streaming data from Tanzania. Full movie playback and account access are unconfirmed.",
+        "evidenceUrl": "https://archive.org/download/sintel_202409/Sintel%2FSintel.mp4",
+        "playbackConfirmed": false,
+        "method": "http_media_probe"
+      },
+      "verified": true,
+      "hasVideoDom": false,
+      "hasIframePlayer": false,
+      "detectedManifests": [
+        "https://archive.org/download/sintel_202409/Sintel%2FSintel.mp4"
+      ],
+      "streamFormat": "Direct MP4",
+      "cleanlinessScore": 100,
+      "threatsBlocked": 0,
+      "verifyDurationMs": 2389,
+      "verificationMode": "Stream Manifest Probe",
+      "verificationStatus": "media_reachable",
+      "checkedAt": "2026-10-18T11:10:48Z",
+      "relevanceScore": 100
+    },
+    {
+      "id": "tavily-940edcd5e8e66a36",
+      "title": "Sintel",
+      "url": "https://tv.apple.com/us/movie/sintel/umc.cmc.7f0aon834g9pnswy2qm3e7b3f",
+      "directStreamUrl": "",
+      "provider": "tv.apple.com",
+      "sourceType": "Web Listing",
+      "description": "A wandering warrior finds an unlikely friend in the form of a young dragon. The two develop a close bond, until one day the dragon is snatched away.",
+      "accessType": "paid",
+      "accessNote": "A movie purchase or subscription may be required. This title's offer and price are unconfirmed; rental availability is not established.",
+      "region": "US",
+      "listingOnly": true,
+      "destinationType": "watch",
+      "accessBasis": "provider_model",
+      "accessEvidenceUrl": "https://support.apple.com/en-us/118205",
+      "availabilityStatus": "other_region",
+      "availabilityNote": "Source targets US; access in TZ is unconfirmed.",
+      "availabilityEvidenceUrl": "https://tv.apple.com/us/movie/sintel/umc.cmc.7f0aon834g9pnswy2qm3e7b3f",
+      "availabilityCheck": {
+        "status": "page_reachable",
+        "country": "TZ",
+        "requestedRegion": "TZ",
+        "checkedAt": "2026-10-18T11:10:48Z",
+        "detail": "The matching movie page responded successfully. Movie licensing, sign-in, payment, and playback remain unconfirmed.",
+        "httpStatus": 200,
+        "evidenceUrl": "https://tv.apple.com/us/movie/sintel/umc.cmc.7f0aon834g9pnswy2qm3e7b3f",
+        "playbackConfirmed": false,
+        "method": "http_page"
+      },
+      "verified": false,
+      "hasVideoDom": false,
+      "hasIframePlayer": false,
+      "detectedManifests": [],
+      "streamFormat": "",
+      "cleanlinessScore": 0,
+      "threatsBlocked": 0,
+      "verifyDurationMs": 1202,
+      "verificationMode": "Provider listing",
+      "verificationStatus": "page_reachable",
+      "checkedAt": "2026-10-18T11:10:48Z",
+      "relevanceScore": 100
+    }
+  ],
+  "listedCount": 3,
+  "region": "TZ",
+  "providers": [
+    {
+      "name": "Apple movie catalog (TZ)",
+      "status": "empty",
+      "detail": "0 movie listings returned for TZ; playback and current availability are unverified."
+    },
+    {
+      "name": "Internet Archive",
+      "status": "ok",
+      "detail": "6 catalog entries returned; regional access may vary"
+    },
+    {
+      "name": "Open movie catalog",
+      "status": "ok",
+      "detail": "1 matching reference films"
+    },
+    {
+      "name": "PeerTube",
+      "status": "error",
+      "detail": "Provider unavailable; results may be incomplete."
+    },
+    {
+      "name": "Tavily web search",
+      "status": "ok",
+      "detail": "8 web candidates returned; only matching movie watch pages are kept. Prices and title availability need confirmation. Country preference: tanzania; this ranks sources and does not verify regional availability."
+    },
+    {
+      "name": "Wikimedia Commons",
+      "status": "ok",
+      "detail": "0 catalog entries returned; regional access may vary"
+    }
+  ],
+  "cached": false,
+  "availabilityChecks": {
+    "country": "TZ",
+    "requestedRegion": "TZ",
+    "checkedAt": "2026-10-18T11:10:57Z",
+    "method": "direct_server_http",
+    "checkedCount": 4,
+    "playbackCheckedCount": 0,
+    "playbackStartedCount": 0,
+    "detail": "Up to two supported free videos receive a short playback sample. A successful start does not confirm the complete movie. Paid access may require sign-in. "
+  }
+}
