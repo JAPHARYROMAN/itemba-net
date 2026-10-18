@@ -25,9 +25,13 @@ func liveStore(t *testing.T) (*Store, context.Context) {
 		t.Fatal(err)
 	}
 	t.Cleanup(store.Close)
-	if _, err := store.pool.Exec(ctx, "DROP SCHEMA IF EXISTS atlas CASCADE"); err != nil {
+	// The reset holds a cross-process lock until the test ends, because other
+	// packages' tests share this database and go test runs them in parallel.
+	release, err := store.ResetForTests(ctx)
+	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(release)
 	if _, err := store.Migrate(ctx); err != nil {
 		t.Fatal(err)
 	}

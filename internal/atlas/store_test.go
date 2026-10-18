@@ -58,9 +58,11 @@ func TestMigrateIsIdempotentAgainstPostgreSQL(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	if _, err := store.pool.Exec(ctx, "DROP SCHEMA IF EXISTS atlas CASCADE"); err != nil {
+	release, err := store.ResetForTests(ctx)
+	if err != nil {
 		t.Fatal(err)
 	}
+	defer release()
 
 	all, err := list(migrationFiles)
 	if err != nil {

@@ -28,9 +28,14 @@ func liveStore(t *testing.T) (*atlas.Store, context.Context) {
 		t.Fatal(err)
 	}
 	t.Cleanup(store.Close)
-	if err := store.ResetForTests(ctx); err != nil {
+	// The reset holds a cross-process lock until the test ends, because the
+	// atlas package's tests share this database and go test runs packages in
+	// parallel processes.
+	release, err := store.ResetForTests(ctx)
+	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(release)
 	if _, err := store.Migrate(ctx); err != nil {
 		t.Fatal(err)
 	}
