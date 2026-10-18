@@ -96,19 +96,27 @@ func (s *Store) RecordSearch(ctx context.Context, q lens.ObjectQuery, report sco
 	return summary, nil
 }
 
+// objectFor decides which object a source belongs to. The source title is
+// parsed like a query, so "Sintel (2010)" is the title Sintel with a year and
+// joins the Sintel object rather than becoming a second one.
 func (s *Store) objectFor(ctx context.Context, q lens.ObjectQuery, queryObject *Object, source scout.VerifiedSource, cache map[string]Object, summary *RecordSummary) (Object, error) {
-	key := lens.NormalizeTitle(source.Title)
+	parsed := lens.Parse(source.Title)
+	key := parsed.TitleKey
 	if queryObject != nil && (key == "" || key == q.TitleKey) {
 		return *queryObject, nil
 	}
 	if key == "" {
 		return Object{}, fmt.Errorf("atlas: source %s has no title and the query names no object", source.URL)
 	}
-	cacheKey := fmt.Sprintf("%s|%d", key, source.ReleaseYear)
+	year := source.ReleaseYear
+	if year == 0 {
+		year = parsed.Year
+	}
+	cacheKey := fmt.Sprintf("%s|%d", key, year)
 	if o, ok := cache[cacheKey]; ok {
 		return o, nil
 	}
-	o, err := s.UpsertObject(ctx, Object{Type: lens.TypeVideo, Title: source.Title, TitleKey: key, Year: source.ReleaseYear})
+	o, err := s.UpsertObject(ctx, Object{Type: lens.TypeVideo, Title: parsed.Title, TitleKey: key, Year: year})
 	if err != nil {
 		return Object{}, err
 	}

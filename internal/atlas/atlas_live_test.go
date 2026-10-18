@@ -131,7 +131,8 @@ func TestRecordSearchWritesLocationsAndEvidenceThatLookupFinds(t *testing.T) {
 				PlaybackCheck:     &scout.PlaybackCheck{Status: "started", PlaybackConfirmed: true, Country: "TZ", CheckedAt: now, Method: "isolated_video_sample", DecodedFrames: 40, SecondsAdvanced: 1.2, Width: 1920, Height: 818},
 			},
 			{
-				CandidateSource:   scout.CandidateSource{Title: "Sintel", URL: "https://archive.org/details/sintel_cc_by_2010", Provider: "Internet Archive", AccessType: "free", ReleaseYear: 2010},
+				// A year in the listed title is a year, not part of the title: this joins the Sintel object.
+				CandidateSource:   scout.CandidateSource{Title: "Sintel (2010)", URL: "https://archive.org/details/sintel_cc_by_2010", Provider: "Internet Archive", AccessType: "free"},
 				AvailabilityCheck: &scout.AvailabilityCheck{Status: "page_reachable", CheckedAt: now, Method: "page_check"},
 			},
 			{

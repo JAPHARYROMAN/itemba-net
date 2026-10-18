@@ -240,6 +240,16 @@ Every search writes back to Atlas when a database is configured. Each source bec
 
 `POST /api/scout/search` keeps its shape and gains an `atlas` summary when a database is configured. Freshness decay: rendered evidence keeps its level for 24 hours, identified for three days and reachable for seven, then drops one step until the location is probed again. Level 4, clean, is not yet awarded, because ad exposure is measured in Phase 5.
 
+**A local database without Docker.** PostgreSQL 17 with pgvector runs inside the Debian WSL2 distro, which is the execution host anyway:
+
+```powershell
+wsl -d Debian -u root -- bash -c "apt-get install -y postgresql postgresql-17-pgvector"
+```
+
+Then set `listen_addresses = '*'` in `/etc/postgresql/17/main/postgresql.conf`, allow the role in `pg_hba.conf` with `host all itemba 0.0.0.0/0 scram-sha-256`, restart the service, and as the `postgres` user create `ROLE itemba LOGIN SUPERUSER PASSWORD 'itemba-dev'`, the `itemba` database owned by it, and `EXTENSION vector`. Inside the distro the binary connects to `postgres://itemba:itemba-dev@127.0.0.1:5432/itemba`. From Windows, use the distro's address from `wsl -d Debian -- hostname -I` instead of `127.0.0.1`, because this machine also runs a native Windows PostgreSQL service on port 5432. The same URL works for `ITEMBA_TEST_DATABASE_URL` when running the live Atlas tests from Windows.
+
+Verified on 18 October 2026 on the WSL2 host with that database: a cold search for *Sintel* wrote three objects, two locations and three evidence rows; the repeat search received its known locations from Atlas in the first event within ten milliseconds, with the rendered Internet Archive location first and the egress country shown.
+
 Still open in Phase 1: moving scout's matching into Lens, retiring the in-memory search cache once Atlas answers repeat searches, typed results and the evidence panel in the Console, and golden fixtures from the runtime proofs.
 
 For hot-reloading frontend development on `http://127.0.0.1:5173`:

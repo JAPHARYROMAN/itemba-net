@@ -64,7 +64,7 @@ type KnownLocation struct {
 	Evidence       *Evidence `json:"evidence,omitempty"`
 	EffectiveLevel int       `json:"effectiveLevel"`
 	LevelName      string    `json:"levelName"`
-	AgeSeconds     int64     `json:"ageSeconds,omitempty"`
+	AgeSeconds     int64     `json:"ageSeconds"`
 	Relevance      float64   `json:"relevance"`
 }
 
