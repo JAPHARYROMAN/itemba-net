@@ -43,9 +43,11 @@ func TestGoldenReportsMergeOntoTheLadderAsRecorded(t *testing.T) {
 		},
 		{
 			// Media reachable but the sampler could not play it, plus a storefront page.
+			// Both Archive copies read as Sintel and were checked in the same second,
+			// so the tie falls to URL order.
 			name:     "playback-sintel-first",
 			count:    3,
-			firstURL: "https://archive.org/embed/sintel_202409",
+			firstURL: "https://archive.org/embed/sintel-dvd",
 			levels:   []int{lens.LevelIdentified, lens.LevelIdentified, lens.LevelReachable},
 		},
 		{

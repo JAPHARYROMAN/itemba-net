@@ -37,7 +37,7 @@ func TestGoldenReportsRecordAndLookUpAgainstPostgreSQL(t *testing.T) {
 		firstLevelMin int
 	}{
 		{name: "global-discovery-sintel", locations: 3, firstURL: "https://archive.org/embed/sintel_202604", firstLevel: lens.LevelRendered, knownAtLeast: 3},
-		{name: "playback-sintel-first", locations: 3, firstURL: "https://archive.org/embed/sintel_202409", firstLevel: lens.LevelIdentified, knownAtLeast: 3},
+		{name: "playback-sintel-first", locations: 3, firstURL: "https://archive.org/embed/sintel-dvd", firstLevel: lens.LevelIdentified, knownAtLeast: 3},
 		{name: "live-global-search", locations: 5, firstLevel: lens.LevelListed, knownAtLeast: 2},
 		{name: "live-tanzania-search", locations: 4, firstLevel: lens.LevelListed, knownAtLeast: 4},
 	}

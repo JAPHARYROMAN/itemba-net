@@ -59,7 +59,7 @@ func (s *Store) RecordSearch(ctx context.Context, q lens.ObjectQuery, report sco
 			summary.Skipped++
 			continue
 		}
-		object, err := s.objectFor(ctx, q, queryObject, source, objects, &summary)
+		object, err := s.objectForTitle(ctx, q, queryObject, source.Title, source.ReleaseYear, objects, &summary)
 		if err != nil {
 			return summary, err
 		}
@@ -96,27 +96,24 @@ func (s *Store) RecordSearch(ctx context.Context, q lens.ObjectQuery, report sco
 	return summary, nil
 }
 
-// objectFor decides which object a source belongs to. The source title is
-// parsed like a query, so "Sintel (2010)" is the title Sintel with a year and
-// joins the Sintel object rather than becoming a second one.
-func (s *Store) objectFor(ctx context.Context, q lens.ObjectQuery, queryObject *Object, source scout.VerifiedSource, cache map[string]Object, summary *RecordSummary) (Object, error) {
-	parsed := lens.Parse(source.Title)
-	key := parsed.TitleKey
+// objectForTitle decides which object a listed title belongs to. The title
+// is read as a listing, so "Sintel (2010)" is the title Sintel with a year
+// and joins the Sintel object rather than becoming a second one, while a
+// title that merely ends in "film" keeps that word.
+func (s *Store) objectForTitle(ctx context.Context, q lens.ObjectQuery, queryObject *Object, title string, releaseYear int, cache map[string]Object, summary *RecordSummary) (Object, error) {
+	base, year := lens.ListedTitle(title, releaseYear)
+	key := lens.NormalizeTitle(base)
 	if queryObject != nil && (key == "" || key == q.TitleKey) {
 		return *queryObject, nil
 	}
 	if key == "" {
-		return Object{}, fmt.Errorf("atlas: source %s has no title and the query names no object", source.URL)
-	}
-	year := source.ReleaseYear
-	if year == 0 {
-		year = parsed.Year
+		return Object{}, fmt.Errorf("atlas: a listing titled %q names no object and the query names none", title)
 	}
 	cacheKey := fmt.Sprintf("%s|%d", key, year)
 	if o, ok := cache[cacheKey]; ok {
 		return o, nil
 	}
-	o, err := s.UpsertObject(ctx, Object{Type: lens.TypeVideo, Title: parsed.Title, TitleKey: key, Year: year})
+	o, err := s.UpsertObject(ctx, Object{Type: lens.TypeVideo, Title: base, TitleKey: key, Year: year})
 	if err != nil {
 		return Object{}, err
 	}

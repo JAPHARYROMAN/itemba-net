@@ -148,7 +148,9 @@ func TestRecordSearchWritesLocationsAndEvidenceThatLookupFinds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if summary.Objects != 3 || summary.Locations != 3 || summary.Evidence != 4 || summary.Skipped != 1 {
+	// The query object, plus Big Buck Bunny; the "Sintel (the Durian Open
+	// Movie project)" listing reads as Sintel and joins the query object.
+	if summary.Objects != 2 || summary.Locations != 3 || summary.Evidence != 4 || summary.Skipped != 1 {
 		t.Fatalf("unexpected summary: %+v", summary)
 	}
 

@@ -89,6 +89,39 @@ func TitleDetails(title string, releaseYear int) (string, int) {
 	return canonical, year
 }
 
+// ListedTitle reads a title as a host listed it: the release label in
+// parentheses or brackets and a trailing year are separated out, but nothing
+// else is interpreted. Unlike Parse, it never treats a trailing word such as
+// film or movie as a type hint, because "Disaster Film" is a title. A known
+// release year wins over anything read from the title.
+func ListedTitle(title string, releaseYear int) (string, int) {
+	base := strings.TrimSpace(title)
+	metadata := ""
+	if i := strings.IndexAny(base, "(["); i > 0 {
+		metadata, base = base[i:], strings.TrimSpace(base[:i])
+	}
+	maxYear := time.Now().Year() + 1
+	year := releaseYear
+	if year == 0 {
+		if found := YearPattern.FindAllString(metadata, -1); len(found) > 0 {
+			if parsed, _ := strconv.Atoi(found[len(found)-1]); parsed <= maxYear {
+				year = parsed
+			}
+		}
+	}
+	if tokens := strings.Fields(base); len(tokens) > 1 {
+		if match := yearToken.FindStringSubmatch(tokens[len(tokens)-1]); match != nil {
+			if parsed, _ := strconv.Atoi(match[1]); parsed <= maxYear {
+				if year == 0 {
+					year = parsed
+				}
+				base = strings.Join(tokens[:len(tokens)-1], " ")
+			}
+		}
+	}
+	return strings.TrimSpace(base), year
+}
+
 // derivativeGroups name related videos that are separate search intents.
 var derivativeGroups = [][]string{
 	{"trailer", "trailers", "teaser", "teasers"},
