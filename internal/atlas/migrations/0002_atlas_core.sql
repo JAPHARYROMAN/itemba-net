@@ -25,9 +25,11 @@ CREATE TABLE atlas.aliases (
     object_id bigint NOT NULL REFERENCES atlas.objects (id) ON DELETE CASCADE,
     alias     text NOT NULL,
     alias_key text NOT NULL,
+    search    tsvector GENERATED ALWAYS AS (to_tsvector('simple', alias)) STORED,
     PRIMARY KEY (object_id, alias_key)
 );
 CREATE INDEX aliases_key_idx ON atlas.aliases (alias_key);
+CREATE INDEX aliases_search_idx ON atlas.aliases USING gin (search);
 
 CREATE TABLE atlas.hosts (
     id              bigserial PRIMARY KEY,

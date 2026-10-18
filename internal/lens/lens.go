@@ -35,9 +35,12 @@ type ObjectQuery struct {
 	Type     string `json:"type"`
 	Title    string `json:"title"`
 	TitleKey string `json:"titleKey"`
-	Year     int    `json:"year,omitempty"`
-	URL      string `json:"url,omitempty"`
-	Hash     string `json:"hash,omitempty"`
+	// RawKey is the whole query normalised, before any year or type word is
+	// taken out, so an alias that happens to end in a type word still matches.
+	RawKey string `json:"rawKey,omitempty"`
+	Year   int    `json:"year,omitempty"`
+	URL    string `json:"url,omitempty"`
+	Hash   string `json:"hash,omitempty"`
 }
 
 // typeHints are words that name an object type when they trail a title.
@@ -93,6 +96,7 @@ func Parse(raw string) ObjectQuery {
 	}
 	q.Title = strings.Join(tokens, " ")
 	q.TitleKey = NormalizeTitle(q.Title)
+	q.RawKey = NormalizeTitle(q.Raw)
 	return q
 }
 

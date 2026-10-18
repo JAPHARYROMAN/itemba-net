@@ -219,11 +219,13 @@ func (s *Store) Lookup(ctx context.Context, q lens.ObjectQuery, limit int) ([]Kn
 		l.id, l.object_id, l.host_id, l.url, COALESCE(l.media_url, ''), l.access_type, COALESCE(l.price, ''), COALESCE(l.market, ''), COALESCE(l.title, ''), COALESCE(l.source_type, ''), l.last_seen,
 		h.id, h.hostname, COALESCE(h.provider, ''),
 		e.level, e.method, e.status, e.detail, e.egress, e.observed_at`
+	// The latest evidence wins; two rows observed in the same instant resolve
+	// to the stronger one, then the later insert.
 	const latest = `
 		LEFT JOIN LATERAL (
 			SELECT level, method, status, detail, egress, observed_at
 			FROM atlas.evidence ev WHERE ev.location_id = l.id
-			ORDER BY observed_at DESC LIMIT 1
+			ORDER BY observed_at DESC, level DESC, id DESC LIMIT 1
 		) e ON true`
 
 	var rows pgx.Rows
@@ -244,7 +246,8 @@ func (s *Store) Lookup(ctx context.Context, q lens.ObjectQuery, limit int) ([]Kn
 				LEFT JOIN atlas.aliases a ON a.object_id = o.id
 				WHERE o.type = $1
 				  AND ($3 = 0 OR o.year IS NULL OR o.year = $3)
-				  AND (o.title_key = $2 OR a.alias_key = $2 OR o.search @@ plainto_tsquery('simple', $4))
+				  AND (o.title_key = $2 OR a.alias_key = $2 OR a.alias_key = $6
+				       OR o.search @@ plainto_tsquery('simple', $4) OR a.search @@ plainto_tsquery('simple', $4))
 			)
 			SELECT `+columns+`
 			FROM matched m
@@ -252,7 +255,7 @@ func (s *Store) Lookup(ctx context.Context, q lens.ObjectQuery, limit int) ([]Kn
 			JOIN atlas.locations l ON l.object_id = o.id
 			JOIN atlas.hosts h ON h.id = l.host_id`+latest+`
 			ORDER BY e.level DESC NULLS LAST, e.observed_at DESC NULLS LAST
-			LIMIT $5`, q.Type, q.TitleKey, q.Year, q.Title, limit*3)
+			LIMIT $5`, q.Type, q.TitleKey, q.Year, q.Title, limit*3, q.RawKey)
 	default:
 		return nil, nil
 	}

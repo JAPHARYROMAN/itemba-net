@@ -27,6 +27,14 @@ func TestParseTitlesYearsTypesURLsAndHashes(t *testing.T) {
 	for _, tc := range cases {
 		got := Parse(tc.raw)
 		tc.want.Raw = got.Raw
+		if got.URL == "" && got.Hash == "" {
+			if got.RawKey != NormalizeTitle(tc.raw) {
+				t.Fatalf("Parse(%q).RawKey = %q, want the whole query normalised", tc.raw, got.RawKey)
+			}
+			tc.want.RawKey = got.RawKey
+		} else if got.RawKey != "" {
+			t.Fatalf("Parse(%q) must not set RawKey for a URL or hash", tc.raw)
+		}
 		if got != tc.want {
 			t.Fatalf("Parse(%q) = %+v, want %+v %s", tc.raw, got, tc.want, tc.title)
 		}
