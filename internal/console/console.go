@@ -1,6 +1,7 @@
 // Package console serves the operator interface: the HTTP API, the real-time
 // WebSocket multiplexer and the built dashboard. It owns no state of its own;
-// every request is routed to the scout, vault, shield or relay subsystem.
+// every request is routed to the scout, vault, shield, relay or atlas
+// subsystem, and metrics observe the traffic.
 package console
 
 import (
@@ -14,6 +15,8 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/itemba-net/core/internal/atlas"
+	"github.com/itemba-net/core/internal/metrics"
 	"github.com/itemba-net/core/internal/scout"
 	"github.com/itemba-net/core/internal/shield"
 	"github.com/itemba-net/core/internal/vault"
@@ -34,6 +37,11 @@ type Dependencies struct {
 	Vault  *vault.Manager
 	// Relay serves the zero-trust media proxy. It is optional.
 	Relay http.Handler
+	// Atlas is the persistent index. Nil means no database is configured,
+	// which the status route reports as such.
+	Atlas *atlas.Store
+	// Metrics, when set, serves /metrics and observes requests and searches.
+	Metrics *metrics.Metrics
 	// StaticDir holds the built dashboard. It is served at the root path only
 	// when its index.html exists, so an API-only deployment needs no frontend.
 	StaticDir string
@@ -45,6 +53,8 @@ type Server struct {
 	scout     *scout.Scout
 	vault     *vault.Manager
 	relay     http.Handler
+	atlas     *atlas.Store
+	metrics   *metrics.Metrics
 	staticDir string
 }
 
@@ -55,12 +65,15 @@ func New(deps Dependencies) *Server {
 		scout:     deps.Scout,
 		vault:     deps.Vault,
 		relay:     deps.Relay,
+		atlas:     deps.Atlas,
+		metrics:   deps.Metrics,
 		staticDir: deps.StaticDir,
 	}
 }
 
 // Handler returns the complete HTTP handler: API routes, testbenches, the
-// WebSocket multiplexer, the dashboard and permissive CORS for local tooling.
+// WebSocket multiplexer, metrics, the dashboard and permissive CORS for local
+// tooling.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	registerTestbenchRoutes(mux)
@@ -94,19 +107,30 @@ func (s *Server) Handler() http.Handler {
 	// Real-Time WebSocket Multiplexer (Shield Telemetry + Viewport Stream + Input Events)
 	mux.HandleFunc("/api/ws", s.websocket)
 
+	if s.metrics != nil {
+		mux.Handle("/metrics", s.metrics.Handler())
+	}
+
 	if s.staticDir != "" {
 		if _, err := os.Stat(filepath.Join(s.staticDir, "index.html")); err == nil {
 			mux.Handle("/", http.FileServer(http.Dir(s.staticDir)))
 		}
 	}
 
-	return corsMiddleware(mux)
+	var handler http.Handler = mux
+	if s.metrics != nil {
+		handler = s.metrics.Middleware(handler)
+	}
+	return corsMiddleware(handler)
 }
 
 func (s *Server) status(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+	defer cancel()
 	writeJSON(w, http.StatusOK, map[string]any{
 		"vault":  s.vault.Status(),
 		"shield": s.shield.Snapshot(),
+		"atlas":  s.atlas.Health(ctx),
 	})
 }
 
@@ -142,7 +166,11 @@ func (s *Server) search(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	fullLengthOnly := req.FullLengthOnly == nil || *req.FullLengthOnly
+	started := time.Now()
 	report := s.scout.SearchWithOptions(ctx, req.Query, req.Region, scout.SearchOptions{FullLengthOnly: fullLengthOnly})
+	if s.metrics != nil {
+		s.metrics.ObserveSearch(report, time.Since(started))
+	}
 	writeJSON(w, http.StatusOK, report)
 }
 

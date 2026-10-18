@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -11,9 +12,12 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
+	"github.com/itemba-net/core/internal/atlas"
 	"github.com/itemba-net/core/internal/config"
 	"github.com/itemba-net/core/internal/console"
+	"github.com/itemba-net/core/internal/metrics"
 	"github.com/itemba-net/core/internal/relay"
 	"github.com/itemba-net/core/internal/scout"
 	"github.com/itemba-net/core/internal/shield"
@@ -24,6 +28,7 @@ func main() {
 	roleFlag := flag.String("role", string(RoleAll), "which subsystems this process runs: console, crawler, probe or all")
 	configFlag := flag.String("config", ".env.local", "optional local configuration file; process environment variables take precedence")
 	staticFlag := flag.String("static", "web/dist", "directory holding the built dashboard, served when its index.html exists")
+	databaseFlag := flag.String("database", "", "PostgreSQL URL for Atlas; overrides ITEMBA_DATABASE_URL. Empty runs without persistence")
 	flag.Parse()
 
 	role, err := ParseRole(*roleFlag)
@@ -34,14 +39,17 @@ func main() {
 		log.Fatalf("[ITEMBA-NET] role %s has no workers yet: it arrives with Phase %d of IMPLEMENTATION-PLAN.md", role, phase)
 	}
 
-	if err := config.LoadLocal(*configFlag); err != nil {
-		log.Fatalf("local configuration: %v", err)
+	cfg, err := config.Load(*configFlag)
+	if err != nil {
+		log.Fatalf("[ITEMBA-NET] local configuration: %v", err)
 	}
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
+	if *databaseFlag != "" {
+		cfg.DatabaseURL = *databaseFlag
 	}
-	baseURL := fmt.Sprintf("http://127.0.0.1:%s", port)
+	baseURL := fmt.Sprintf("http://127.0.0.1:%s", cfg.Port)
+
+	store := openAtlas(cfg.DatabaseURL)
+	defer store.Close()
 
 	sh := shield.New()
 	sc := scout.New(sh, baseURL)
@@ -51,15 +59,22 @@ func main() {
 		sc.Close()
 	}()
 
+	measures := metrics.New()
+	measures.RegisterShield(sh)
+	measures.RegisterVault(vlt)
+	measures.RegisterAtlas(store)
+
 	srv := console.New(console.Dependencies{
 		Shield:    sh,
 		Scout:     sc,
 		Vault:     vlt,
 		Relay:     relay.NewHandler(sh),
+		Atlas:     store,
+		Metrics:   measures,
 		StaticDir: *staticFlag,
 	})
 	server := &http.Server{
-		Addr:    ":" + port,
+		Addr:    ":" + cfg.Port,
 		Handler: srv.Handler(),
 	}
 
@@ -70,6 +85,7 @@ func main() {
 		log.Println("[ITEMBA-NET] Shutting down and destroying active sandboxes...")
 		vlt.Destroy()
 		sc.Close()
+		store.Close()
 		_ = server.Close()
 	}()
 
@@ -78,6 +94,7 @@ func main() {
 	log.Printf(" • Pillar 1: itemba-scout (Federated Crawler & Pooled CDP Verifier)")
 	log.Printf(" • Pillar 2: itemba-vault (Hybrid RBI Sandbox & Zero-Trust Stream Relay)")
 	log.Printf(" • Pillar 3: itemba-shield (Triple-Layer DNS/CDP/DOM Sanitizer)")
+	log.Printf(" • Metrics at %s/metrics", baseURL)
 	if role == RoleAll {
 		log.Printf(" • Crawler and probe workers arrive with Phases 2 and 4 of IMPLEMENTATION-PLAN.md")
 	}
@@ -85,4 +102,31 @@ func main() {
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("server error: %v", err)
 	}
+}
+
+// openAtlas connects to the database and applies pending migrations. A
+// configured database that cannot be reached or migrated is fatal: a process
+// must not run while silently forgetting everything. No URL means no
+// persistence, stated once at startup.
+func openAtlas(url string) *atlas.Store {
+	if url == "" {
+		log.Printf("[ITEMBA-NET] atlas: no database configured; nothing is persisted (set ITEMBA_DATABASE_URL or --database)")
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	store, err := atlas.Open(ctx, url)
+	if err != nil {
+		log.Fatalf("[ITEMBA-NET] %v", err)
+	}
+	migrateCtx, cancelMigrate := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancelMigrate()
+	applied, err := store.Migrate(migrateCtx)
+	if err != nil {
+		store.Close()
+		log.Fatalf("[ITEMBA-NET] %v", err)
+	}
+	health := store.Health(migrateCtx)
+	log.Printf("[ITEMBA-NET] atlas: connected to PostgreSQL %s; %d migration(s) applied now %v, %d in total", health.ServerVersion, len(applied), applied, health.Migrations)
+	return store
 }

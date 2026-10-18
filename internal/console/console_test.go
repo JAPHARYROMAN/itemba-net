@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/itemba-net/core/internal/metrics"
 	"github.com/itemba-net/core/internal/relay"
 	"github.com/itemba-net/core/internal/scout"
 	"github.com/itemba-net/core/internal/shield"
@@ -27,11 +28,12 @@ func newTestHandler(t *testing.T, staticDir string) http.Handler {
 		Scout:     sc,
 		Vault:     vlt,
 		Relay:     relay.NewHandler(sh),
+		Metrics:   metrics.New(),
 		StaticDir: staticDir,
 	}).Handler()
 }
 
-func TestHandlerServesStatusTestbenchAndCORSWithoutADashboard(t *testing.T) {
+func TestHandlerServesStatusTestbenchMetricsAndCORSWithoutADashboard(t *testing.T) {
 	handler := newTestHandler(t, t.TempDir())
 
 	response := httptest.NewRecorder()
@@ -42,9 +44,16 @@ func TestHandlerServesStatusTestbenchAndCORSWithoutADashboard(t *testing.T) {
 	var status struct {
 		Vault  json.RawMessage `json:"vault"`
 		Shield json.RawMessage `json:"shield"`
+		Atlas  struct {
+			Configured bool `json:"configured"`
+			Connected  bool `json:"connected"`
+		} `json:"atlas"`
 	}
 	if err := json.NewDecoder(response.Body).Decode(&status); err != nil || len(status.Vault) == 0 || len(status.Shield) == 0 {
 		t.Fatalf("status route must report vault and shield: %v %s", err, response.Body.String())
+	}
+	if status.Atlas.Configured || status.Atlas.Connected {
+		t.Fatal("without a database the status route must report atlas as unconfigured")
 	}
 	if got := response.Header().Get("Access-Control-Allow-Origin"); got != "*" {
 		t.Fatalf("unexpected CORS origin header %q", got)
@@ -66,6 +75,13 @@ func TestHandlerServesStatusTestbenchAndCORSWithoutADashboard(t *testing.T) {
 	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/", nil))
 	if response.Code != http.StatusNotFound {
 		t.Fatalf("an empty static directory must not be served, got %d", response.Code)
+	}
+
+	response = httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	body := response.Body.String()
+	if response.Code != http.StatusOK || !strings.Contains(body, `itemba_http_requests_total{code="200",method="GET",route="/api/status"} 1`) {
+		t.Fatalf("metrics route returned %d or did not count the status request:\n%s", response.Code, body)
 	}
 }
 
@@ -119,5 +135,23 @@ func TestVaultRoutesReportNoActiveSession(t *testing.T) {
 	handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/vault/destroy", nil))
 	if response.Code != http.StatusOK {
 		t.Fatalf("destroy without a session returned %d", response.Code)
+	}
+}
+
+func TestHandlerWorksWithoutMetrics(t *testing.T) {
+	sh := shield.New()
+	sc := scout.New(sh, "http://127.0.0.1:0")
+	t.Cleanup(sc.Close)
+	handler := New(Dependencies{Shield: sh, Scout: sc, Vault: vault.NewManager(sh)}).Handler()
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	if response.Code != http.StatusNotFound {
+		t.Fatalf("metrics must not be served when not configured, got %d", response.Code)
+	}
+	response = httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/status", nil))
+	if response.Code != http.StatusOK {
+		t.Fatalf("status returned %d", response.Code)
 	}
 }

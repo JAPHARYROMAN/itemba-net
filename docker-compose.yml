@@ -30,9 +30,67 @@ services:
     networks:
       - itemba_isolated_net
 
+  # Atlas: PostgreSQL with the pgvector extension, the system of record from Phase 1.
+  # Connect the binary with ITEMBA_DATABASE_URL=postgres://itemba:itemba-dev@127.0.0.1:5432/itemba
+  itemba-atlas:
+    image: pgvector/pgvector:pg16
+    container_name: itemba-atlas
+    environment:
+      POSTGRES_DB: itemba
+      POSTGRES_USER: itemba
+      POSTGRES_PASSWORD: ${ITEMBA_ATLAS_PASSWORD:-itemba-dev}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - itemba-atlas-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U itemba -d itemba"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Prometheus scrapes the binary's /metrics on the host every 15 seconds.
+  itemba-prometheus:
+    image: prom/prometheus:v3.5.0
+    container_name: itemba-prometheus
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - itemba-prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  # Grafana with the Phase 0 dashboard provisioned. Sign in as admin at http://127.0.0.1:3000
+  itemba-grafana:
+    image: grafana/grafana:12.1.0
+    container_name: itemba-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${ITEMBA_GRAFANA_PASSWORD:-itemba-dev}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - itemba-grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - itemba-prometheus
+    restart: unless-stopped
+
 networks:
   itemba_isolated_net:
     driver: bridge
     ipam:
       config:
         - subnet: 172.28.0.0/16
+
+volumes:
+  itemba-atlas-data:
+  itemba-prometheus-data:
+  itemba-grafana-data:

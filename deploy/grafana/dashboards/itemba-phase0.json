@@ -1,0 +1,101 @@
+{
+  "uid": "itemba-phase0",
+  "title": "ITEMBA NET Phase 0",
+  "tags": ["itemba"],
+  "editable": true,
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "time": { "from": "now-1h", "to": "now" },
+  "timezone": "browser",
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Search duration",
+      "description": "Time to answer a search request. The white paper targets a first indexed result in under one second once Atlas exists.",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "itemba-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.95, sum by (le) (rate(itemba_search_duration_seconds_bucket[5m])))", "legendFormat": "p95" },
+        { "refId": "B", "expr": "histogram_quantile(0.50, sum by (le) (rate(itemba_search_duration_seconds_bucket[5m])))", "legendFormat": "p50" }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Searches per minute",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "itemba-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum by (cached) (rate(itemba_search_duration_seconds_count[5m])) * 60", "legendFormat": "cached={{cached}}" }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Probe outcomes, last hour",
+      "description": "Playback probe outcomes attached to search results, by status.",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "itemba-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum by (status) (increase(itemba_probe_outcomes_total[1h]))", "legendFormat": "{{status}}" }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Shield blocked by layer",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "itemba-prometheus" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value_and_name", "colorMode": "value", "graphMode": "area" },
+      "targets": [
+        { "refId": "A", "expr": "itemba_shield_blocked_total", "legendFormat": "{{layer}}" }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Vault session active",
+      "gridPos": { "x": 0, "y": 16, "w": 8, "h": 5 },
+      "datasource": { "type": "prometheus", "uid": "itemba-prometheus" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "none" },
+      "fieldConfig": { "defaults": { "thresholds": { "mode": "absolute", "steps": [ { "color": "text", "value": null }, { "color": "green", "value": 1 } ] } }, "overrides": [] },
+      "targets": [ { "refId": "A", "expr": "itemba_vault_session_active" } ]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Atlas connected",
+      "gridPos": { "x": 8, "y": 16, "w": 8, "h": 5 },
+      "datasource": { "type": "prometheus", "uid": "itemba-prometheus" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "none" },
+      "fieldConfig": { "defaults": { "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] } }, "overrides": [] },
+      "targets": [ { "refId": "A", "expr": "itemba_atlas_connected" } ]
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "Atlas migrations pending",
+      "gridPos": { "x": 16, "y": 16, "w": 8, "h": 5 },
+      "datasource": { "type": "prometheus", "uid": "itemba-prometheus" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "none" },
+      "fieldConfig": { "defaults": { "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "orange", "value": 1 } ] } }, "overrides": [] },
+      "targets": [ { "refId": "A", "expr": "itemba_atlas_migrations_pending" } ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Console requests per minute",
+      "gridPos": { "x": 0, "y": 21, "w": 24, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "itemba-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum by (route, code) (rate(itemba_http_requests_total{route!=\"static\",route!=\"/metrics\"}[5m])) * 60", "legendFormat": "{{route}} {{code}}" }
+      ]
+    }
+  ]
+}
