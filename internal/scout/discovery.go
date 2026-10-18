@@ -11,115 +11,32 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unicode"
+
+	"github.com/itemba-net/core/internal/lens"
 )
 
-var movieYearPattern = regexp.MustCompile(`\b(18\d{2}|19\d{2}|20\d{2})\b`)
-var movieCreatorCreditPattern = regexp.MustCompile(`(?i)^.+?['’]s\s+`)
+// Title identity lives in internal/lens so Atlas, the console and scout
+// agree on what a title is. These names remain so the provider code reads
+// as before.
+var movieYearPattern = lens.YearPattern
 
-func movieQuery(query string) (string, int) {
-	query = trimMovieSearchWords(query)
-	year := 0
-	if matches := movieYearPattern.FindAllStringIndex(query, -1); len(matches) > 0 {
-		last := matches[len(matches)-1]
-		prefix := strings.TrimSpace(strings.TrimRight(query[:last[0]], " (["))
-		suffix := strings.TrimSpace(strings.Trim(query[last[1]:], ") ]"))
-		parsed, _ := strconv.Atoi(query[last[0]:last[1]])
-		if prefix != "" && suffix == "" && parsed <= time.Now().Year()+1 {
-			year, query = parsed, prefix
-		}
-	}
-	return trimMovieSearchWords(query), year
-}
+func movieQuery(query string) (string, int) { return lens.CanonicalQuery(query) }
 
-func trimMovieSearchWords(query string) string {
-	query = strings.TrimSpace(query)
-	lower := strings.ToLower(query)
-	if strings.HasPrefix(lower, "watch ") {
-		query = strings.TrimSpace(query[6:])
-	}
-	for _, suffix := range []string{" full movie online", " full movie", " watch online", " movie online", " online", " movie"} {
-		if strings.HasSuffix(strings.ToLower(query), suffix) && len(query) > len(suffix) {
-			query = strings.TrimSpace(query[:len(query)-len(suffix)])
-			break
-		}
-	}
-	return query
-}
+func trimMovieSearchWords(query string) string { return lens.TrimSearchWords(query) }
 
-func titleWords(value string) []string {
-	return strings.FieldsFunc(strings.ToLower(value), func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsNumber(r) })
-}
+func titleWords(value string) []string { return lens.Words(value) }
 
-func substantiveTitleWords(value string) []string {
-	var words []string
-	for _, word := range titleWords(value) {
-		switch word {
-		case "a", "an", "the", "of", "and":
-			continue
-		}
-		words = append(words, word)
-	}
-	return words
-}
+func substantiveTitleWords(value string) []string { return lens.SubstantiveWords(value) }
 
-// Keep release labels separate from the title: the 2001 in a movie's name
-// must not be mistaken for its release year, while a (1968) label should be.
 func movieTitleDetails(candidate CandidateSource) (string, int) {
-	base := strings.TrimSpace(candidate.Title)
-	metadata := ""
-	if i := strings.IndexAny(base, "(["); i > 0 {
-		metadata, base = base[i:], strings.TrimSpace(base[:i])
-	}
-	year := candidate.ReleaseYear
-	if year == 0 {
-		if found := movieYearPattern.FindAllString(metadata, -1); len(found) > 0 {
-			parsed, _ := strconv.Atoi(found[len(found)-1])
-			if parsed <= time.Now().Year()+1 {
-				year = parsed
-			}
-		}
-	}
-	canonical, trailingYear := movieQuery(base)
-	if year == 0 {
-		year = trailingYear
-	}
-	return canonical, year
+	return lens.TitleDetails(candidate.Title, candidate.ReleaseYear)
 }
 
-// Related videos are separate search intents. Detect these across the complete
-// source title, including metadata that is removed for canonical title matching.
 func hasUnrequestedDerivative(query, candidate string) bool {
-	query = " " + strings.Join(titleWords(query), " ") + " "
-	candidate = " " + strings.Join(titleWords(candidate), " ") + " "
-	groups := [][]string{
-		{"trailer", "trailers", "teaser", "teasers"},
-		{"reveal", "reveals", "announcement", "announcements", "fan made", "fanmade"},
-		{"review", "reviews"},
-		{"reaction", "reactions"},
-		{"explained", "explanation"},
-		{"clip", "clips"},
-		{"soundtrack", "soundtracks", "score", "scores"},
-		{"news"},
-		{"opening", "closing", "openingclosing"},
-		{"intermission"},
-		{"behind the scenes", "behind scenes", "behindscenes", "making of"},
-		{"analysis", "analyses", "breakdown", "hidden meaning", "things to know"},
-		{"interview", "interviews", "commentary"},
-		{"screenbug", "up next", "upnext"},
-	}
-	for _, group := range groups {
-		found, requested := false, false
-		for _, phrase := range group {
-			found = found || strings.Contains(candidate, " "+phrase+" ")
-			requested = requested || strings.Contains(query, " "+phrase+" ")
-		}
-		if found && !requested {
-			return true
-		}
-	}
-	return false
+	return lens.HasUnrequestedDerivative(query, candidate)
 }
+
+var movieCreatorCreditPattern = regexp.MustCompile(`(?i)^.+?['’]s\s+`)
 
 func relevanceScore(query string, candidate CandidateSource) int {
 	title, requestedYear := movieQuery(query)

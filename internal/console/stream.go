@@ -217,7 +217,8 @@ func mergeLocations(q lens.ObjectQuery, known []atlas.KnownLocation, report scou
 			}
 		}
 		level := lens.LevelFromChecks(availability, playback, confirmed)
-		relevance := lens.TitleRelevance(q.TitleKey, lens.NormalizeTitle(source.Title))
+		// A listed title is parsed like a query so "Sintel (2010)" is Sintel.
+		relevance := lens.TitleRelevance(q.TitleKey, lens.Parse(source.Title).TitleKey)
 		if q.URL != "" {
 			relevance = 1
 		}

@@ -1,8 +1,9 @@
 package scout
 
 import (
-	"strconv"
 	"strings"
+
+	"github.com/itemba-net/core/internal/lens"
 )
 
 func archiveNonMovieFile(name string) bool {
@@ -18,19 +19,5 @@ func archiveNonMovieFile(name string) bool {
 // Item descriptions can be mislabeled. An explicit filename year that is
 // neither the release year nor part of the movie title contradicts that item.
 func movieFileYearConflicts(name, title string, releaseYear int) bool {
-	if releaseYear == 0 {
-		return false
-	}
-	titleYears := map[string]bool{}
-	for _, year := range movieYearPattern.FindAllString(title, -1) {
-		titleYears[year] = true
-	}
-	label := strings.NewReplacer("_", " ", "-", " ", ".", " ").Replace(name)
-	for _, year := range movieYearPattern.FindAllString(label, -1) {
-		parsed, _ := strconv.Atoi(year)
-		if parsed != releaseYear && !titleYears[year] {
-			return true
-		}
-	}
-	return false
+	return lens.FileYearConflicts(name, title, releaseYear)
 }

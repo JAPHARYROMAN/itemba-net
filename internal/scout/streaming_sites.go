@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"golang.org/x/net/html"
+
+	"github.com/itemba-net/core/internal/lens"
 )
 
 const minimumAdditionalFeatureDuration = 40 * 60
@@ -130,13 +132,11 @@ func additionalFeatureSearchResults(data []byte, page *url.URL, query string) []
 	return found
 }
 
+// A movie article can add "Full Movie Review" after its release-year label
+// while still embedding the feature. Its canonical title must match exactly;
+// the independently checked media metadata must also identify the full film.
 func sameAdditionalFeatureTitle(left, right string) bool {
-	a, _ := movieTitleDetails(CandidateSource{Title: left})
-	b, _ := movieTitleDetails(CandidateSource{Title: right})
-	// A movie article can add "Full Movie Review" after its release-year label
-	// while still embedding the feature. Its canonical title must match exactly;
-	// the independently checked media metadata must also identify the full film.
-	return a != "" && !hasUnrequestedDerivative(a, b) && strings.Join(titleWords(a), " ") == strings.Join(titleWords(b), " ")
+	return lens.SameFeatureTitle(left, right)
 }
 
 func resolveAdditionalFreeMovie(ctx context.Context, client *http.Client, source CandidateSource) (CandidateSource, bool) {
