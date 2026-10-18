@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"os"
@@ -32,7 +32,7 @@ func writeTestConfig(t *testing.T, contents string) string {
 func TestLocalConfigLoadsOnlyAllowedProcessSettings(t *testing.T) {
 	clearTestConfigEnv(t)
 	path := writeTestConfig(t, "# Local development\r\nPORT = '8089' # Port comment\r\nBRAVE_SEARCH_API_KEY=\"test-brave-token#literal\" # Key comment\r\nTAVILY_API_KEY='test-tavily-token' # Alternate provider\r\n")
-	if err := loadLocalConfig(path); err != nil {
+	if err := LoadLocal(path); err != nil {
 		t.Fatal(err)
 	}
 	if os.Getenv("PORT") != "8089" || os.Getenv("BRAVE_SEARCH_API_KEY") != "test-brave-token#literal" || os.Getenv("TAVILY_API_KEY") != "test-tavily-token" {
@@ -46,7 +46,7 @@ func TestLocalConfigPreservesExplicitEnvironmentIncludingBlank(t *testing.T) {
 	t.Setenv("BRAVE_SEARCH_API_KEY", "test-process-token")
 	t.Setenv("TAVILY_API_KEY", "test-process-tavily-token")
 	path := writeTestConfig(t, "PORT=8089\nBRAVE_SEARCH_API_KEY=test-file-token\nTAVILY_API_KEY=test-file-tavily-token\n")
-	if err := loadLocalConfig(path); err != nil {
+	if err := LoadLocal(path); err != nil {
 		t.Fatal(err)
 	}
 	if os.Getenv("PORT") != "8099" || os.Getenv("BRAVE_SEARCH_API_KEY") != "test-process-token" || os.Getenv("TAVILY_API_KEY") != "test-process-tavily-token" {
@@ -54,7 +54,7 @@ func TestLocalConfigPreservesExplicitEnvironmentIncludingBlank(t *testing.T) {
 	}
 	t.Setenv("BRAVE_SEARCH_API_KEY", "")
 	t.Setenv("TAVILY_API_KEY", "")
-	if err := loadLocalConfig(path); err != nil {
+	if err := LoadLocal(path); err != nil {
 		t.Fatal(err)
 	}
 	if value, explicit := os.LookupEnv("BRAVE_SEARCH_API_KEY"); !explicit || value != "" {
@@ -67,11 +67,11 @@ func TestLocalConfigPreservesExplicitEnvironmentIncludingBlank(t *testing.T) {
 
 func TestMissingAndBlankLocalConfigDoNotConfigureBrave(t *testing.T) {
 	clearTestConfigEnv(t)
-	if err := loadLocalConfig(filepath.Join(t.TempDir(), ".env.local")); err != nil {
+	if err := LoadLocal(filepath.Join(t.TempDir(), ".env.local")); err != nil {
 		t.Fatalf("optional missing file failed: %v", err)
 	}
 	path := writeTestConfig(t, "PORT=\nBRAVE_SEARCH_API_KEY=\" \" # No key configured\nTAVILY_API_KEY= # No alternate key configured\n")
-	if err := loadLocalConfig(path); err != nil {
+	if err := LoadLocal(path); err != nil {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"PORT", "BRAVE_SEARCH_API_KEY", "TAVILY_API_KEY"} {
@@ -140,7 +140,7 @@ func TestLocalConfigDiagnosticsNeverEchoValues(t *testing.T) {
 func TestMalformedLocalConfigDoesNotPartiallyApplySettings(t *testing.T) {
 	clearTestConfigEnv(t)
 	path := writeTestConfig(t, "PORT=8089\nBRAVE_SEARCH_API_KEY='test-unterminated\n")
-	if err := loadLocalConfig(path); err == nil {
+	if err := LoadLocal(path); err == nil {
 		t.Fatal("malformed configuration was accepted")
 	}
 	for _, name := range []string{"PORT", "BRAVE_SEARCH_API_KEY", "TAVILY_API_KEY"} {
@@ -168,10 +168,10 @@ func TestLocalConfigRejectsDuplicatesInvalidPortsAndOversizedFiles(t *testing.T)
 	}
 	clearTestConfigEnv(t)
 	path := writeTestConfig(t, strings.Repeat("x", maxLocalConfigBytes+1))
-	if err := loadLocalConfig(path); err == nil {
+	if err := LoadLocal(path); err == nil {
 		t.Fatal("oversized file was accepted")
 	}
-	if err := loadLocalConfig(t.TempDir()); err == nil {
+	if err := LoadLocal(t.TempDir()); err == nil {
 		t.Fatal("directory was accepted as local configuration")
 	}
 }

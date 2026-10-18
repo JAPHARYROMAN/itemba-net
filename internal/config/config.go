@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"fmt"
@@ -14,10 +14,10 @@ const (
 	maxLocalConfigLine  = 4 * 1024
 )
 
-// loadLocalConfig reads optional local process configuration. Explicit process
+// LoadLocal reads optional local process configuration. Explicit process
 // environment variables take precedence, even when explicitly set to blank.
 // Values are literal: no variable interpolation, shell commands, or escapes.
-func loadLocalConfig(path string) error {
+func LoadLocal(path string) error {
 	file, err := os.Open(path)
 	if os.IsNotExist(err) {
 		return nil

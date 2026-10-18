@@ -14,12 +14,17 @@ The [ITEMBA NET White Paper](WHITEPAPER.md) defines the direction of this projec
 ```text
 ITEMBA-NET/
 ├── cmd/
-│   └── itemba-server/
-│       ├── main.go                 # Unified Go Control Plane (HTTP + WebSocket + Pion WebRTC Signaling)
-│       └── testbench.go            # Built-in Clean Cinema, SketchyStreamz Ad-Trap, & Fake-Wall testbenches
+│   └── itemba/
+│       ├── main.go                 # Entry point: --role flag, local configuration, subsystem wiring
+│       └── role.go                 # Roles: console and all run now; crawler and probe arrive with Phases 2 and 4
 ├── internal/
 │   ├── cdp/
 │   │   └── client.go               # Concurrent Chrome DevTools Protocol client & hybrid Docker/Local launcher
+│   ├── config/
+│   │   └── config.go               # Optional .env.local loader; process environment variables take precedence
+│   ├── console/                    # Operator interface: HTTP API, WebSocket multiplexer, dashboard
+│   │   ├── console.go              # Route registration and handlers over scout, vault, shield and relay
+│   │   └── testbench.go            # Built-in Clean Cinema, SketchyStreamz Ad-Trap, & Fake-Wall testbenches
 │   ├── shield/                     # Pillar 3: itemba-shield (Triple-Layer Ad & Threat Guillotine)
 │   │   ├── blocklists.go           # Layer 1 DNS Sinkhole (OISD/HaGeZi/StevenBlack) & Layer 2 CDP Filter rules
 │   │   ├── scripts.go              # Layer 3 Window-Spawn Lock, Z-Index Clickjacking Sweeper, & Theater Isolator
@@ -118,7 +123,7 @@ This is federated discovery with a short-lived cache. Continuous global crawling
 
 1. Open [Tavily](https://app.tavily.com), create an account or sign in, and obtain an API key from the dashboard. Its [free plan](https://www.tavily.com/pricing) currently includes 1,000 credits per month without a credit card.
 2. Save the key as `TAVILY_API_KEY=your_key_here` in the project-root `.env.local`. Keep keys out of chat, source code and browser configuration.
-3. Restart `itemba-server.exe` from the project root. Existing process environment variables take precedence over the local file. The file accepts only `PORT`, `TAVILY_API_KEY` and `BRAVE_SEARCH_API_KEY`.
+3. Restart `itemba.exe` from the project root. Existing process environment variables take precedence over the local file. The file accepts only `PORT`, `TAVILY_API_KEY` and `BRAVE_SEARCH_API_KEY`.
 4. Search for a movie and open **Search coverage**. A working connection shows **Tavily web search** with the number of destination links returned. Authentication and quota failures appear without exposing the key.
 
 The app requests [basic search](https://docs.tavily.com/documentation/api-reference/endpoint/search), with automatic search-depth selection, generated answers and raw-page extraction disabled. Basic requests cost one credit. Worldwide searches omit country and preferred-domain fields and search for free, rental and purchase options across the web. Guide/reference domains are excluded upstream and all returned destinations are filtered again locally. Explicit country preferences may add country and service hints; they never guarantee local title availability. Tavily has a bounded ten-second request budget inside the 44-second search deadline, which also covers free-source discovery, availability and playback checks.
@@ -129,7 +134,7 @@ When both keys are configured, Tavily takes precedence. The app sends one web-pr
 
 1. Open the [Brave Search API dashboard](https://api-dashboard.search.brave.com/app/keys), sign in or register, activate a **Search** plan, and create a key. Review billing and usage limits in your account. [Brave's setup guide](https://api-dashboard.search.brave.com/documentation/quickstart) describes the account and plan steps.
 2. Open `.env.local` in the project root and set `BRAVE_SEARCH_API_KEY=your_key_here`. A blank local file is supplied for this workspace; `.env.example` is the reusable template. Keep the actual key in `.env.local`, which is excluded from version control. The key belongs to the Go server and must never use a `VITE_` prefix or appear in browser code.
-3. Restart `itemba-server.exe` from the project root. Environment variables already set for the process take precedence over `.env.local`, including an explicitly blank variable. The optional file supports `BRAVE_SEARCH_API_KEY`, `TAVILY_API_KEY` and `PORT`; quoted literal values and comments are accepted, without shell expansion.
+3. Restart `itemba.exe` from the project root. Environment variables already set for the process take precedence over `.env.local`, including an explicitly blank variable. The optional file supports `BRAVE_SEARCH_API_KEY`, `TAVILY_API_KEY` and `PORT`; quoted literal values and comments are accepted, without shell expansion.
 4. Search for a movie and expand **Search coverage**. A working connection shows **Brave web search** with the number of destination links returned. Invalid keys or plans show an authentication error; rate limits show a retry or quota message. An authenticated search can legitimately return no matches.
 
 Brave searches the worldwide index (`country=ALL`); a selected country supplies a location hint. Recognized movie-site page titles are normalized for matching, while the original title is preserved in the description. Web listings remain unverified with unknown access until there is evidence of price or availability. Opening a result uses the same protected browser as catalog results.
@@ -140,7 +145,7 @@ Reports with web discovery enabled are not kept in the server's cross-request se
 
 ```powershell
 go test ./...
-go build -o itemba-server.exe ./cmd/itemba-server
+go build -o itemba.exe ./cmd/itemba
 cd web
 npx tsc --noEmit
 npm run build
@@ -160,12 +165,14 @@ The ordinary test suite uses offline fixtures for playback evidence, global rank
 
 ### 1. Run Unified Platform (Local Hybrid Mode — Zero Docker Required)
 
-The built frontend (`web/dist`) is served directly by `itemba-server` on `http://127.0.0.1:8080`:
+The built frontend (`web/dist`) is served directly by `itemba` on `http://127.0.0.1:8080`:
 
 ```powershell
 # Start the ITEMBA NET Control Plane + Dashboard on http://127.0.0.1:8080
-./itemba-server.exe
+./itemba.exe
 ```
+
+The binary takes a `--role` flag: `console`, `crawler`, `probe` or `all` (the default). Only `console` and `all` run in this phase; `crawler` and `probe` refuse to start until Phases 2 and 4 of the [Implementation Plan](IMPLEMENTATION-PLAN.md) deliver their workers. `--config` names the optional local configuration file (default `.env.local`) and `--static` the built dashboard directory (default `web/dist`).
 
 For hot-reloading frontend development on `http://127.0.0.1:5173`:
 
