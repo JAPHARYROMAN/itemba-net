@@ -202,13 +202,28 @@ docker compose up -d itemba-prometheus itemba-grafana
 
 Prometheus scrapes the binary on the host at `host.docker.internal:8080` every 15 seconds (`deploy/prometheus/prometheus.yml`). Grafana listens on `http://127.0.0.1:3000`; sign in as `admin` with `ITEMBA_GRAFANA_PASSWORD` (default `itemba-dev`) and open **ITEMBA NET Phase 0** in the ITEMBA NET folder. The dashboard is `deploy/grafana/dashboards/itemba-phase0.json` and can be edited in place.
 
-**Linux execution host.** Vault's isolation tiers, per-session egress and GPU access in later phases need Linux with virtualisation. Two options fit Phase 0: a dedicated Linux machine or virtual server with KVM, or WSL2 on this Windows machine with nested virtualisation enabled. The development loop is the same for both: edit, run the Go tests and the Console on Windows, then build for Linux and run the binary on the Linux side:
+**Linux execution host.** Vault's isolation tiers, per-session egress and GPU access in later phases need Linux with virtualisation. Phase 0 uses Debian 13 inside WSL2 on the development machine; a dedicated Linux machine or virtual server can replace it later without a code change. Setup, once:
+
+```powershell
+wsl --install -d Debian --no-launch
+```
+
+Then create `%USERPROFILE%\.wslconfig` containing `[wsl2]`, `nestedVirtualization=true` and a `memory` cap, run `wsl --shutdown`, and provision the distro as root:
+
+```powershell
+wsl -d Debian -u root -- bash -c "apt-get update && apt-get install -y chromium ca-certificates curl fonts-liberation && useradd -m -s /bin/bash itemba && usermod -aG kvm itemba && printf '[user]\ndefault=itemba\n' > /etc/wsl.conf"
+```
+
+Chromium must run as the non-root `itemba` user because Vault launches it with its sandbox on. With nested virtualisation, `/dev/kvm` exists inside the distro, which the microVM tier in Phase 4 will need.
+
+The development loop: edit and test on Windows, cross-compile, and run inside the distro from the same checkout, which WSL mounts under `/mnt/c`:
 
 ```powershell
 $env:GOOS = "linux"; $env:GOARCH = "amd64"; go build -o itemba ./cmd/itemba
+wsl -d Debian -- bash -c "cd '/mnt/c/projects/Actual Projects/ITEMBA-NET' && ./itemba --role all"
 ```
 
-Copy the binary and `web/dist` to the Linux host, or clone the repository there and build natively. CI builds and tests every commit on Ubuntu, so the Linux build is verified continuously. The host itself is a Phase 0 exit criterion that stays open until it exists.
+Windows reaches the server at `http://127.0.0.1:8080` through WSL's localhost forwarding. Verified on 18 October 2026: the binary served the dashboard from Debian, a worldwide search for *Sintel* returned Internet Archive sources with a decoded playback start from the Linux Chromium, and a Vault session opened the clean-cinema testbench in local isolated mode. CI builds and tests every commit on Ubuntu as well.
 
 For hot-reloading frontend development on `http://127.0.0.1:5173`:
 

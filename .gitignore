@@ -7,3 +7,4 @@
 *.exe
 web/node_modules/
 web/dist/
+/itemba
