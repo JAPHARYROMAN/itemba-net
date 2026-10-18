@@ -34,15 +34,22 @@ func ParseRole(value string) (Role, error) {
 }
 
 // PendingPhase reports the implementation-plan phase that delivers a role's
-// workers, or zero when the role can run now. Naming the crawler and probe
-// roles before they exist keeps the flag stable across phases while refusing,
-// explicitly, to pretend they run.
+// workers, or zero when the role can run now. Naming a role before it exists
+// keeps the flag stable across phases while refusing, explicitly, to pretend
+// it runs. The crawler arrived with Phase 2; the probe arrives with Phase 4.
 func (r Role) PendingPhase() int {
-	switch r {
-	case RoleCrawler:
-		return 2
-	case RoleProbe:
+	if r == RoleProbe {
 		return 4
 	}
 	return 0
+}
+
+// RunsCrawler reports whether the role runs the continuous crawl.
+func (r Role) RunsCrawler() bool {
+	return r == RoleCrawler || r == RoleAll
+}
+
+// ServesConsole reports whether the role runs the operator interface.
+func (r Role) ServesConsole() bool {
+	return r == RoleConsole || r == RoleAll
 }

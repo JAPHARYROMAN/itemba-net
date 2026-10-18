@@ -262,6 +262,22 @@ Verified in the browser on 18 October 2026 against the WSL2 database: a first *S
 
 With that, every Phase 1 workstream in the implementation plan is in place: schema, Lens, read-through search, write-back with the cache retired, the ladder with decay, the Console and the golden fixtures.
 
+### Phase 2: the crawler
+
+Phase 2 is under way. Discovery stops being a set of hand-written providers and becomes a crawl that runs without an operator typing queries.
+
+**Drivers as data.** `drivers/*.yaml` describe how to search a host and read its listings: the search URL and parameters with `{query}`, `{query_phrase}` and `{market}` placeholders, the storefront markets to cover, the JSON path to the items, fields an item must have, field mappings with transforms (`year_of_date`, `year_in_text`, `duration_from_millis`, `scalar`), storefront offers, constants and rate limits. Unknown keys and invalid rules are refused when a driver loads, and one broken file fails the whole load. Two drivers ship: `apple-movies`, the eight-storefront catalog converted from the legacy provider with that provider's own test as its parity check, and `internet-archive`, the documented Advanced Search. The binary loads drivers from `--drivers` (default `drivers`), so a driver fix needs no rebuild.
+
+**Frontier and scheduler.** `atlas.frontier` (migration 0003) holds every URL the crawler owes a fetch: a driver search for an object in a market, or a page fetch for a location whose evidence has gone stale. Rows are leased with `FOR UPDATE SKIP LOCKED`, so several crawler processes can share one frontier. A per-host token bucket and concurrency cap come from each driver's `rate`.
+
+**Fetch tier one.** Plain HTTP with rotating identity profiles, a 2 MiB body limit and per-host exponential backoff on 403, 429 and 503 up to six hours. Tiers two and three, headless rendering and a Vault session, come later in Phase 2.
+
+**The crawler role.** `--role crawler`, or `all` with a database, runs the loop: every five minutes it seeds a search per driver and market for the objects Atlas knows and a page fetch for stale locations; every thirty seconds it leases a batch and processes it with four workers. Searches record listings as locations with `driver:<name>` listed evidence; page fetches record reachable or listed evidence with the HTTP status. A completed search rests for 24 hours, a page for 72, and failures back off by attempt. `GET /api/crawler/status` reports the drivers, cycles, the last cycle, frontier counts and hosts in backoff, and metrics gain `itemba_crawler_fetches_total` and `itemba_crawler_listings_total`. The crawler role refuses to start without a database.
+
+Verified on 18 October 2026 against the WSL2 database: one cycle for a seeded title enqueued eight Apple searches, one Archive search and one stale page, processed all ten, recorded ten listings and one reachable page, and left nothing due until the refresh windows; the listings read back through the index with their driver evidence.
+
+Still open in Phase 2: converting the remaining providers (PeerTube, Wikimedia Commons, the public-domain sites, Fawesome, NFB, NASA+, Pluto TV, Filmzie) and deleting their bespoke code, HTML drivers, fetch tiers two and three, running the console's discovery burst through drivers, the 72-hour unattended run, and egress rotation.
+
 For hot-reloading frontend development on `http://127.0.0.1:5173`:
 
 ```powershell

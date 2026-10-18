@@ -16,6 +16,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/itemba-net/core/internal/atlas"
+	"github.com/itemba-net/core/internal/crawler"
 	"github.com/itemba-net/core/internal/lens"
 	"github.com/itemba-net/core/internal/metrics"
 	"github.com/itemba-net/core/internal/scout"
@@ -43,6 +44,8 @@ type Dependencies struct {
 	Atlas *atlas.Store
 	// Metrics, when set, serves /metrics and observes requests and searches.
 	Metrics *metrics.Metrics
+	// Crawler, when set, reports the continuous crawl on /api/crawler/status.
+	Crawler *crawler.Crawler
 	// Search runs the discovery burst. It defaults to Scout's search and is
 	// replaceable so tests can run the search routes offline.
 	Search SearchFunc
@@ -62,6 +65,7 @@ type Server struct {
 	relay     http.Handler
 	atlas     *atlas.Store
 	metrics   *metrics.Metrics
+	crawler   *crawler.Crawler
 	search    SearchFunc
 	staticDir string
 }
@@ -79,6 +83,7 @@ func New(deps Dependencies) *Server {
 		relay:     deps.Relay,
 		atlas:     deps.Atlas,
 		metrics:   deps.Metrics,
+		crawler:   deps.Crawler,
 		search:    search,
 		staticDir: deps.StaticDir,
 	}
@@ -120,6 +125,9 @@ func (s *Server) Handler() http.Handler {
 
 	// Real-Time WebSocket Multiplexer (Shield Telemetry + Viewport Stream + Input Events)
 	mux.HandleFunc("/api/ws", s.websocket)
+
+	// Phase 2: the continuous crawl's status
+	mux.HandleFunc("/api/crawler/status", s.crawlerStatus)
 
 	if s.metrics != nil {
 		mux.Handle("/metrics", s.metrics.Handler())

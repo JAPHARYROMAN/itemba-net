@@ -30,6 +30,8 @@ type Metrics struct {
 	providerResults *prometheus.CounterVec
 	probeOutcomes   *prometheus.CounterVec
 	httpRequests    *prometheus.CounterVec
+	crawlFetches    *prometheus.CounterVec
+	crawlListings   *prometheus.CounterVec
 }
 
 // New creates a registry with the Go runtime, process and search metrics.
@@ -67,6 +69,18 @@ func New() *Metrics {
 			Name:      "requests_total",
 			Help:      "Console requests, by route, method and status code.",
 		}, []string{"route", "method", "code"}),
+		crawlFetches: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: "itemba",
+			Subsystem: "crawler",
+			Name:      "fetches_total",
+			Help:      "Frontier entries the crawler processed, by kind and outcome.",
+		}, []string{"kind", "outcome"}),
+		crawlListings: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: "itemba",
+			Subsystem: "crawler",
+			Name:      "listings_total",
+			Help:      "Listings driver searches recorded in Atlas, by driver.",
+		}, []string{"driver"}),
 	}
 	m.registry.MustRegister(
 		collectors.NewGoCollector(),
@@ -76,6 +90,8 @@ func New() *Metrics {
 		m.providerResults,
 		m.probeOutcomes,
 		m.httpRequests,
+		m.crawlFetches,
+		m.crawlListings,
 	)
 	return m
 }

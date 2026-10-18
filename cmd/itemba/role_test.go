@@ -26,11 +26,17 @@ func TestParseRoleRejectsEmptyAndUnknownRoles(t *testing.T) {
 	}
 }
 
-func TestOnlyConsoleAndAllRunInThisPhase(t *testing.T) {
-	if RoleConsole.PendingPhase() != 0 || RoleAll.PendingPhase() != 0 {
-		t.Fatal("console and all must be runnable now")
+func TestRolesRunnableInThisPhase(t *testing.T) {
+	if RoleConsole.PendingPhase() != 0 || RoleAll.PendingPhase() != 0 || RoleCrawler.PendingPhase() != 0 {
+		t.Fatal("console, crawler and all must be runnable now")
 	}
-	if RoleCrawler.PendingPhase() != 2 || RoleProbe.PendingPhase() != 4 {
-		t.Fatal("crawler and probe must name the phases that deliver them")
+	if RoleProbe.PendingPhase() != 4 {
+		t.Fatal("probe must name the phase that delivers it")
+	}
+	if !RoleAll.RunsCrawler() || !RoleCrawler.RunsCrawler() || RoleConsole.RunsCrawler() {
+		t.Fatal("crawler and all run the crawl; console does not")
+	}
+	if !RoleAll.ServesConsole() || !RoleConsole.ServesConsole() || RoleCrawler.ServesConsole() {
+		t.Fatal("console and all serve the interface; crawler does not")
 	}
 }

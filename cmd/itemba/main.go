@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -17,6 +18,7 @@ import (
 	"github.com/itemba-net/core/internal/atlas"
 	"github.com/itemba-net/core/internal/config"
 	"github.com/itemba-net/core/internal/console"
+	"github.com/itemba-net/core/internal/crawler"
 	"github.com/itemba-net/core/internal/metrics"
 	"github.com/itemba-net/core/internal/relay"
 	"github.com/itemba-net/core/internal/scout"
@@ -29,6 +31,7 @@ func main() {
 	configFlag := flag.String("config", ".env.local", "optional local configuration file; process environment variables take precedence")
 	staticFlag := flag.String("static", "web/dist", "directory holding the built dashboard, served when its index.html exists")
 	databaseFlag := flag.String("database", "", "PostgreSQL URL for Atlas; overrides ITEMBA_DATABASE_URL. Empty runs without persistence")
+	driversFlag := flag.String("drivers", "drivers", "directory of host driver definitions for the crawler")
 	flag.Parse()
 
 	role, err := ParseRole(*roleFlag)
@@ -64,18 +67,30 @@ func main() {
 	measures.RegisterVault(vlt)
 	measures.RegisterAtlas(store)
 
-	srv := console.New(console.Dependencies{
-		Shield:    sh,
-		Scout:     sc,
-		Vault:     vlt,
-		Relay:     relay.NewHandler(sh),
-		Atlas:     store,
-		Metrics:   measures,
-		StaticDir: *staticFlag,
-	})
-	server := &http.Server{
-		Addr:    ":" + cfg.Port,
-		Handler: srv.Handler(),
+	ctx, stop := context.WithCancel(context.Background())
+	defer stop()
+
+	var crawl *crawler.Crawler
+	if role.RunsCrawler() {
+		crawl = openCrawler(role, store, *driversFlag, measures)
+		if crawl != nil {
+			go crawl.Run(ctx)
+		}
+	}
+
+	var server *http.Server
+	if role.ServesConsole() {
+		srv := console.New(console.Dependencies{
+			Shield:    sh,
+			Scout:     sc,
+			Vault:     vlt,
+			Relay:     relay.NewHandler(sh),
+			Atlas:     store,
+			Metrics:   measures,
+			Crawler:   crawl,
+			StaticDir: *staticFlag,
+		})
+		server = &http.Server{Addr: ":" + cfg.Port, Handler: srv.Handler()}
 	}
 
 	go func() {
@@ -83,10 +98,13 @@ func main() {
 		signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 		<-sigCh
 		log.Println("[ITEMBA-NET] Shutting down and destroying active sandboxes...")
+		stop()
 		vlt.Destroy()
 		sc.Close()
 		store.Close()
-		_ = server.Close()
+		if server != nil {
+			_ = server.Close()
+		}
 	}()
 
 	log.Printf("================================================================")
@@ -94,12 +112,21 @@ func main() {
 	log.Printf(" • Pillar 1: itemba-scout (Federated Crawler & Pooled CDP Verifier)")
 	log.Printf(" • Pillar 2: itemba-vault (Hybrid RBI Sandbox & Zero-Trust Stream Relay)")
 	log.Printf(" • Pillar 3: itemba-shield (Triple-Layer DNS/CDP/DOM Sanitizer)")
-	log.Printf(" • Metrics at %s/metrics", baseURL)
-	if role == RoleAll {
-		log.Printf(" • Crawler and probe workers arrive with Phases 2 and 4 of IMPLEMENTATION-PLAN.md")
+	if server != nil {
+		log.Printf(" • Metrics at %s/metrics", baseURL)
 	}
+	if crawl != nil {
+		log.Printf(" • Crawler running from %s; status at %s/api/crawler/status", *driversFlag, baseURL)
+	}
+	log.Printf(" • Probe workers arrive with Phase 4 of IMPLEMENTATION-PLAN.md")
 	log.Printf("================================================================")
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+
+	if server == nil {
+		// Crawler-only process: run until a signal arrives.
+		<-ctx.Done()
+		return
+	}
+	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("server error: %v", err)
 	}
 }
@@ -129,4 +156,34 @@ func openAtlas(url string) *atlas.Store {
 	health := store.Health(migrateCtx)
 	log.Printf("[ITEMBA-NET] atlas: connected to PostgreSQL %s; %d migration(s) applied now %v, %d in total", health.ServerVersion, len(applied), applied, health.Migrations)
 	return store
+}
+
+// openCrawler loads the drivers and builds the crawler. The crawler role
+// cannot run without a database; the all role runs its console and says the
+// crawler is idle.
+func openCrawler(role Role, store *atlas.Store, driversDir string, measures *metrics.Metrics) *crawler.Crawler {
+	if store == nil {
+		if role == RoleCrawler {
+			log.Fatalf("[ITEMBA-NET] the crawler needs a database: set ITEMBA_DATABASE_URL or --database")
+		}
+		log.Printf("[ITEMBA-NET] crawler idle: no database configured")
+		return nil
+	}
+	drivers, err := crawler.LoadDir(driversDir)
+	if err != nil {
+		log.Fatalf("[ITEMBA-NET] %v", err)
+	}
+	if len(drivers) == 0 {
+		log.Fatalf("[ITEMBA-NET] no drivers found in %s", driversDir)
+	}
+	crawl, err := crawler.New(crawler.Options{Store: store, Drivers: drivers, Observer: measures})
+	if err != nil {
+		log.Fatalf("[ITEMBA-NET] %v", err)
+	}
+	names := make([]string, 0, len(drivers))
+	for _, d := range drivers {
+		names = append(names, d.Name)
+	}
+	log.Printf("[ITEMBA-NET] crawler: %d driver(s) loaded %v", len(drivers), names)
+	return crawl
 }
