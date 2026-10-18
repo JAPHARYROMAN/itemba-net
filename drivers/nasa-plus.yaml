@@ -1,0 +1,36 @@
+# NASA+'s public WordPress catalog of films. The response is a bare array.
+# Publication dates identify catalog entries, not a film's original release.
+# The main movie media and protected playback are confirmed separately.
+# Contract observed on Planetary Defenders (2025), 4508 seconds, 2026-10-18.
+name: nasa-plus
+provider: NASA+
+hosts: [plus.nasa.gov]
+rate:
+  per_minute: 20
+  concurrency: 2
+search:
+  url: https://plus.nasa.gov/wp-json/wp/v2/video
+  params:
+    search: "{query}"
+    per_page: "20"
+    _fields: id,type,slug,link,date,title,meta
+  status_name: NASA+ free documentaries
+  timeout_seconds: 8
+  require_relevance: true
+  response: json
+  items: "."
+  limit: 6
+  require:
+    type: video
+  require_min:
+    id: 1
+  min_duration_seconds: 2400
+  fields:
+    id: { template: "nasa-{id}" }
+    title: { path: title.rendered, transform: html_unescape }
+    url: { path: link, match: '^https://plus\.nasa\.gov/video/[A-Za-z0-9][A-Za-z0-9_.-]{0,199}/?$' }
+    duration: { path: meta.runtime }
+    description: { default: NASA+ public film catalog. The matching main movie and protected playback are checked separately. }
+  constants:
+    source_type: Web Listing
+    access_type: unknown

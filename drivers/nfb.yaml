@@ -1,0 +1,39 @@
+# The National Film Board of Canada's public film search. Free streaming is a
+# catalog flag here; the full guest player and actual playback are checked
+# separately. Descriptions come back per language, sometimes as plain text.
+name: nfb
+provider: NFB / ONF
+hosts: [nfb.ca, www.nfb.ca, searchapi.nfb.ca]
+rate:
+  per_minute: 20
+  concurrency: 2
+search:
+  url: https://searchapi.nfb.ca/api/search/v4/films/
+  params:
+    q: "{query}"
+    per_page: "6"
+    language: en
+    include: description
+    page: "1"
+    sort_by: relevance
+    order_by: desc
+  status_name: NFB / ONF free film catalog
+  timeout_seconds: 4
+  require_relevance: true
+  response: json
+  items: items
+  limit: 6
+  require:
+    is_streamable_for_free: "true"
+  min_duration_seconds: 2400
+  fields:
+    id: { template: "nfb-{slug}" }
+    title: { path: title }
+    url: { template: "https://www.nfb.ca/film/{slug}/", match: '^https://www\.nfb\.ca/film/[A-Za-z0-9][A-Za-z0-9_.-]{0,199}/$' }
+    year: { path: year }
+    duration: { path: time, transform: duration_seconds }
+    description: { paths: [description.en, description], transform: html_text }
+  constants:
+    source_type: Web Listing
+    access_type: unknown
+    access_note: NFB's catalog lists free streaming; the full guest player and actual playback need separate checks.

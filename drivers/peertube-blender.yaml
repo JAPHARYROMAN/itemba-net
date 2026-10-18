@@ -1,0 +1,55 @@
+# Blender's own PeerTube instance: the official open movies, searchable
+# without an account or key. Search results never establish free access or
+# playback; the video metadata resolver and Probe supply those observations.
+# https://docs.joinpeertube.org/api-rest-reference.html#tag/Search/operation/searchVideos
+name: peertube-blender
+provider: PeerTube (video.blender.org)
+hosts: [video.blender.org]
+rate:
+  per_minute: 20
+  concurrency: 2
+search:
+  url: https://video.blender.org/api/v1/search/videos
+  params:
+    search: "{query}"
+    count: "6"
+    start: "0"
+    nsfw: "false"
+    isLocal: "true"
+  status_name: Blender open movies
+  timeout_seconds: 4
+  require_relevance: true
+  response: json
+  items: data
+  limit: 6
+  require:
+    privacy.id: "1"
+  forbid:
+    isLive: "true"
+    passwordProtected: "true"
+  require_min:
+    duration: 180
+  fields:
+    id: { template: "pt-blender-{uuid}" }
+    # Branding and encoding wrappers used on the official instance only.
+    title:
+      path: name
+      strip_suffixes:
+        - " - Third Open Movie by Blender Foundation"
+        - " - Blender VFX Open Movie"
+        - " - Official Blender Foundation Short Film"
+        - " - Blender animated cartoon"
+        - " - Funny 3D Animated Short"
+        - " - Blender Animated Short"
+        - ". Official Blender Foundation release."
+        - " 60fps 4K"
+    # The page is derived from the video's own id on the official host, so a
+    # foreign or mismatched url field is never followed.
+    url: { template: "https://video.blender.org/videos/watch/{uuid}", match: '(?i)^https://video\.blender\.org/videos/watch/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' }
+    year: { path: originallyPublishedAt, transform: year_of_date }
+    duration: { path: duration, transform: duration_from_seconds }
+    description: { path: description, truncate: 300, default: Listing from Blender's official public video catalog. Movie access and playback are checked separately. }
+  constants:
+    source_type: Federated PeerTube
+    access_type: unknown
+    access_note: A public catalog listing; the video metadata and actual playback have not been checked yet.

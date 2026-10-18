@@ -18,12 +18,15 @@ search:
   # while an unfiltered search still lists feature movies. One bounded retry.
   retry_without: [entity]
   markets: [US, GB, IN, ZA, DE, FR, JP, AU]
+  status_name: "Apple movie catalog ({market})"
+  timeout_seconds: 10
   response: json
   items: results
   require:
     kind: feature-movie
   limit: 20
   fields:
+    id: { template: "apple-{market_lower}-{trackId}" }
     title: { path: trackName }
     url: { path: trackViewUrl, match: '^https://(itunes|tv)\.apple\.com/[^?#]*/movie/' }
     year: { path: releaseDate, transform: year_of_date }
@@ -38,3 +41,4 @@ search:
     access_otherwise: unknown
   constants:
     source_type: Movie Store
+    access_note: "Store listing for {market}. Confirm price and regional availability on the provider. Playback is unverified; an account or compatible player may be required."

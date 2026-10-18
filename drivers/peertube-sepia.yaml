@@ -1,0 +1,32 @@
+# Sepia Search, the public index of federated PeerTube instances. A listing's
+# embed page is verified over HTTP before any playback claim.
+name: peertube-sepia
+provider: PeerTube
+hosts: [sepiasearch.org]
+rate:
+  per_minute: 30
+  concurrency: 2
+search:
+  url: https://sepiasearch.org/api/v1/videos
+  params:
+    search: "{query}"
+    count: "3"
+    nsfw: "false"
+  status_name: PeerTube
+  timeout_seconds: 8
+  response: json
+  items: data
+  limit: 3
+  fields:
+    id: { template: "pt-{uuid}" }
+    title: { path: name }
+    url: { paths: [embedUrl, url] }
+    provider: { template: "PeerTube ({account.host})" }
+    duration: { path: duration, transform: duration_from_seconds }
+    thumbnail: { path: thumbnailUrl }
+    description: { path: description, truncate: 140, default: "Federated PeerTube stream hosted on {account.host}." }
+  constants:
+    source_type: Federated PeerTube
+    access_type: free
+    access_note: Public video listing; access on the hosting instance may vary.
+    listing_only: "false"

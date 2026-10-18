@@ -49,9 +49,16 @@ func (o *countingObserver) ObserveListings(_ string, n int) { o.listings += n }
 
 func TestCrawlerSeedsSearchesHostsAndWritesListingsToAtlas(t *testing.T) {
 	store, ctx := liveStore(t)
-	drivers, err := LoadDir(filepath.Join("..", "..", "drivers"))
+	all, err := LoadDir(filepath.Join("..", "..", "drivers"))
 	if err != nil {
 		t.Fatal(err)
+	}
+	// Two drivers keep the fixture small; the others are proven in driver tests.
+	var drivers []*Driver
+	for _, d := range all {
+		if d.Name == "apple-movies" || d.Name == "internet-archive" {
+			drivers = append(drivers, d)
+		}
 	}
 	object, err := store.UpsertObject(ctx, atlas.Object{Title: "Fixture Film", Year: 2014})
 	if err != nil {

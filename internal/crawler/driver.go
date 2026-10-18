@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -43,31 +44,51 @@ type Rate struct {
 
 // SearchSpec describes a host's search endpoint and how to read its items.
 type SearchSpec struct {
-	URL          string               `yaml:"url"`
-	Params       map[string]string    `yaml:"params"`
-	Headers      map[string]string    `yaml:"headers"`
-	RetryWithout []string             `yaml:"retry_without"`
-	Markets      []string             `yaml:"markets"`
-	Response     string               `yaml:"response"`
-	Items        string               `yaml:"items"`
-	Require      map[string]string    `yaml:"require"`
-	Fields       map[string]FieldSpec `yaml:"fields"`
-	Offers       *OfferSpec           `yaml:"offers"`
-	Constants    map[string]string    `yaml:"constants"`
-	Limit        int                  `yaml:"limit"`
+	URL          string            `yaml:"url"`
+	Params       map[string]string `yaml:"params"`
+	Headers      map[string]string `yaml:"headers"`
+	RetryWithout []string          `yaml:"retry_without"`
+	Markets      []string          `yaml:"markets"`
+	Response     string            `yaml:"response"`
+	// Items is the path to the list of items; "." is the document itself, and
+	// an object at the path is read as its values.
+	Items   string            `yaml:"items"`
+	Require map[string]string `yaml:"require"`
+	// Forbid drops items whose field equals the value; a missing field passes,
+	// which is what a boolean flag such as isLive needs.
+	Forbid map[string]string `yaml:"forbid"`
+	// RequireMin drops items whose numeric field is below the value.
+	RequireMin map[string]float64 `yaml:"require_min"`
+	// MinDurationSeconds drops items whose read duration is known and shorter.
+	MinDurationSeconds float64              `yaml:"min_duration_seconds"`
+	Fields             map[string]FieldSpec `yaml:"fields"`
+	Offers             *OfferSpec           `yaml:"offers"`
+	Constants          map[string]string    `yaml:"constants"`
+	Limit              int                  `yaml:"limit"`
+	// TimeoutSeconds bounds one search request. Default 8.
+	TimeoutSeconds int `yaml:"timeout_seconds"`
+	// StatusName is the provider name the console shows for this search; it
+	// may use {market}. Default: the driver's provider.
+	StatusName string `yaml:"status_name"`
+	// RequireRelevance asks the search pipeline to drop listings whose title
+	// does not match the query, as the legacy providers did for open catalogs.
+	RequireRelevance bool `yaml:"require_relevance"`
 }
 
 // FieldSpec reads one listing field from an item: a path, the first of
 // several paths, or a template over the item and the search variables, then
-// an optional transform and a pattern the result must match.
+// optional cleaning, a transform and a pattern the result must match.
 type FieldSpec struct {
-	Path      string   `yaml:"path"`
-	Paths     []string `yaml:"paths"`
-	Template  string   `yaml:"template"`
-	Transform string   `yaml:"transform"`
-	Default   string   `yaml:"default"`
-	Match     string   `yaml:"match"`
-	match     *regexp.Regexp
+	Path          string   `yaml:"path"`
+	Paths         []string `yaml:"paths"`
+	Template      string   `yaml:"template"`
+	Transform     string   `yaml:"transform"`
+	Default       string   `yaml:"default"`
+	Match         string   `yaml:"match"`
+	StripPrefix   string   `yaml:"strip_prefix"`
+	StripSuffixes []string `yaml:"strip_suffixes"`
+	Truncate      int      `yaml:"truncate"`
+	match         *regexp.Regexp
 }
 
 // OfferSpec reads storefront prices: a currency field and labelled price
@@ -86,11 +107,19 @@ type PriceSpec struct {
 }
 
 var (
-	driverName   = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,63}$`)
-	marketCode   = regexp.MustCompile(`^[A-Z]{2}$`)
-	listingKeys  = map[string]bool{"title": true, "url": true, "media_url": true, "year": true, "duration": true, "description": true, "thumbnail": true, "access_type": true, "price": true, "market": true, "source_type": true}
-	transforms   = map[string]bool{"": true, "scalar": true, "lower": true, "upper": true, "trim": true, "year_of_date": true, "year_in_text": true, "duration_from_millis": true}
-	constantKeys = map[string]bool{"source_type": true, "access_type": true, "media_url": true, "price": true, "market": true}
+	driverName  = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,63}$`)
+	marketCode  = regexp.MustCompile(`^[A-Z]{2}$`)
+	listingKeys = map[string]bool{
+		"id": true, "title": true, "url": true, "media_url": true, "year": true, "duration": true, "description": true,
+		"thumbnail": true, "access_type": true, "price": true, "market": true, "source_type": true, "provider": true,
+		"access_note": true, "resolution": true, "tags": true,
+	}
+	transforms = map[string]bool{
+		"": true, "scalar": true, "lower": true, "upper": true, "trim": true, "year_of_date": true, "year_in_text": true,
+		"duration_from_millis": true, "duration_from_seconds": true, "duration_seconds": true, "html_unescape": true, "html_text": true,
+	}
+	constantKeys = map[string]bool{"source_type": true, "access_type": true, "media_url": true, "price": true, "market": true, "listing_only": true, "access_note": true, "provider": true}
+	htmlTags     = regexp.MustCompile(`<[^>]*>`)
 )
 
 // LoadDir reads every *.yaml and *.yml driver in dir, validates each and
@@ -170,6 +199,9 @@ func (d *Driver) Validate() error {
 	if d.Spec == nil {
 		return errors.New("a search section is required in this phase")
 	}
+	if d.Spec.StatusName == "" {
+		d.Spec.StatusName = d.Provider
+	}
 	return d.Spec.validate()
 }
 
@@ -201,6 +233,9 @@ func (s *SearchSpec) validate() error {
 	if s.Limit <= 0 {
 		s.Limit = 20
 	}
+	if s.TimeoutSeconds <= 0 {
+		s.TimeoutSeconds = 8
+	}
 	if _, ok := s.Fields["title"]; !ok {
 		return errors.New("search.fields.title is required")
 	}
@@ -229,6 +264,9 @@ func (s *SearchSpec) validate() error {
 		}
 		if !transforms[spec.Transform] {
 			return fmt.Errorf("search.fields.%s uses unknown transform %q", key, spec.Transform)
+		}
+		if spec.Truncate < 0 {
+			return fmt.Errorf("search.fields.%s truncate must be positive", key)
 		}
 		if spec.Match != "" {
 			re, err := regexp.Compile(spec.Match)
@@ -272,9 +310,25 @@ func (d *Driver) Markets() []string {
 	return d.Spec.Markets
 }
 
+// HasMarkets reports whether the host is a storefront searched per market.
+func (d *Driver) HasMarkets() bool {
+	return d.Spec != nil && len(d.Spec.Markets) > 0
+}
+
 // Host is the hostname of the search endpoint, which frontier budgets key on.
 func (d *Driver) Host() string {
 	return lens.Hostname(d.Spec.URL)
+}
+
+// Timeout bounds one search request.
+func (d *Driver) Timeout() time.Duration {
+	return time.Duration(d.Spec.TimeoutSeconds) * time.Second
+}
+
+// StatusName is the provider name shown for a search in a market.
+func (d *Driver) StatusName(market string) string {
+	vars := searchVars("", market)
+	return expand(d.Spec.StatusName, func(name string) string { return vars[name] })
 }
 
 // SearchURL builds the search request for a query and market.
@@ -312,6 +366,8 @@ func (d *Driver) Search(ctx context.Context, fetcher *Fetcher, query, market str
 	if d.Spec == nil {
 		return nil, fmt.Errorf("crawler: driver %s cannot search", d.Name)
 	}
+	ctx, cancel := context.WithTimeout(ctx, d.Timeout())
+	defer cancel()
 	items, err := d.fetchItems(ctx, fetcher, d.searchURL(query, market, nil))
 	if err != nil {
 		return nil, err
@@ -333,10 +389,7 @@ func (d *Driver) Search(ctx context.Context, fetcher *Fetcher, query, market str
 			break
 		}
 		item, ok := raw.(map[string]any)
-		if !ok {
-			continue
-		}
-		if !d.requirementsMet(item) {
+		if !ok || !d.requirementsMet(item) {
 			continue
 		}
 		listing, ok := d.listingFrom(item, vars, market)
@@ -361,13 +414,48 @@ func (d *Driver) fetchItems(ctx context.Context, fetcher *Fetcher, target string
 	if err := json.Unmarshal(response.Body, &document); err != nil {
 		return nil, fmt.Errorf("crawler: %s: response is not JSON: %w", d.Name, err)
 	}
-	items, _ := lookup(document, d.Spec.Items).([]any)
-	return items, nil
+	return itemsAt(document, d.Spec.Items), nil
+}
+
+// itemsAt reads the item list at path: the document itself for ".", a list
+// as is, and an object as its values in key order.
+func itemsAt(document any, path string) []any {
+	value := document
+	if path != "." {
+		value = lookup(document, path)
+	}
+	switch v := value.(type) {
+	case []any:
+		return v
+	case map[string]any:
+		keys := make([]string, 0, len(v))
+		for key := range v {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		items := make([]any, 0, len(keys))
+		for _, key := range keys {
+			items = append(items, v[key])
+		}
+		return items
+	}
+	return nil
 }
 
 func (d *Driver) requirementsMet(item map[string]any) bool {
 	for key, want := range d.Spec.Require {
 		if scalarString(lookup(item, key)) != want {
+			return false
+		}
+	}
+	for key, forbidden := range d.Spec.Forbid {
+		if scalarString(lookup(item, key)) == forbidden {
+			return false
+		}
+	}
+	for key, min := range d.Spec.RequireMin {
+		number, ok := lookup(item, key).(float64)
+		if !ok || number < min {
 			return false
 		}
 	}
@@ -382,7 +470,12 @@ func (d *Driver) listingFrom(item map[string]any, vars map[string]string, market
 		return scalarString(lookup(item, name))
 	}
 	values := map[string]string{}
+	var tags []string
 	for key, spec := range d.Spec.Fields {
+		if key == "tags" {
+			tags = spec.readTags(item)
+			continue
+		}
 		value, ok := spec.read(item, resolve)
 		if !ok {
 			return atlas.Listing{}, false
@@ -391,7 +484,7 @@ func (d *Driver) listingFrom(item map[string]any, vars map[string]string, market
 	}
 	for key, value := range d.Spec.Constants {
 		if values[key] == "" {
-			values[key] = value
+			values[key] = expand(value, resolve)
 		}
 	}
 	if strings.TrimSpace(values["title"]) == "" || values["url"] == "" {
@@ -400,18 +493,28 @@ func (d *Driver) listingFrom(item map[string]any, vars map[string]string, market
 	if u, err := url.Parse(values["url"]); err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
 		return atlas.Listing{}, false
 	}
+	if d.Spec.MinDurationSeconds > 0 {
+		if seconds := lens.DurationSeconds(values["duration"]); seconds > 0 && seconds < d.Spec.MinDurationSeconds {
+			return atlas.Listing{}, false
+		}
+	}
 	listing := atlas.Listing{
+		ID:          values["id"],
 		Title:       strings.TrimSpace(values["title"]),
 		URL:         values["url"],
 		MediaURL:    values["media_url"],
-		Provider:    d.Provider,
+		Provider:    firstNonEmpty(values["provider"], d.Provider),
 		SourceType:  values["source_type"],
 		AccessType:  values["access_type"],
+		AccessNote:  values["access_note"],
 		Price:       values["price"],
 		Market:      firstNonEmpty(values["market"], market),
 		Duration:    values["duration"],
 		Description: values["description"],
 		Thumbnail:   values["thumbnail"],
+		Resolution:  values["resolution"],
+		Tags:        tags,
+		ListingOnly: values["media_url"] == "",
 	}
 	if year, err := strconv.Atoi(values["year"]); err == nil {
 		listing.Year = year
@@ -421,6 +524,9 @@ func (d *Driver) listingFrom(item map[string]any, vars map[string]string, market
 	}
 	if listing.AccessType == "" {
 		listing.AccessType = "unknown"
+	}
+	if raw, ok := values["listing_only"]; ok && raw != "" {
+		listing.ListingOnly = raw == "true"
 	}
 	return listing, true
 }
@@ -442,13 +548,49 @@ func (f FieldSpec) read(item map[string]any, resolve func(string) string) (strin
 		value = expand(f.Template, resolve)
 	}
 	value = transform(f.Transform, value)
+	if f.StripPrefix != "" {
+		value = strings.TrimSpace(strings.TrimPrefix(value, f.StripPrefix))
+	}
+	for _, suffix := range f.StripSuffixes {
+		if strings.HasSuffix(strings.ToLower(value), strings.ToLower(suffix)) && len(value) > len(suffix) {
+			value = strings.TrimSpace(value[:len(value)-len(suffix)])
+			break
+		}
+	}
+	if f.Truncate > 0 {
+		if runes := []rune(value); len(runes) > f.Truncate {
+			value = strings.TrimSpace(string(runes[:f.Truncate])) + "…"
+		}
+	}
 	if value == "" {
-		value = f.Default
+		value = expand(f.Default, resolve)
 	}
 	if f.match != nil && !f.match.MatchString(value) {
 		return "", false
 	}
 	return value, true
+}
+
+// readTags reads a list field, accepting a single scalar as a one-item list.
+func (f FieldSpec) readTags(item map[string]any) []string {
+	var raw any
+	if f.Path != "" {
+		raw = lookup(item, f.Path)
+	}
+	var tags []string
+	switch v := raw.(type) {
+	case []any:
+		for _, element := range v {
+			if tag := scalarString(element); tag != "" {
+				tags = append(tags, tag)
+			}
+		}
+	default:
+		if tag := scalarString(v); tag != "" {
+			tags = append(tags, tag)
+		}
+	}
+	return tags
 }
 
 func (o *OfferSpec) read(item map[string]any) (string, string) {
@@ -498,6 +640,22 @@ func transform(name, value string) string {
 			return ""
 		}
 		return fmt.Sprintf("%dh %02dm", minutes/60, minutes%60)
+	case "duration_from_seconds":
+		seconds, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
+		if err != nil {
+			return ""
+		}
+		return lens.FormatDuration(seconds)
+	case "duration_seconds":
+		seconds := lens.DurationSeconds(value)
+		if seconds <= 0 {
+			return ""
+		}
+		return strconv.FormatFloat(seconds, 'f', -1, 64)
+	case "html_unescape":
+		return strings.TrimSpace(html.UnescapeString(value))
+	case "html_text":
+		return strings.Join(strings.Fields(html.UnescapeString(htmlTags.ReplaceAllString(value, " "))), " ")
 	}
 	return value
 }

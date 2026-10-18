@@ -23,8 +23,9 @@ type Fetcher struct {
 	next     atomic.Uint64
 	maxBody  int64
 
-	mu    sync.Mutex
-	hosts map[string]*hostHealth
+	mu        sync.Mutex
+	hosts     map[string]*hostHealth
+	noBackoff bool
 }
 
 type identity struct {
@@ -124,9 +125,21 @@ func (f *Fetcher) inBackoff(host string) (time.Time, bool) {
 	return health.backoffUntil, true
 }
 
+// DisableBackoff makes refusals informational only. The search burst uses
+// it: one storefront answering 503 must not silence the other markets of the
+// same request, while the long-lived crawler keeps backing off.
+func (f *Fetcher) DisableBackoff() {
+	f.mu.Lock()
+	f.noBackoff = true
+	f.mu.Unlock()
+}
+
 func (f *Fetcher) recordOutcome(host string, status int) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.noBackoff {
+		return
+	}
 	health := f.hosts[host]
 	if health == nil {
 		health = &hostHealth{}

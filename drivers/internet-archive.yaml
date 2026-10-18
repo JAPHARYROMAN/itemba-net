@@ -1,6 +1,7 @@
 # Internet Archive's Advanced Search over the movies media type. Metadata is
 # a discovery hint; public media identity and playback are checked later by
-# Probe. https://archive.org/developers/ (Item Search APIs), checked 2026-10-18.
+# the Archive metadata resolver and Probe.
+# https://archive.org/developers/ (Item Search APIs), checked 2026-10-18.
 name: internet-archive
 provider: Internet Archive
 hosts: [archive.org]
@@ -17,10 +18,14 @@ search:
     page: "1"
     output: json
     sort[]: downloads desc
+  status_name: Internet Archive
+  timeout_seconds: 8
+  require_relevance: true
   response: json
   items: response.docs
   limit: 30
   fields:
+    id: { template: "ia-discovered-{identifier}" }
     title: { path: title, transform: scalar }
     # Identifiers are letters, digits, dots, dashes and underscores; anything
     # that needed escaping is not an Archive item.
@@ -29,6 +34,8 @@ search:
     duration: { path: runtime, transform: scalar }
     thumbnail: { template: "https://archive.org/services/img/{identifier|path}" }
     description: { default: Movie listing from Internet Archive. Access and rights depend on the item. }
+    tags: { path: collection }
   constants:
     source_type: Archive video
     access_type: unknown
+    access_note: Archive listing; public full movie media and playback are unconfirmed until checked.

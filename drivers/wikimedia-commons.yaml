@@ -1,0 +1,37 @@
+# Wikimedia Commons video files through the MediaWiki API. Pages come back as
+# an object keyed by page id, which the runtime reads as its values.
+name: wikimedia-commons
+provider: Wikimedia Commons
+hosts: [commons.wikimedia.org, upload.wikimedia.org]
+rate:
+  per_minute: 30
+  concurrency: 2
+search:
+  url: https://commons.wikimedia.org/w/api.php
+  params:
+    action: query
+    generator: search
+    gsrsearch: "filetype:video {query}"
+    gsrlimit: "2"
+    prop: imageinfo
+    iiprop: url|dimensions
+    format: json
+  headers:
+    # Wikimedia's API policy asks clients to identify themselves.
+    User-Agent: ITEMBA-NET/2 (personal research crawler)
+  status_name: Wikimedia Commons
+  timeout_seconds: 8
+  response: json
+  items: query.pages
+  limit: 2
+  fields:
+    id: { template: "wm-{pageid}" }
+    title: { path: title, strip_prefix: "File:" }
+    url: { path: "imageinfo[0].descriptionurl" }
+    media_url: { path: "imageinfo[0].url" }
+    resolution: { template: "{imageinfo[0].width}x{imageinfo[0].height}" }
+    description: { default: Open-access Wikimedia Commons direct WebM/Ogg video stream. }
+  constants:
+    source_type: Open media
+    access_type: free
+    access_note: Open media listing; see the source for its license and availability.
