@@ -1,0 +1,9 @@
+# Server-side secrets
+.env.local
+.env.*.local
+
+# Local build artifacts and runtime logs
+.itemba-runtime/
+*.exe
+web/node_modules/
+web/dist/

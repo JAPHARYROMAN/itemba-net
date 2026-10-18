@@ -1,0 +1,33 @@
+# ITEMBA-SHIELD Layer 1 Pre-Connection DNS Sinkhole
+# Aggregated high-threat domains from OISD, HaGeZi Pro++, and StevenBlack
+0.0.0.0 doubleclick.net
+0.0.0.0 ad.doubleclick.net
+0.0.0.0 googlesyndication.com
+0.0.0.0 pagead2.googlesyndication.com
+0.0.0.0 googleadservices.com
+0.0.0.0 adnxs.com
+0.0.0.0 adsrvr.org
+0.0.0.0 rubiconproject.com
+0.0.0.0 pubmatic.com
+0.0.0.0 openx.net
+0.0.0.0 criteo.com
+0.0.0.0 criteo.net
+0.0.0.0 taboola.com
+0.0.0.0 outbrain.com
+0.0.0.0 mgid.com
+0.0.0.0 revcontent.com
+0.0.0.0 popads.net
+0.0.0.0 popcash.net
+0.0.0.0 propellerads.com
+0.0.0.0 exoclick.com
+0.0.0.0 main.exosrv.com
+0.0.0.0 juicyads.com
+0.0.0.0 trafficjunky.net
+0.0.0.0 adsterra.com
+0.0.0.0 hilltopads.net
+0.0.0.0 clickadu.com
+0.0.0.0 adcash.com
+0.0.0.0 scorecardresearch.com
+0.0.0.0 quantserve.com
+0.0.0.0 hotjar.com
+0.0.0.0 mc.yandex.ru

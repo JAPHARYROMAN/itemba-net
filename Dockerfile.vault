@@ -1,0 +1,37 @@
+# ITEMBA-VAULT: Ephemeral Remote Browser Isolation Sandbox Container
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    chromium \
+    xvfb \
+    pulseaudio \
+    ca-certificates \
+    fonts-liberation \
+    fonts-noto-color-emoji \
+    socat \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create unprivileged ephemeral sandbox user
+RUN groupadd -r vaultuser && useradd -r -g vaultuser -G audio,video -m -d /home/vaultuser vaultuser
+
+USER vaultuser
+WORKDIR /home/vaultuser
+
+EXPOSE 9222
+
+# Start Xvfb virtual framebuffer + hardened Chromium instance exposing CDP to the host controller
+CMD ["sh", "-c", "Xvfb :99 -screen 0 1280x720x24 -ac +extension GLX +render -noreset & \
+    export DISPLAY=:99 && \
+    chromium \
+      --no-sandbox \
+      --remote-debugging-address=0.0.0.0 \
+      --remote-debugging-port=9222 \
+      --user-data-dir=/tmp/itemba-profile \
+      --window-size=1280,720 \
+      --no-first-run \
+      --no-default-browser-check \
+      --disable-sync \
+      --disable-extensions \
+      --autoplay-policy=no-user-gesture-required \
+      --hide-scrollbars \
+      about:blank"]

@@ -1,0 +1,396 @@
+package scout
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"math"
+	"net"
+	"net/url"
+	"strings"
+	"sync/atomic"
+	"time"
+
+	"github.com/itemba-net/core/internal/cdp"
+)
+
+const freePlaybackDeadline = 12 * time.Second
+
+// playbackBrowser deliberately has no dependency on the user's vault or pooled
+// discovery tabs. A playback sample always gets its own throwaway profile.
+type playbackBrowser interface {
+	Call(context.Context, string, any, any) error
+	CallAsync(string, any) error
+	OnEvent(cdp.EventHandler)
+}
+
+type playbackSnapshot struct {
+	CurrentTime   float64 `json:"currentTime"`
+	ReadyState    int     `json:"readyState"`
+	Paused        bool    `json:"paused"`
+	Ended         bool    `json:"ended"`
+	Seeking       bool    `json:"seeking"`
+	SeekCount     int     `json:"seekCount"`
+	RateChanges   int     `json:"rateChanges"`
+	PlaybackRate  float64 `json:"playbackRate"`
+	ErrorCode     int     `json:"errorCode"`
+	Width         int     `json:"width"`
+	Height        int     `json:"height"`
+	DecodedFrames int     `json:"decodedFrames"`
+	Duration      float64 `json:"duration"`
+	Source        string  `json:"src"`
+	Protocol      string  `json:"protocol"`
+	HarnessState  string  `json:"harnessState"`
+}
+
+// verifyFreeMoviePlayback proves only that a short beginning sample decoded and
+// advanced. It does not infer completion, licensing, or future uninterrupted
+// playback. The harness relays through the same guarded connection as the
+// country check; Chromium never contacts an upstream movie site itself.
+func verifyFreeMoviePlayback(ctx context.Context, source VerifiedSource, harnessOrigin, region, country string) *PlaybackCheck {
+	result := &PlaybackCheck{
+		Status: "unconfirmed", Country: movieCountry(country), RequestedRegion: strings.ToUpper(strings.TrimSpace(region)),
+		CheckedAt: time.Now().UTC().Format(time.RFC3339), Method: "isolated_video_sample",
+		EvidenceURL: source.URL, Detail: "A short playback sample could not be confirmed.",
+	}
+	if !eligibleFreePlayback(source) {
+		result.Status = "skipped"
+		result.Detail = "Automatic playback samples require a reachable free video from a supported movie catalog."
+		return result
+	}
+	origin, ok := playbackHarnessOrigin(harnessOrigin)
+	if !ok {
+		result.Detail = "The isolated playback harness was unavailable."
+		return result
+	}
+	checkCtx, cancel := context.WithTimeout(ctx, freePlaybackDeadline)
+	defer cancel()
+	if checkCtx.Err() != nil {
+		result.Detail = "The playback sample was cancelled before it started."
+		return result
+	}
+	browser, err := launchFreePlaybackBrowser(checkCtx)
+	if err != nil {
+		result.Detail = "An isolated browser could not be started for the playback sample."
+		return result
+	}
+	defer browser.Close()
+	return runFreePlaybackSample(checkCtx, browser, source, origin, result)
+}
+
+func launchFreePlaybackBrowser(ctx context.Context) (*cdp.BrowserInstance, error) {
+	return cdp.Launch(ctx, cdp.LaunchOptions{
+		ID: fmt.Sprintf("playback-%d", time.Now().UnixNano()), Width: 640, Height: 360, MuteAudio: true,
+		HostResolver: "MAP * ~NOTFOUND, EXCLUDE 127.0.0.1",
+		ExtraArgs:    []string{"--no-proxy-server", "--disable-quic", "--disable-component-extensions-with-background-pages", "--disable-features=MediaRouter,OptimizationHints,Translate", "--force-webrtc-ip-handling-policy=disable_non_proxied_udp"},
+	})
+}
+
+func eligibleFreePlayback(source VerifiedSource) bool {
+	if source.AccessType != "free" || source.ListingOnly || source.VerificationStatus != "media_reachable" || !source.Verified {
+		return false
+	}
+	mediaURL := source.DirectStreamURL
+	if source.providerContentBound {
+		mediaURL = source.providerStreamURL
+	}
+	media, mediaOK := safeAvailabilityURL(mediaURL)
+	page, pageOK := safeAvailabilityURL(source.URL)
+	if !mediaOK || !pageOK {
+		return false
+	}
+	if source.providerContentBound {
+		return providerPlaybackBinding(source.CandidateSource)
+	}
+	mediaHost := strings.ToLower(media.Hostname())
+	pageHost := strings.ToLower(page.Hostname())
+	if source.AccessBasis == "archive_metadata" || source.AccessBasis == "peertube_api" || strings.Contains(source.ID, "-resolved-") {
+		return resolvedFreePlaybackPair(source.CandidateSource, page, media)
+	}
+	switch {
+	case (source.Provider == "Internet Archive" && source.SourceType == "Archive video" && strings.HasPrefix(source.ID, "ia-")) || (source.Provider == "Internet Archive Cinema" && source.SourceType == "Public Domain" && strings.HasPrefix(source.ID, "ref-")):
+		parts := strings.Split(strings.Trim(page.Path, "/"), "/")
+		return pageHost == "archive.org" && mediaHost == "archive.org" && len(parts) == 2 && (parts[0] == "embed" || parts[0] == "details") && freeArchiveIdentifier.MatchString(parts[1]) && strings.HasPrefix(media.Path, "/download/"+parts[1]+"/")
+	case source.Provider == "Wikimedia Commons" && source.SourceType == "Open media" && strings.HasPrefix(source.ID, "wm-"):
+		return pageHost == "commons.wikimedia.org" && mediaHost == "upload.wikimedia.org"
+	case source.SourceType == "Federated PeerTube" && strings.HasPrefix(source.ID, "pt-"):
+		return pageHost == mediaHost && source.Provider == "PeerTube ("+pageHost+")"
+	case source.SourceType == "HLS Reference":
+		known := map[string]string{
+			"ref-tears-of-steel": "https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8",
+			"ref-big-buck-bunny": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+			"ref-sintel":         "https://bitdash-a.akamaihd.net/content/sintel/hls/playlist.m3u8",
+		}
+		return known[source.ID] != "" && source.DirectStreamURL == known[source.ID]
+	}
+	return false
+}
+
+func playbackHarnessOrigin(raw string) (string, bool) {
+	u, err := url.Parse(raw)
+	if err != nil || u == nil || u.Scheme != "http" || u.Hostname() != "127.0.0.1" || u.Port() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
+		return "", false
+	}
+	if _, err := net.LookupPort("tcp", u.Port()); err != nil {
+		return "", false
+	}
+	return "http://" + u.Host, true
+}
+
+func playbackHarnessRequestAllowed(origin, raw, resourceType string) bool {
+	u, err := url.Parse(raw)
+	if err != nil || u == nil || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.Opaque != "" || u.Scheme+"://"+u.Host != origin {
+		return false
+	}
+	switch u.Path {
+	case "/":
+		return resourceType == "Document"
+	case "/hls.js":
+		return resourceType == "Script"
+	case "/media":
+		return resourceType == "Media" || resourceType == "XHR" || resourceType == "Fetch" || resourceType == "Other"
+	}
+	if strings.HasPrefix(u.Path, "/resource/") && len(u.Path) == len("/resource/")+32 {
+		for _, r := range u.Path[len("/resource/"):] {
+			if !(r >= '0' && r <= '9' || r >= 'a' && r <= 'f') {
+				return false
+			}
+		}
+		return resourceType == "Media" || resourceType == "XHR" || resourceType == "Fetch" || resourceType == "Other"
+	}
+	return false
+}
+
+// Read the native video element, not a provider's custom "playing" flag. All
+// code here executes only in the locally served, ITEMBA-owned harness.
+const freePlaybackSnapshotJS = `(() => {
+	const videos = document.querySelectorAll('video');
+	if (videos.length !== 1) return null;
+	const v = videos[0];
+	const q = typeof v.getVideoPlaybackQuality === 'function' ? v.getVideoPlaybackQuality() : null;
+	const decoded = Number.isFinite(v.webkitDecodedFrameCount) ? v.webkitDecodedFrameCount :
+		(q && Number.isFinite(q.totalVideoFrames) && Number.isFinite(q.droppedVideoFrames) ? Math.max(0, q.totalVideoFrames-q.droppedVideoFrames) : -1);
+	return { currentTime:v.currentTime, readyState:v.readyState, paused:v.paused, ended:v.ended, seeking:v.seeking,
+		playbackRate:v.playbackRate, errorCode:v.error ? v.error.code : 0, width:v.videoWidth, height:v.videoHeight,
+		decodedFrames:decoded, duration:Number.isFinite(v.duration) ? v.duration : 0, src:v.currentSrc || v.src,
+		protocol:window.__itembaPlaybackProtocol || 'direct', harnessState:window.__itembaPlaybackState || '',
+		seekCount:window.__itembaPlaybackIntegrity.seeks, rateChanges:window.__itembaPlaybackIntegrity.rateChanges };
+})()`
+
+const freePlaybackIntegrityJS = `(() => {
+	Object.defineProperty(window, 'open', { value: () => null, writable: false, configurable: false });
+	const integrity = { seeks:0, rateChanges:0 };
+	Object.defineProperty(window, '__itembaPlaybackIntegrity', { value:integrity, writable:false, configurable:false });
+	document.addEventListener('seeking', e => { if (e.target instanceof HTMLMediaElement) integrity.seeks++; }, true);
+	document.addEventListener('ratechange', e => { if (e.target instanceof HTMLMediaElement && e.target.playbackRate !== 1) integrity.rateChanges++; }, true);
+})()`
+
+func runFreePlaybackSample(ctx context.Context, browser playbackBrowser, source VerifiedSource, origin string, result *PlaybackCheck) *PlaybackCheck {
+	var mediaResponse, segmentResponse, isolationFailed atomic.Bool
+	browser.OnEvent(func(method string, data json.RawMessage) {
+		switch method {
+		case "Fetch.requestPaused":
+			var p struct {
+				RequestID string `json:"requestId"`
+				Type      string `json:"resourceType"`
+				Request   struct {
+					URL string `json:"url"`
+				} `json:"request"`
+			}
+			if json.Unmarshal(data, &p) != nil || p.RequestID == "" {
+				isolationFailed.Store(true)
+				return
+			}
+			method := "Fetch.failRequest"
+			params := map[string]any{"requestId": p.RequestID, "errorReason": "BlockedByClient"}
+			if playbackHarnessRequestAllowed(origin, p.Request.URL, p.Type) {
+				method = "Fetch.continueRequest"
+				params = map[string]any{"requestId": p.RequestID}
+			}
+			if browser.CallAsync(method, params) != nil {
+				isolationFailed.Store(true)
+			}
+		case "Network.responseReceived":
+			var p struct {
+				Response struct {
+					URL    string `json:"url"`
+					Status int    `json:"status"`
+				} `json:"response"`
+			}
+			if json.Unmarshal(data, &p) == nil && (p.Response.Status == 200 || p.Response.Status == 206) {
+				if p.Response.URL == origin+"/media" {
+					mediaResponse.Store(true)
+				}
+				if strings.HasPrefix(p.Response.URL, origin+"/resource/") && playbackHarnessRequestAllowed(origin, p.Response.URL, "XHR") {
+					segmentResponse.Store(true)
+				}
+			}
+		case "Page.windowOpen":
+			// The owned harness never opens windows. Stop if that invariant changes.
+			isolationFailed.Store(true)
+		case "Target.attachedToTarget", "Target.targetCreated":
+			var p struct {
+				Target struct {
+					ID       string `json:"targetId"`
+					OpenerID string `json:"openerId"`
+				} `json:"targetInfo"`
+			}
+			if json.Unmarshal(data, &p) == nil && p.Target.ID != "" && (method == "Target.attachedToTarget" || p.Target.OpenerID != "") {
+				// Child targets are paused before executing and immediately closed;
+				// none can get a separate, unintercepted network context.
+				isolationFailed.Store(true)
+				_ = browser.CallAsync("Target.closeTarget", map[string]any{"targetId": p.Target.ID})
+			}
+		}
+	})
+	commands := []struct {
+		method string
+		params any
+	}{
+		{"Page.enable", map[string]any{}},
+		{"Runtime.enable", map[string]any{}},
+		{"Network.enable", map[string]any{}},
+		{"Network.setCacheDisabled", map[string]any{"cacheDisabled": true}},
+		{"Network.setBypassServiceWorker", map[string]any{"bypass": true}},
+		{"Target.setAutoAttach", map[string]any{"autoAttach": true, "waitForDebuggerOnStart": true, "flatten": true}},
+		{"Target.setDiscoverTargets", map[string]any{"discover": true}},
+		{"Page.addScriptToEvaluateOnNewDocument", map[string]any{"source": freePlaybackIntegrityJS}},
+		{"Fetch.enable", map[string]any{"patterns": []map[string]any{{"urlPattern": "*", "requestStage": "Request"}}}},
+	}
+	for _, command := range commands {
+		if browser.Call(ctx, command.method, command.params, nil) != nil {
+			result.Detail = "The browser could not enforce the isolated playback sample."
+			return result
+		}
+	}
+	if browser.Call(ctx, "Page.navigate", map[string]any{"url": origin + "/"}, nil) != nil {
+		result.Detail = "The isolated playback harness did not open."
+		return result
+	}
+	var evidence playbackProgress
+	expectedDuration := mediaDurationSeconds(source.Duration)
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			result.Status = "not_started"
+			result.Detail = "Video did not decode and advance within the bounded playback sample; playback remains unconfirmed."
+			return result
+		case now := <-ticker.C:
+			if isolationFailed.Load() {
+				result.Detail = "The isolated playback sample could not be completed safely."
+				return result
+			}
+			var response struct {
+				Result struct {
+					Value *playbackSnapshot `json:"value"`
+				} `json:"result"`
+				Exception json.RawMessage `json:"exceptionDetails"`
+			}
+			if browser.Call(ctx, "Runtime.evaluate", map[string]any{"expression": freePlaybackSnapshotJS, "returnByValue": true}, &response) != nil {
+				result.Detail = "The browser stopped responding during the playback sample."
+				return result
+			}
+			if len(response.Exception) > 0 && string(response.Exception) != "null" {
+				result.Detail = "The native video state could not be read."
+				return result
+			}
+			if response.Result.Value == nil {
+				continue
+			}
+			state := *response.Result.Value
+			ownedSource := state.Source == origin+"/media" || state.Protocol == "hls" && strings.HasPrefix(state.Source, "blob:"+origin+"/")
+			if ownedSource && state.Duration > 0 && !math.IsNaN(state.Duration) && !math.IsInf(state.Duration, 0) {
+				// Native track metadata is useful length evidence even if decode
+				// fails. It does not confirm that playback started.
+				result.DurationSeconds = math.Round(state.Duration*100) / 100
+			}
+			if state.HarnessState == "unsupported_hls" {
+				result.Status = "unsupported"
+				result.Detail = "This browser cannot decode the source's streaming format; playback remains unconfirmed."
+				return result
+			}
+			if state.ErrorCode != 0 {
+				result.Status = "not_started"
+				result.Detail = "The browser could not load or decode this free video; playback remains unconfirmed."
+				return result
+			}
+			if state.DecodedFrames < 0 {
+				result.Status = "unsupported"
+				result.Detail = "This browser cannot report decoded video frames; playback remains unconfirmed."
+				return result
+			}
+			if !mediaResponse.Load() || state.Protocol == "hls" && !segmentResponse.Load() {
+				continue
+			}
+			confirmed, detail := evidence.observe(state, now, origin, expectedDuration)
+			if detail != "" {
+				result.Status = "not_started"
+				result.Detail = detail
+				return result
+			}
+			if confirmed {
+				result.Status = "started"
+				result.PlaybackConfirmed = true
+				result.CheckedAt = time.Now().UTC().Format(time.RFC3339)
+				result.SecondsAdvanced = math.Round((state.CurrentTime-evidence.start.CurrentTime)*100) / 100
+				result.DecodedFrames = state.DecodedFrames - evidence.start.DecodedFrames
+				result.Width, result.Height = state.Width, state.Height
+				result.DurationSeconds = math.Round(state.Duration*100) / 100
+				result.Detail = "A muted beginning sample decoded video frames and advanced at normal speed. Full-film playback remains unconfirmed."
+				return result
+			}
+		}
+	}
+}
+
+type playbackProgress struct {
+	start, last playbackSnapshot
+	startedAt   time.Time
+	lastAt      time.Time
+	samples     int
+}
+
+func (p *playbackProgress) observe(state playbackSnapshot, now time.Time, origin string, expectedDuration float64) (bool, string) {
+	if state.Source == "" && state.ReadyState == 0 {
+		return false, ""
+	}
+	validSource := state.Source == origin+"/media"
+	if state.Protocol == "hls" {
+		validSource = strings.HasPrefix(state.Source, "blob:"+origin+"/") && len(state.Source) > len("blob:"+origin+"/")
+	}
+	if !validSource {
+		return false, "The video source changed outside the isolated playback harness; playback remains unconfirmed."
+	}
+	if math.IsNaN(state.CurrentTime) || math.IsInf(state.CurrentTime, 0) || math.IsNaN(state.Duration) || math.IsInf(state.Duration, 0) || state.CurrentTime < 0 {
+		return false, "The video timeline could not be verified."
+	}
+	if state.Seeking && p.samples == 0 {
+		return false, ""
+	}
+	if state.Seeking || state.PlaybackRate != 1 || state.RateChanges > 0 || p.samples > 0 && state.SeekCount != p.start.SeekCount {
+		return false, "The sample did not advance naturally at normal speed; playback remains unconfirmed."
+	}
+	if state.Duration > 0 && expectedDuration > 0 && math.Abs(state.Duration-expectedDuration) > math.Max(60, expectedDuration*.15) {
+		return false, "The video's duration does not match the movie catalog; it may be a clip or a different edition."
+	}
+	if state.ReadyState < 2 || state.Paused || state.Ended || state.Width <= 0 || state.Height <= 0 || state.DecodedFrames < 1 || state.Duration <= 0 {
+		return false, ""
+	}
+	if p.samples == 0 {
+		if state.CurrentTime > 2.5 {
+			return false, "The sample did not begin near the start of the movie; playback remains unconfirmed."
+		}
+		p.start, p.last, p.startedAt, p.lastAt, p.samples = state, state, now, now, 1
+		return false, ""
+	}
+	elapsed := now.Sub(p.lastAt).Seconds()
+	advance := state.CurrentTime - p.last.CurrentTime
+	if elapsed <= 0 || advance < -.05 || state.DecodedFrames < p.last.DecodedFrames || advance > elapsed*1.35+.25 || math.Abs(state.Duration-p.start.Duration) > 1 {
+		return false, "The video timeline or frame progression changed unexpectedly; playback remains unconfirmed."
+	}
+	p.last, p.lastAt = state, now
+	p.samples++
+	return p.samples >= 3 && now.Sub(p.startedAt) >= 800*time.Millisecond && state.CurrentTime-p.start.CurrentTime >= 1 && state.DecodedFrames-p.start.DecodedFrames >= 2, ""
+}
