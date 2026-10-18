@@ -4,9 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/itemba-net/core/internal/cdp"
 	"github.com/itemba-net/core/internal/shield"
 )
@@ -88,5 +94,201 @@ func TestLaunchValidationDoesNotPublishSession(t *testing.T) {
 	}
 	if manager.ActiveSession() != nil || manager.Status().Active || manager.Status().AdBlockingEnabled {
 		t.Fatal("failed launch published an active or protected session")
+	}
+}
+
+// fakeCDP is an in-process DevTools page target. It answers every command with
+// an empty result, except the methods it was told to leave unanswered.
+type fakeCDP struct {
+	server  *httptest.Server
+	stalled map[string]bool
+	mu      sync.Mutex
+	methods []string
+}
+
+func newFakeCDP(t *testing.T, stalled ...string) *fakeCDP {
+	f := &fakeCDP{stalled: make(map[string]bool)}
+	for _, method := range stalled {
+		f.stalled[method] = true
+	}
+	upgrader := websocket.Upgrader{}
+	f.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		for {
+			var msg struct {
+				ID     int64  `json:"id"`
+				Method string `json:"method"`
+			}
+			if err := conn.ReadJSON(&msg); err != nil {
+				return
+			}
+			f.mu.Lock()
+			f.methods = append(f.methods, msg.Method)
+			f.mu.Unlock()
+			if f.stalled[msg.Method] {
+				continue
+			}
+			if err := conn.WriteJSON(map[string]any{"id": msg.ID, "result": map[string]any{}}); err != nil {
+				return
+			}
+		}
+	}))
+	t.Cleanup(f.server.Close)
+	return f
+}
+
+func (f *fakeCDP) connect() (*cdp.BrowserInstance, error) {
+	return cdp.Connect(context.Background(), "ws"+strings.TrimPrefix(f.server.URL, "http"))
+}
+
+func (f *fakeCDP) sawMethod(method string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, seen := range f.methods {
+		if seen == method {
+			return true
+		}
+	}
+	return false
+}
+
+func waitFor(t *testing.T, limit time.Duration, condition func() bool, failure string) {
+	t.Helper()
+	deadline := time.Now().Add(limit)
+	for !condition() {
+		if time.Now().After(deadline) {
+			t.Fatal(failure)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+func TestLaunchPublishesSessionWhenTheBrowserAnswers(t *testing.T) {
+	fake := newFakeCDP(t)
+	manager := NewManager(shield.New())
+	manager.launch = func(context.Context, cdp.LaunchOptions) (*cdp.BrowserInstance, error) {
+		return fake.connect()
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	status, err := manager.LaunchOrNavigate(ctx, "https://example.com/watch", false, false)
+	if err != nil {
+		t.Fatalf("launch against an answering browser failed: %v", err)
+	}
+	if !status.Active || !status.AdBlockingEnabled || status.SessionID != "vlt-1" || status.CurrentURL != "https://example.com/watch" || status.Mode != "remote-attached" {
+		t.Fatalf("unexpected status after launch: %+v", status)
+	}
+	for _, method := range []string{"Page.enable", "Fetch.enable", "Page.startScreencast", "Page.navigate"} {
+		if !fake.sawMethod(method) {
+			t.Fatalf("the browser never received %s", method)
+		}
+	}
+	manager.Destroy()
+	if manager.ActiveSession() != nil || manager.Status().Active {
+		t.Fatal("destroy left a session active")
+	}
+}
+
+func TestLaunchFailsFastWhenTheBrowserOutlivesTheDeadline(t *testing.T) {
+	fake := newFakeCDP(t)
+	var straggler atomic.Pointer[cdp.BrowserInstance]
+	manager := NewManager(shield.New())
+	manager.launch = func(context.Context, cdp.LaunchOptions) (*cdp.BrowserInstance, error) {
+		// A browser that ignores the deadline and comes up long after it.
+		time.Sleep(1500 * time.Millisecond)
+		browser, err := fake.connect()
+		if err == nil {
+			straggler.Store(browser)
+		}
+		return browser, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	started := time.Now()
+	status, err := manager.LaunchOrNavigate(ctx, "https://example.com/watch", false, false)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected the deadline, got %v", err)
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("launch returned after %v, long past its 200ms deadline", elapsed)
+	}
+	if status.Active || manager.ActiveSession() != nil || manager.Status().Active {
+		t.Fatal("a launch that missed its deadline published a session")
+	}
+
+	// The browser that arrives after the deadline is shut down, never adopted.
+	waitFor(t, 5*time.Second, func() bool {
+		browser := straggler.Load()
+		return browser != nil && browser.IsClosed()
+	}, "the browser that arrived after the deadline was not closed")
+	if manager.ActiveSession() != nil {
+		t.Fatal("the late browser was published as a session")
+	}
+
+	// A retry must not wait on the straggler.
+	manager.launch = func(context.Context, cdp.LaunchOptions) (*cdp.BrowserInstance, error) {
+		return fake.connect()
+	}
+	retryCtx, cancelRetry := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelRetry()
+	status, err = manager.LaunchOrNavigate(retryCtx, "https://example.com/watch", false, false)
+	if err != nil || !status.Active || status.SessionID != "vlt-2" {
+		t.Fatalf("retry after a missed deadline failed: %v, status %+v", err, status)
+	}
+	manager.Destroy()
+}
+
+func TestLaunchFailsFastWhenShieldSetupStalls(t *testing.T) {
+	fake := newFakeCDP(t, "Page.enable")
+	var browser atomic.Pointer[cdp.BrowserInstance]
+	manager := NewManager(shield.New())
+	manager.launch = func(context.Context, cdp.LaunchOptions) (*cdp.BrowserInstance, error) {
+		b, err := fake.connect()
+		if err == nil {
+			browser.Store(b)
+		}
+		return b, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	started := time.Now()
+	_, err := manager.LaunchOrNavigate(ctx, "https://example.com/watch", false, false)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected the deadline, got %v", err)
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("launch returned after %v, long past its 200ms deadline", elapsed)
+	}
+	if manager.ActiveSession() != nil || manager.Status().Active {
+		t.Fatal("a session whose protection never came up was published")
+	}
+	waitFor(t, 5*time.Second, func() bool {
+		b := browser.Load()
+		return b != nil && b.IsClosed()
+	}, "the browser whose protection stalled was not closed")
+}
+
+func TestLaunchWithAnEndedContextStartsNoBrowser(t *testing.T) {
+	manager := NewManager(shield.New())
+	var launches atomic.Int32
+	manager.launch = func(context.Context, cdp.LaunchOptions) (*cdp.BrowserInstance, error) {
+		launches.Add(1)
+		return nil, errors.New("must not be reached")
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := manager.LaunchOrNavigate(ctx, "https://example.com/watch", false, false); !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected cancellation, got %v", err)
+	}
+	if launches.Load() != 0 || manager.ActiveSession() != nil {
+		t.Fatal("a cancelled launch started a browser")
 	}
 }

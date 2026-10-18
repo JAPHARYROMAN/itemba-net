@@ -62,6 +62,8 @@ type Manager struct {
 	shield   *shield.Shield
 	session  *Session
 	seq      atomic.Int64
+	// launch starts the browser for a new session; tests substitute a stub.
+	launch func(context.Context, cdp.LaunchOptions) (*cdp.BrowserInstance, error)
 }
 
 // Session represents an active ephemeral RBI browser container/instance.
@@ -99,6 +101,7 @@ type Session struct {
 func NewManager(sh *shield.Shield) *Manager {
 	return &Manager{
 		shield: sh,
+		launch: cdp.Launch,
 	}
 }
 
@@ -173,7 +176,46 @@ func (m *Manager) LaunchOrNavigate(ctx context.Context, targetURL string, autoTh
 	m.mu.Unlock()
 
 	id := fmt.Sprintf("vlt-%d", m.seq.Add(1))
-	browser, err := cdp.Launch(ctx, cdp.LaunchOptions{
+
+	// The launch runs on its own goroutine so that ctx is a hard bound on this
+	// call. A browser that will not start, or will not die when killed, holds
+	// that goroutine, never the request; anything it produces after the
+	// deadline is closed and never published.
+	results := make(chan launchResult, 1)
+	go func() {
+		sess, err := m.openSession(ctx, id, targetURL, autoTheater, preferDocker)
+		results <- launchResult{session: sess, err: err}
+	}()
+
+	select {
+	case result := <-results:
+		if result.err != nil {
+			return m.Status(), result.err
+		}
+		m.mu.Lock()
+		m.session = result.session
+		m.mu.Unlock()
+		return m.Status(), nil
+	case <-ctx.Done():
+		go func() {
+			if result := <-results; result.session != nil {
+				result.session.Close()
+			}
+		}()
+		return m.Status(), fmt.Errorf("vault launch %s missed its deadline and is being shut down: %w", id, ctx.Err())
+	}
+}
+
+type launchResult struct {
+	session *Session
+	err     error
+}
+
+// openSession starts a protected browser and brings it to targetURL. Every
+// step honours ctx, and on any failure the partial session is closed before
+// the error is returned, so the caller never receives a half-built session.
+func (m *Manager) openSession(ctx context.Context, id, targetURL string, autoTheater, preferDocker bool) (*Session, error) {
+	browser, err := m.launch(ctx, cdp.LaunchOptions{
 		ID:           id,
 		Width:        1280,
 		Height:       720,
@@ -182,7 +224,7 @@ func (m *Manager) LaunchOrNavigate(ctx context.Context, targetURL string, autoTh
 		UseDocker:    preferDocker,
 	})
 	if err != nil {
-		return SessionStatus{}, err
+		return nil, err
 	}
 
 	sess := &Session{
@@ -203,7 +245,7 @@ func (m *Manager) LaunchOrNavigate(ctx context.Context, targetURL string, autoTh
 	})
 	if err != nil {
 		sess.Close()
-		return SessionStatus{}, err
+		return nil, err
 	}
 	sess.adBlockingEnabled.Store(true)
 
@@ -211,13 +253,9 @@ func (m *Manager) LaunchOrNavigate(ctx context.Context, targetURL string, autoTh
 
 	if err := sess.Navigate(ctx, targetURL, autoTheater); err != nil {
 		sess.Close()
-		return SessionStatus{}, err
+		return nil, err
 	}
-	m.mu.Lock()
-	m.session = sess
-	m.mu.Unlock()
-
-	return m.Status(), nil
+	return sess, nil
 }
 
 func (s *Session) recordExtractedStream(stream shield.SniffedStream) {

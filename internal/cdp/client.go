@@ -146,12 +146,17 @@ func getFreePort() (int, error) {
 }
 
 // Launch starts either a Dockerized ephemeral vault container or a local isolated Chromium instance.
+// Every wait honours ctx: once it ends, Launch returns promptly and whatever it
+// started is shut down in the background.
 func Launch(ctx context.Context, opts LaunchOptions) (*BrowserInstance, error) {
 	if opts.Width <= 0 {
 		opts.Width = 1280
 	}
 	if opts.Height <= 0 {
 		opts.Height = 720
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 
 	port, err := getFreePort()
@@ -171,9 +176,26 @@ func Launch(ctx context.Context, opts LaunchOptions) (*BrowserInstance, error) {
 		if err == nil {
 			return inst, nil
 		}
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := inst.launchLocal(ctx, opts); err != nil {
+		return nil, err
+	}
+	return inst, nil
+}
+
+// Connect attaches to a DevTools page target that is already running, such as
+// a browser another process owns. Close then only drops the connection.
+func Connect(ctx context.Context, wsURL string) (*BrowserInstance, error) {
+	inst := &BrowserInstance{
+		ID:      "attached",
+		Mode:    "remote-attached",
+		closeCh: make(chan struct{}),
+	}
+	if err := inst.attach(ctx, wsURL); err != nil {
 		return nil, err
 	}
 	return inst, nil
@@ -286,7 +308,9 @@ func (b *BrowserInstance) launchDocker(ctx context.Context, opts LaunchOptions) 
 	b.Mode = "docker-container"
 
 	if err := b.connectDebugger(ctx); err != nil {
-		_ = exec.Command("docker", "rm", "-f", containerName).Run()
+		rmCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		_ = exec.CommandContext(rmCtx, "docker", "rm", "-f", containerName).Run()
+		cancel()
 		return err
 	}
 	return nil
@@ -338,6 +362,13 @@ func (b *BrowserInstance) launchLocal(ctx context.Context, opts LaunchOptions) e
 	args = append(args, "about:blank")
 
 	cmd := exec.Command(bin, args...)
+	// The sandbox works out of its own ephemeral profile, never the server's
+	// working directory, which on WSL2 is a 9P mount of the Windows checkout.
+	cmd.Dir = tmpDir
+	if err := ctx.Err(); err != nil {
+		_ = os.RemoveAll(tmpDir)
+		return err
+	}
 	if err := cmd.Start(); err != nil {
 		_ = os.RemoveAll(tmpDir)
 		return fmt.Errorf("failed to start browser binary %s: %w", bin, err)
@@ -351,45 +382,64 @@ func (b *BrowserInstance) launchLocal(ctx context.Context, opts LaunchOptions) e
 	return nil
 }
 
+// pageTargetPollBudget bounds how long a freshly started browser may take to
+// expose its first page target when the caller's context sets no earlier deadline.
+var pageTargetPollBudget = 12 * time.Second
+
+// connectDebugger waits for the browser's first page target and attaches to
+// it. The wait ends at the caller's deadline or the poll budget, whichever
+// comes first, and every request inside it is cancelled with ctx.
 func (b *BrowserInstance) connectDebugger(ctx context.Context) error {
-	deadline := time.Now().Add(12 * time.Second)
+	budget := time.Now().Add(pageTargetPollBudget)
+	if deadline, ok := ctx.Deadline(); ok && deadline.Before(budget) {
+		budget = deadline
+	}
 	client := &http.Client{Timeout: 1500 * time.Millisecond}
 	listURL := fmt.Sprintf("http://%s:%d/json/list", b.DebugHost, b.DebugPort)
 
-	var wsURL string
-	var targetID string
-	for time.Now().Before(deadline) {
+	for {
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("waiting for the CDP page target on port %d: %w", b.DebugPort, err)
+		}
+		if !time.Now().Before(budget) {
+			return fmt.Errorf("timed out waiting for CDP page target on port %d", b.DebugPort)
+		}
+		if wsURL := b.findPageTarget(ctx, client, listURL); wsURL != "" {
+			return b.attach(ctx, wsURL)
+		}
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
-		default:
+		case <-time.After(100 * time.Millisecond):
 		}
+	}
+}
 
-		resp, err := client.Get(listURL)
-		if err == nil {
-			var targets []TargetInfo
-			_ = json.NewDecoder(resp.Body).Decode(&targets)
-			resp.Body.Close()
+// findPageTarget asks the DevTools HTTP endpoint for the first page target. It
+// returns "" while the browser is still starting.
+func (b *BrowserInstance) findPageTarget(ctx context.Context, client *http.Client, listURL string) string {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, listURL, nil)
+	if err != nil {
+		return ""
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
 
-			for _, t := range targets {
-				if t.Type == "page" && t.WebSocketDebuggerURL != "" {
-					wsURL = t.WebSocketDebuggerURL
-					targetID = t.ID
-					break
-				}
-			}
-			if wsURL != "" {
-				break
-			}
+	var targets []TargetInfo
+	_ = json.NewDecoder(resp.Body).Decode(&targets)
+	for _, t := range targets {
+		if t.Type == "page" && t.WebSocketDebuggerURL != "" {
+			b.TargetID = t.ID
+			return t.WebSocketDebuggerURL
 		}
-		time.Sleep(100 * time.Millisecond)
 	}
+	return ""
+}
 
-	if wsURL == "" {
-		return fmt.Errorf("timed out waiting for CDP page target on port %d", b.DebugPort)
-	}
-	b.TargetID = targetID
-
+// attach dials the page target's websocket and starts the read loop.
+func (b *BrowserInstance) attach(ctx context.Context, wsURL string) error {
 	dialer := websocket.Dialer{
 		HandshakeTimeout: 5 * time.Second,
 		ReadBufferSize:   4 * 1024 * 1024,
@@ -532,6 +582,9 @@ func (b *BrowserInstance) IsClosed() bool {
 }
 
 // Close destroys the browser process, Docker container, or pooled tab target.
+// It returns as soon as the shutdown is under way: reaping the process and
+// removing its profile continue in the background, so a browser stuck in an
+// uninterruptible kernel wait cannot hold up the caller.
 func (b *BrowserInstance) Close() {
 	if !b.closed.CompareAndSwap(false, true) {
 		return
@@ -547,23 +600,35 @@ func (b *BrowserInstance) Close() {
 		return
 	}
 
+	var process *os.Process
 	if b.cmd != nil && b.cmd.Process != nil {
-		_ = b.cmd.Process.Kill()
-		_, _ = b.cmd.Process.Wait()
+		process = b.cmd.Process
+		_ = process.Kill()
 	}
-
+	containerName := ""
 	if b.ContainerID != "" {
-		_ = exec.Command("docker", "rm", "-f", fmt.Sprintf("itemba-vault-%s", b.ID)).Run()
+		containerName = fmt.Sprintf("itemba-vault-%s", b.ID)
 	}
+	go releaseBrowser(process, containerName, b.UserDataDir)
+}
 
-	if b.UserDataDir != "" {
-		go func(dir string) {
-			for i := 0; i < 5; i++ {
-				if os.RemoveAll(dir) == nil {
-					break
-				}
-				time.Sleep(150 * time.Millisecond)
+// releaseBrowser reaps the killed browser process, removes its container and
+// finally its ephemeral profile, which is only safe once no process holds it.
+func releaseBrowser(process *os.Process, containerName, userDataDir string) {
+	if process != nil {
+		_, _ = process.Wait()
+	}
+	if containerName != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		_ = exec.CommandContext(ctx, "docker", "rm", "-f", containerName).Run()
+		cancel()
+	}
+	if userDataDir != "" {
+		for i := 0; i < 5; i++ {
+			if os.RemoveAll(userDataDir) == nil {
+				return
 			}
-		}(b.UserDataDir)
+			time.Sleep(150 * time.Millisecond)
+		}
 	}
 }
