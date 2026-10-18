@@ -225,6 +225,23 @@ wsl -d Debian -- bash -c "cd '/mnt/c/projects/Actual Projects/ITEMBA-NET' && ./i
 
 Windows reaches the server at `http://127.0.0.1:8080` through WSL's localhost forwarding. Verified on 18 October 2026: the binary served the dashboard from Debian, a worldwide search for *Sintel* returned Internet Archive sources with a decoded playback start from the Linux Chromium, and a Vault session opened the clean-cinema testbench in local isolated mode. CI builds and tests every commit on Ubuntu as well.
 
+### Phase 1: memory and generality
+
+Phase 1 is under way. Atlas holds the core schema from the white paper, objects, aliases, hosts, locations and evidence, as migration `0002_atlas_core.sql`, applied automatically at startup. Lens (`internal/lens`) parses a search into a typed object query (type, title and year, or a URL or hash), normalises titles so the same film matches itself across spellings, places scout's checks on the verification ladder, and ranks candidates under the hundred cap with host diversity.
+
+Every search writes back to Atlas when a database is configured. Each source becomes a location on its host with evidence at the level its checks earn: listed, reachable, identified or rendered, with method, status, egress country and observation time. A source whose title matches the query joins the query's object; any other title gets its own object, because a location belongs to what it says it holds. Pruned sources are not locations and are skipped.
+
+`GET /api/scout/search/stream?query=Sintel&region=ALL&fullLengthOnly=true` is the read-through search, as server-sent events:
+
+- `known`: what Atlas already holds for the object, ranked, with effective levels after freshness decay. It arrives immediately.
+- `report`: the fresh discovery burst, in the same shape as `POST /api/scout/search`, plus `atlas` with what was written.
+- `merged`: the ranked hundred across known and fresh locations, each with its level and name, observation time, egress and origin (`index`, `fresh` or `both`).
+- `done`, with the total duration.
+
+`POST /api/scout/search` keeps its shape and gains an `atlas` summary when a database is configured. Freshness decay: rendered evidence keeps its level for 24 hours, identified for three days and reachable for seven, then drops one step until the location is probed again. Level 4, clean, is not yet awarded, because ad exposure is measured in Phase 5.
+
+Still open in Phase 1: moving scout's matching into Lens, retiring the in-memory search cache once Atlas answers repeat searches, typed results and the evidence panel in the Console, and golden fixtures from the runtime proofs.
+
 For hot-reloading frontend development on `http://127.0.0.1:5173`:
 
 ```powershell

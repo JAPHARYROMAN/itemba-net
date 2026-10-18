@@ -16,6 +16,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/itemba-net/core/internal/atlas"
+	"github.com/itemba-net/core/internal/lens"
 	"github.com/itemba-net/core/internal/metrics"
 	"github.com/itemba-net/core/internal/scout"
 	"github.com/itemba-net/core/internal/shield"
@@ -42,10 +43,16 @@ type Dependencies struct {
 	Atlas *atlas.Store
 	// Metrics, when set, serves /metrics and observes requests and searches.
 	Metrics *metrics.Metrics
+	// Search runs the discovery burst. It defaults to Scout's search and is
+	// replaceable so tests can run the search routes offline.
+	Search SearchFunc
 	// StaticDir holds the built dashboard. It is served at the root path only
 	// when its index.html exists, so an API-only deployment needs no frontend.
 	StaticDir string
 }
+
+// SearchFunc is the discovery burst behind the search routes.
+type SearchFunc func(ctx context.Context, query, region string, options scout.SearchOptions) scout.SearchReport
 
 // Server routes operator requests to the subsystems.
 type Server struct {
@@ -55,11 +62,16 @@ type Server struct {
 	relay     http.Handler
 	atlas     *atlas.Store
 	metrics   *metrics.Metrics
+	search    SearchFunc
 	staticDir string
 }
 
 // New creates a console over the given subsystems.
 func New(deps Dependencies) *Server {
+	search := deps.Search
+	if search == nil && deps.Scout != nil {
+		search = deps.Scout.SearchWithOptions
+	}
 	return &Server{
 		shield:    deps.Shield,
 		scout:     deps.Scout,
@@ -67,6 +79,7 @@ func New(deps Dependencies) *Server {
 		relay:     deps.Relay,
 		atlas:     deps.Atlas,
 		metrics:   deps.Metrics,
+		search:    search,
 		staticDir: deps.StaticDir,
 	}
 }
@@ -89,7 +102,8 @@ func (s *Server) Handler() http.Handler {
 	// Pillar 1: itemba-scout Federated Search & Stream Verification
 	mux.HandleFunc("/api/scout/discover", movieDiscoveryHandler(s.scout.DiscoverMovies, s.scout.DiscoverFawesomeMovies))
 	mux.HandleFunc("/api/scout/fawesome/playback", fawesomeShelfPlaybackHandler(s.scout))
-	mux.HandleFunc("/api/scout/search", s.search)
+	mux.HandleFunc("/api/scout/search", s.searchRoute)
+	mux.HandleFunc("/api/scout/search/stream", s.searchStream)
 
 	// Pillar 2: itemba-vault Launch / Navigate Ephemeral Sandbox
 	mux.HandleFunc("/api/vault/launch", s.vaultLaunch)
@@ -134,7 +148,9 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *Server) search(w http.ResponseWriter, r *http.Request) {
+// searchRoute answers POST /api/scout/search with the full discovery report,
+// writing it back to Atlas when a database is configured.
+func (s *Server) searchRoute(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -148,17 +164,9 @@ func (s *Server) search(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "A JSON movie search request is required."})
 		return
 	}
-	req.Query = strings.TrimSpace(req.Query)
-	req.Region = strings.ToUpper(strings.TrimSpace(req.Region))
-	if req.Region == "" {
-		req.Region = "ALL"
-	}
-	if req.Query == "" || len([]rune(req.Query)) > 500 {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "Enter a movie title or URL using at most 500 characters."})
-		return
-	}
-	if req.Region != "ALL" && (len(req.Region) != 2 || req.Region[0] < 'A' || req.Region[0] > 'Z' || req.Region[1] < 'A' || req.Region[1] > 'Z') {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "Choose Worldwide or a two-letter country code."})
+	query, region, errMsg := validateSearch(req.Query, req.Region)
+	if errMsg != "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": errMsg})
 		return
 	}
 
@@ -167,11 +175,13 @@ func (s *Server) search(w http.ResponseWriter, r *http.Request) {
 
 	fullLengthOnly := req.FullLengthOnly == nil || *req.FullLengthOnly
 	started := time.Now()
-	report := s.scout.SearchWithOptions(ctx, req.Query, req.Region, scout.SearchOptions{FullLengthOnly: fullLengthOnly})
+	report := s.search(ctx, query, region, scout.SearchOptions{FullLengthOnly: fullLengthOnly})
 	if s.metrics != nil {
 		s.metrics.ObserveSearch(report, time.Since(started))
 	}
-	writeJSON(w, http.StatusOK, report)
+	event := reportEvent{SearchReport: report}
+	event.Atlas, event.AtlasError = s.record(r.Context(), lens.Parse(query), report)
+	writeJSON(w, http.StatusOK, event)
 }
 
 func (s *Server) vaultLaunch(w http.ResponseWriter, r *http.Request) {
