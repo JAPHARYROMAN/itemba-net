@@ -18,13 +18,19 @@ ITEMBA-NET/
 │       ├── main.go                 # Entry point: --role flag, local configuration, subsystem wiring
 │       └── role.go                 # Roles: console and all run now; crawler and probe arrive with Phases 2 and 4
 ├── internal/
+│   ├── atlas/                      # Persistent index (Phase 0: connection pool, embedded migrations, health)
+│   │   ├── store.go                # PostgreSQL pool and health check; errors never echo the URL
+│   │   ├── migrations.go           # Ordered NNNN_name.sql migrations applied under an advisory lock
+│   │   └── migrations/             # 0001_baseline.sql enables the vector extension
 │   ├── cdp/
 │   │   └── client.go               # Concurrent Chrome DevTools Protocol client & hybrid Docker/Local launcher
 │   ├── config/
-│   │   └── config.go               # Optional .env.local loader; process environment variables take precedence
-│   ├── console/                    # Operator interface: HTTP API, WebSocket multiplexer, dashboard
-│   │   ├── console.go              # Route registration and handlers over scout, vault, shield and relay
+│   │   └── config.go               # Typed Config from the optional .env.local file plus the environment
+│   ├── console/                    # Operator interface: HTTP API, WebSocket multiplexer, metrics, dashboard
+│   │   ├── console.go              # Route registration and handlers over scout, vault, shield, relay and atlas
 │   │   └── testbench.go            # Built-in Clean Cinema, SketchyStreamz Ad-Trap, & Fake-Wall testbenches
+│   ├── metrics/
+│   │   └── metrics.go              # Prometheus registry: search, probe, shield, vault, atlas and HTTP measures
 │   ├── shield/                     # Pillar 3: itemba-shield (Triple-Layer Ad & Threat Guillotine)
 │   │   ├── blocklists.go           # Layer 1 DNS Sinkhole (OISD/HaGeZi/StevenBlack) & Layer 2 CDP Filter rules
 │   │   ├── scripts.go              # Layer 3 Window-Spawn Lock, Z-Index Clickjacking Sweeper, & Theater Isolator
@@ -35,9 +41,11 @@ ITEMBA-NET/
 │   └── vault/                      # Pillar 2: itemba-vault (Remote Browser Isolation Sandbox & Streamer)
 │       └── manager.go              # Ephemeral sandbox lifecycle, Pion WebRTC DataChannels, & input multiplexing
 ├── deploy/
-│   └── coredns/                    # Container Layer 1 DNS Sinkhole configuration
-│       ├── Corefile
-│       └── blocklist.hosts
+│   ├── coredns/                    # Container Layer 1 DNS Sinkhole configuration
+│   │   ├── Corefile
+│   │   └── blocklist.hosts
+│   ├── grafana/                    # Provisioned Prometheus datasource and the Phase 0 dashboard
+│   └── prometheus/                 # Scrape configuration for the binary's /metrics
 ├── Dockerfile.vault                # Hardened Linux RBI container (Debian + Chromium + Xvfb + PulseAudio)
 ├── docker-compose.yml              # Full containerized deployment (CoreDNS Sinkhole + Vault Container)
 └── web/                            # Milestone 4: React + TypeScript + Vite Unified Theater Dashboard
@@ -123,7 +131,7 @@ This is federated discovery with a short-lived cache. Continuous global crawling
 
 1. Open [Tavily](https://app.tavily.com), create an account or sign in, and obtain an API key from the dashboard. Its [free plan](https://www.tavily.com/pricing) currently includes 1,000 credits per month without a credit card.
 2. Save the key as `TAVILY_API_KEY=your_key_here` in the project-root `.env.local`. Keep keys out of chat, source code and browser configuration.
-3. Restart `itemba.exe` from the project root. Existing process environment variables take precedence over the local file. The file accepts only `PORT`, `TAVILY_API_KEY` and `BRAVE_SEARCH_API_KEY`.
+3. Restart `itemba.exe` from the project root. Existing process environment variables take precedence over the local file. The file accepts only `PORT`, `TAVILY_API_KEY`, `BRAVE_SEARCH_API_KEY` and `ITEMBA_DATABASE_URL`.
 4. Search for a movie and open **Search coverage**. A working connection shows **Tavily web search** with the number of destination links returned. Authentication and quota failures appear without exposing the key.
 
 The app requests [basic search](https://docs.tavily.com/documentation/api-reference/endpoint/search), with automatic search-depth selection, generated answers and raw-page extraction disabled. Basic requests cost one credit. Worldwide searches omit country and preferred-domain fields and search for free, rental and purchase options across the web. Guide/reference domains are excluded upstream and all returned destinations are filtered again locally. Explicit country preferences may add country and service hints; they never guarantee local title availability. Tavily has a bounded ten-second request budget inside the 44-second search deadline, which also covers free-source discovery, availability and playback checks.
@@ -134,7 +142,7 @@ When both keys are configured, Tavily takes precedence. The app sends one web-pr
 
 1. Open the [Brave Search API dashboard](https://api-dashboard.search.brave.com/app/keys), sign in or register, activate a **Search** plan, and create a key. Review billing and usage limits in your account. [Brave's setup guide](https://api-dashboard.search.brave.com/documentation/quickstart) describes the account and plan steps.
 2. Open `.env.local` in the project root and set `BRAVE_SEARCH_API_KEY=your_key_here`. A blank local file is supplied for this workspace; `.env.example` is the reusable template. Keep the actual key in `.env.local`, which is excluded from version control. The key belongs to the Go server and must never use a `VITE_` prefix or appear in browser code.
-3. Restart `itemba.exe` from the project root. Environment variables already set for the process take precedence over `.env.local`, including an explicitly blank variable. The optional file supports `BRAVE_SEARCH_API_KEY`, `TAVILY_API_KEY` and `PORT`; quoted literal values and comments are accepted, without shell expansion.
+3. Restart `itemba.exe` from the project root. Environment variables already set for the process take precedence over `.env.local`, including an explicitly blank variable. The optional file supports `BRAVE_SEARCH_API_KEY`, `TAVILY_API_KEY`, `PORT` and `ITEMBA_DATABASE_URL`; quoted literal values and comments are accepted, without shell expansion.
 4. Search for a movie and expand **Search coverage**. A working connection shows **Brave web search** with the number of destination links returned. Invalid keys or plans show an authentication error; rate limits show a retry or quota message. An authenticated search can legitimately return no matches.
 
 Brave searches the worldwide index (`country=ALL`); a selected country supplies a location hint. Recognized movie-site page titles are normalized for matching, while the original title is preserved in the description. Web listings remain unverified with unknown access until there is evidence of price or availability. Opening a result uses the same protected browser as catalog results.
@@ -172,7 +180,35 @@ The built frontend (`web/dist`) is served directly by `itemba` on `http://127.0.
 ./itemba.exe
 ```
 
-The binary takes a `--role` flag: `console`, `crawler`, `probe` or `all` (the default). Only `console` and `all` run in this phase; `crawler` and `probe` refuse to start until Phases 2 and 4 of the [Implementation Plan](IMPLEMENTATION-PLAN.md) deliver their workers. `--config` names the optional local configuration file (default `.env.local`) and `--static` the built dashboard directory (default `web/dist`).
+The binary takes a `--role` flag: `console`, `crawler`, `probe` or `all` (the default). Only `console` and `all` run in this phase; `crawler` and `probe` refuse to start until Phases 2 and 4 of the [Implementation Plan](IMPLEMENTATION-PLAN.md) deliver their workers. `--config` names the optional local configuration file (default `.env.local`), `--static` the built dashboard directory (default `web/dist`) and `--database` the Atlas PostgreSQL URL (default from `ITEMBA_DATABASE_URL`).
+
+### Phase 0 foundations
+
+**Atlas database.** The binary runs without a database and says so at startup; nothing is persisted. To persist, start PostgreSQL with the pgvector extension and point the binary at it:
+
+```powershell
+docker compose up -d itemba-atlas
+```
+
+Then set `ITEMBA_DATABASE_URL=postgres://itemba:itemba-dev@127.0.0.1:5432/itemba` in `.env.local` or the environment, or pass `--database`. At startup the binary connects, applies the embedded migrations in `internal/atlas/migrations` in order under an advisory lock, and refuses to run if a configured database is unreachable or a migration fails. `GET /api/status` reports the connection, server version and the applied and pending migration counts under `atlas`. The migration test runs against a disposable database when `ITEMBA_TEST_DATABASE_URL` is set; CI provides one, and locally the compose service works with the URL above. The test drops the `atlas` schema, so never point it at real data.
+
+**Metrics.** `GET /metrics` serves Prometheus metrics: search duration and source counts, provider results, probe outcomes, Shield blocked and allowed counts by layer, Vault session state, Atlas health and console request counts, plus Go runtime and process metrics. These are the measures from section 14 of the white paper that Phase 0 and Phase 1 own.
+
+**Dashboard.** Prometheus and Grafana run from compose with the Phase 0 dashboard provisioned:
+
+```powershell
+docker compose up -d itemba-prometheus itemba-grafana
+```
+
+Prometheus scrapes the binary on the host at `host.docker.internal:8080` every 15 seconds (`deploy/prometheus/prometheus.yml`). Grafana listens on `http://127.0.0.1:3000`; sign in as `admin` with `ITEMBA_GRAFANA_PASSWORD` (default `itemba-dev`) and open **ITEMBA NET Phase 0** in the ITEMBA NET folder. The dashboard is `deploy/grafana/dashboards/itemba-phase0.json` and can be edited in place.
+
+**Linux execution host.** Vault's isolation tiers, per-session egress and GPU access in later phases need Linux with virtualisation. Two options fit Phase 0: a dedicated Linux machine or virtual server with KVM, or WSL2 on this Windows machine with nested virtualisation enabled. The development loop is the same for both: edit, run the Go tests and the Console on Windows, then build for Linux and run the binary on the Linux side:
+
+```powershell
+$env:GOOS = "linux"; $env:GOARCH = "amd64"; go build -o itemba ./cmd/itemba
+```
+
+Copy the binary and `web/dist` to the Linux host, or clone the repository there and build natively. CI builds and tests every commit on Ubuntu, so the Linux build is verified continuously. The host itself is a Phase 0 exit criterion that stays open until it exists.
 
 For hot-reloading frontend development on `http://127.0.0.1:5173`:
 
