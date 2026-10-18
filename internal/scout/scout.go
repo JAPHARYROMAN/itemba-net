@@ -2,9 +2,7 @@ package scout
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"sort"
@@ -13,6 +11,7 @@ import (
 	"time"
 
 	"github.com/itemba-net/core/internal/cdp"
+	"github.com/itemba-net/core/internal/crawler"
 	"github.com/itemba-net/core/internal/shield"
 )
 
@@ -59,6 +58,8 @@ type Scout struct {
 	fawesomeConfig  fawesomePublicConfig
 	fawesomeShelfMu sync.Mutex
 	fawesomeShelf   *fawesomeShelfPlaybackState
+	// drivers are the host drivers the search fans out to; see UseDrivers.
+	drivers []*crawler.Driver
 }
 
 // New creates a new Scout engine.
@@ -541,187 +542,4 @@ func matchReferenceCatalog(query string) []CandidateSource {
 		}
 	}
 	return matched
-}
-
-func (s *Scout) queryInternetArchive(ctx context.Context, query string) ([]CandidateSource, error) {
-	// Inspect a broader metadata window before spending requests on files. The
-	// most downloaded exact-title feature editions should beat trailers, DVD
-	// menus and compilations that happen to mention the requested movie.
-	searchCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
-	defer cancel()
-	apiURL := archiveMovieSearchURL(query)
-	req, err := http.NewRequestWithContext(searchCtx, http.MethodGet, apiURL, nil)
-	if err != nil {
-		return nil, err
-	}
-	resp, err := s.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("archive: HTTP %d", resp.StatusCode)
-	}
-
-	var payload struct {
-		Response struct {
-			Docs []archiveMovieDocument `json:"docs"`
-		} `json:"response"`
-	}
-	if err := json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&payload); err != nil {
-		return nil, err
-	}
-
-	candidates := archiveFeatureCandidates(query, payload.Response.Docs)
-	out := make([]CandidateSource, len(candidates))
-	var wg sync.WaitGroup
-	client := s.availabilityHTTPClient
-	if client == nil {
-		client = newMovieAvailabilityClient()
-	}
-	for i, candidate := range candidates {
-		wg.Add(1)
-		go func(index int, candidate CandidateSource) {
-			defer wg.Done()
-			page, _ := url.Parse(candidate.URL)
-			identifier := strings.TrimPrefix(page.Path, "/details/")
-			if resolved, ok := resolveFreeArchiveSource(searchCtx, client, candidate, identifier, false); ok {
-				out[index] = resolved
-			} else {
-				out[index] = candidate
-			}
-		}(i, candidate)
-	}
-	wg.Wait()
-	return out, nil
-}
-
-func (s *Scout) queryPeerTube(ctx context.Context, query string) ([]CandidateSource, error) {
-	apiURL := fmt.Sprintf("https://sepiasearch.org/api/v1/videos?search=%s&count=3&nsfw=false", url.QueryEscape(query))
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
-	if err != nil {
-		return nil, err
-	}
-	resp, err := s.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("peertube: HTTP %d", resp.StatusCode)
-	}
-
-	var payload struct {
-		Data []struct {
-			UUID        string `json:"uuid"`
-			Name        string `json:"name"`
-			Description string `json:"description"`
-			URL         string `json:"url"`
-			EmbedURL    string `json:"embedUrl"`
-			Thumbnail   string `json:"thumbnailUrl"`
-			Duration    int    `json:"duration"`
-			Account     struct {
-				DisplayName string `json:"displayName"`
-				Host        string `json:"host"`
-			} `json:"account"`
-		} `json:"data"`
-	}
-	if err := json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&payload); err != nil {
-		return nil, err
-	}
-
-	var out []CandidateSource
-	for i, v := range payload.Data {
-		targetURL := v.EmbedURL
-		if targetURL == "" {
-			targetURL = v.URL
-		}
-		if targetURL == "" {
-			continue
-		}
-		desc := v.Description
-		if len(desc) > 140 {
-			desc = desc[:140] + "..."
-		}
-		if desc == "" {
-			desc = fmt.Sprintf("Federated PeerTube stream hosted on %s.", v.Account.Host)
-		}
-		mins := v.Duration / 60
-		secs := v.Duration % 60
-		out = append(out, CandidateSource{
-			ID:          fmt.Sprintf("pt-%d-%s", i, v.UUID),
-			Title:       v.Name,
-			URL:         targetURL,
-			Provider:    fmt.Sprintf("PeerTube (%s)", v.Account.Host),
-			SourceType:  "Federated PeerTube",
-			AccessType:  "free",
-			AccessNote:  "Public video listing; access on the hosting instance may vary.",
-			Description: desc,
-			Thumbnail:   v.Thumbnail,
-			Duration:    fmt.Sprintf("%02d:%02d", mins, secs),
-		})
-	}
-	return out, nil
-}
-
-func (s *Scout) queryWikimediaCommons(ctx context.Context, query string) ([]CandidateSource, error) {
-	apiURL := fmt.Sprintf(
-		"https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=filetype:video+%s&gsrlimit=2&prop=imageinfo&iiprop=url|dimensions&format=json",
-		url.QueryEscape(query),
-	)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("User-Agent", "ITEMBA-NET-Scout/1.0 (https://localhost)")
-
-	resp, err := s.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("wikimedia: HTTP %d", resp.StatusCode)
-	}
-
-	var payload struct {
-		Query struct {
-			Pages map[string]struct {
-				PageID    int    `json:"pageid"`
-				Title     string `json:"title"`
-				ImageInfo []struct {
-					URL            string `json:"url"`
-					DescriptionURL string `json:"descriptionurl"`
-					Width          int    `json:"width"`
-					Height         int    `json:"height"`
-				} `json:"imageinfo"`
-			} `json:"pages"`
-		} `json:"query"`
-	}
-	if err := json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&payload); err != nil {
-		return nil, err
-	}
-
-	var out []CandidateSource
-	for _, p := range payload.Query.Pages {
-		if len(p.ImageInfo) == 0 || p.ImageInfo[0].URL == "" {
-			continue
-		}
-		info := p.ImageInfo[0]
-		cleanTitle := strings.TrimPrefix(p.Title, "File:")
-		out = append(out, CandidateSource{
-			ID:              fmt.Sprintf("wm-%d", p.PageID),
-			Title:           cleanTitle,
-			URL:             info.DescriptionURL,
-			DirectStreamURL: info.URL,
-			Provider:        "Wikimedia Commons",
-			SourceType:      "Open media",
-			AccessType:      "free",
-			AccessNote:      "Open media listing; see the source for its license and availability.",
-			Description:     "Open-access Wikimedia Commons direct WebM/Ogg video stream.",
-			Resolution:      fmt.Sprintf("%dx%d", info.Width, info.Height),
-			KnownManifests:  []string{info.URL},
-		})
-	}
-	return out, nil
 }

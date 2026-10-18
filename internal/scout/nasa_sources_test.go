@@ -48,19 +48,6 @@ func TestNASAProviderMatchesFullDocumentaryAndNotTrailer(t *testing.T) {
 	}
 }
 
-func TestNASACatalogFindsFeatureAndKeepsGlobalSearch(t *testing.T) {
-	s := &Scout{availabilityHTTPClient: &http.Client{Transport: searchFixtureTransport(func(req *http.Request) (*http.Response, error) {
-		if req.URL.Query().Get("search") != "Planetary Defenders" || req.URL.Query().Get("country") != "" {
-			t.Error("NASA title or global search was changed")
-		}
-		return searchFixtureResponse(200, "application/json", "["+nasaFixtureAPI+","+strings.ReplaceAll(nasaFixtureAPI, `"4508"`, `"139"`)+"]"), nil
-	})}}
-	items, err := s.queryNASAMovieSites(context.Background(), "Planetary Defenders 2025")
-	if err != nil || len(items) != 1 || items[0].Duration != "4508" || items[0].DirectStreamURL != "" || items[0].AccessType != "unknown" {
-		t.Fatalf("NASA feature discovery incorrectly included previews or playback claims: %+v %v", items, err)
-	}
-}
-
 func TestNASAFeaturePassesThroughProtectedNativePipeline(t *testing.T) {
 	s := &Scout{shield: shield.New(), availabilityHTTPClient: &http.Client{Transport: searchFixtureTransport(func(req *http.Request) (*http.Response, error) {
 		if req.URL.Hostname() == "nasaplus.akamaized.net" {

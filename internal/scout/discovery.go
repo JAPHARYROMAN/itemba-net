@@ -202,20 +202,27 @@ func (s *Scout) discoverSources(ctx context.Context, query, region string, direc
 	candidates = append(candidates, creatorMovieCandidates(query)...)
 	var mu sync.Mutex
 	var wg sync.WaitGroup
+	// The JSON catalogs (Apple's storefronts, Internet Archive, PeerTube,
+	// Wikimedia Commons, NASA+, the NFB) are drivers now; the HTML catalogs and
+	// Fawesome's guest search remain hand-written until HTML drivers exist.
+	_ = searchTitle
 	catalogs := []struct {
 		name   string
 		search func(context.Context, string) ([]CandidateSource, error)
 		term   string
 	}{
-		{"Internet Archive", s.queryInternetArchive, query},
 		{"Public Domain Movies browse", s.queryPublicDomainFeatureCatalog, query},
-		{"Blender open movies", s.queryBlenderMovies, query},
-		{"NASA+ free documentaries", s.queryNASAMovieSites, query},
-		{"NFB / ONF free film catalog", s.queryNFBMovieSites, query},
 		{"Fawesome live movie search", s.queryFawesomeMovieSites, query},
-		{"PeerTube", s.queryPeerTube, searchTitle},
-		{"Wikimedia Commons", s.queryWikimediaCommons, searchTitle},
 	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		items, providers := s.queryDrivers(ctx, query, region)
+		mu.Lock()
+		candidates = append(candidates, items...)
+		statuses = append(statuses, providers...)
+		mu.Unlock()
+	}()
 	for _, catalog := range catalogs {
 		wg.Add(1)
 		go func(name string, search func(context.Context, string) ([]CandidateSource, error), term string) {

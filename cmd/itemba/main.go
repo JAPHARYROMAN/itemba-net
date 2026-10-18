@@ -70,9 +70,14 @@ func main() {
 	ctx, stop := context.WithCancel(context.Background())
 	defer stop()
 
+	// The host drivers serve both the console's discovery burst and the
+	// crawler, so every role loads them. A broken driver set is fatal.
+	drivers := loadDrivers(*driversFlag)
+	sc.UseDrivers(drivers)
+
 	var crawl *crawler.Crawler
 	if role.RunsCrawler() {
-		crawl = openCrawler(role, store, *driversFlag, measures)
+		crawl = openCrawler(role, store, drivers, measures)
 		if crawl != nil {
 			go crawl.Run(ctx)
 		}
@@ -158,10 +163,29 @@ func openAtlas(url string) *atlas.Store {
 	return store
 }
 
-// openCrawler loads the drivers and builds the crawler. The crawler role
+// loadDrivers reads the host drivers every role searches with. A broken or
+// empty driver set is fatal: a process searching with half its hosts would
+// quietly skew every result.
+func loadDrivers(dir string) []*crawler.Driver {
+	drivers, err := crawler.LoadDir(dir)
+	if err != nil {
+		log.Fatalf("[ITEMBA-NET] %v", err)
+	}
+	if len(drivers) == 0 {
+		log.Fatalf("[ITEMBA-NET] no drivers found in %s", dir)
+	}
+	names := make([]string, 0, len(drivers))
+	for _, d := range drivers {
+		names = append(names, d.Name)
+	}
+	log.Printf("[ITEMBA-NET] drivers: %d loaded from %s %v", len(drivers), dir, names)
+	return drivers
+}
+
+// openCrawler builds the crawler over the loaded drivers. The crawler role
 // cannot run without a database; the all role runs its console and says the
 // crawler is idle.
-func openCrawler(role Role, store *atlas.Store, driversDir string, measures *metrics.Metrics) *crawler.Crawler {
+func openCrawler(role Role, store *atlas.Store, drivers []*crawler.Driver, measures *metrics.Metrics) *crawler.Crawler {
 	if store == nil {
 		if role == RoleCrawler {
 			log.Fatalf("[ITEMBA-NET] the crawler needs a database: set ITEMBA_DATABASE_URL or --database")
@@ -169,21 +193,9 @@ func openCrawler(role Role, store *atlas.Store, driversDir string, measures *met
 		log.Printf("[ITEMBA-NET] crawler idle: no database configured")
 		return nil
 	}
-	drivers, err := crawler.LoadDir(driversDir)
-	if err != nil {
-		log.Fatalf("[ITEMBA-NET] %v", err)
-	}
-	if len(drivers) == 0 {
-		log.Fatalf("[ITEMBA-NET] no drivers found in %s", driversDir)
-	}
 	crawl, err := crawler.New(crawler.Options{Store: store, Drivers: drivers, Observer: measures})
 	if err != nil {
 		log.Fatalf("[ITEMBA-NET] %v", err)
 	}
-	names := make([]string, 0, len(drivers))
-	for _, d := range drivers {
-		names = append(names, d.Name)
-	}
-	log.Printf("[ITEMBA-NET] crawler: %d driver(s) loaded %v", len(drivers), names)
 	return crawl
 }

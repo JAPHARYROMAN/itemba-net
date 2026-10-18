@@ -10,6 +10,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+
+	"github.com/itemba-net/core/internal/crawler"
 	"time"
 	"unicode/utf8"
 )
@@ -26,74 +28,6 @@ func providerResponse(code int, body string) *http.Response {
 
 func providerTestScout(fn movieProviderTransport) *Scout {
 	return &Scout{httpClient: &http.Client{Transport: fn}}
-}
-
-func TestAppleMovieListingUsesDestinationAndRealPrices(t *testing.T) {
-	s := providerTestScout(func(req *http.Request) (*http.Response, error) {
-		q := req.URL.Query()
-		if q.Get("term") != "Interstellar" || q.Get("country") != "ZA" || q.Get("entity") != "movie" {
-			t.Errorf("unexpected store query: %s", req.URL.RawQuery)
-		}
-		return providerResponse(200, `{"results":[
-			{"kind":"feature-movie","trackId":123,"trackName":"Interstellar","trackViewUrl":"https://itunes.apple.com/za/movie/interstellar/id123","previewUrl":"https://cdn.example/trailer.m4v","releaseDate":"2014-11-07T08:00:00Z","trackTimeMillis":10140000,"currency":"ZAR","trackPrice":99.99,"trackRentalPrice":29.99},
-			{"kind":"song","trackName":"Interstellar","trackViewUrl":"https://itunes.apple.com/za/movie/song/id456"},
-			{"kind":"feature-movie","trackName":"Interstellar","trackViewUrl":"javascript:alert(1)"},
-			{"kind":"feature-movie","trackName":"Interstellar","trackViewUrl":"https://evil.example/movie/id789"}
-		]}`), nil
-	})
-	got, status := s.queryAppleMovies(context.Background(), "Interstellar (2014)", "ZA")
-	if status.Status != "ok" || len(got) != 1 {
-		t.Fatalf("got %d listings, status %+v", len(got), status)
-	}
-	candidate := got[0]
-	if candidate.ReleaseYear != 2014 || candidate.Region != "ZA" || candidate.Price != "Rent ZAR 29.99 · Buy ZAR 99.99" || candidate.AccessType != "paid" {
-		t.Errorf("incorrect movie offer: %+v", candidate)
-	}
-	if !candidate.ListingOnly || candidate.DirectStreamURL != "" || len(candidate.KnownManifests) != 0 {
-		t.Errorf("listing was incorrectly promoted to a playable stream: %+v", candidate)
-	}
-	if candidate.Duration != "2h 49m" || candidate.URL != "https://itunes.apple.com/za/movie/interstellar/id123" {
-		t.Errorf("incorrect duration or destination: %+v", candidate)
-	}
-}
-
-func TestAppleEmptyEntitySearchFallsBackAndFiltersMedia(t *testing.T) {
-	calls := 0
-	s := providerTestScout(func(req *http.Request) (*http.Response, error) {
-		calls++
-		if req.URL.Query().Get("entity") == "movie" {
-			return providerResponse(200, `{"results":[]}`), nil
-		}
-		return providerResponse(200, `{"results":[{"kind":"song","trackName":"Film"},{"kind":"feature-movie","trackId":1,"trackName":"Film","trackViewUrl":"https://itunes.apple.com/us/movie/film/id1"}]}`), nil
-	})
-	got, status := s.queryAppleMovies(context.Background(), "Film", "US")
-	if calls != 2 || len(got) != 1 || status.Status != "ok" || got[0].AccessType != "unknown" || got[0].Price != "" {
-		t.Fatalf("unexpected fallback: calls=%d, listings=%+v, status=%+v", calls, got, status)
-	}
-}
-
-func TestApplePriceMissingZeroAndUnavailableDiffer(t *testing.T) {
-	zero, negative, hd := 0.0, -1.0, 9.99
-	tests := []struct {
-		name  string
-		movie appleMovie
-		kind  string
-		label string
-	}{
-		{"missing", appleMovie{Currency: "USD"}, "unknown", ""},
-		{"zero is supplied", appleMovie{Currency: "USD", TrackPrice: &zero}, "buy", "Buy USD 0.00"},
-		{"unavailable", appleMovie{Currency: "USD", TrackPrice: &negative}, "unknown", ""},
-		{"HD fallback", appleMovie{Currency: "USD", TrackPrice: &negative, TrackHDPrice: &hd}, "buy", "Buy USD 9.99"},
-		{"missing currency", appleMovie{TrackPrice: &hd}, "unknown", ""},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			kind, label := appleMoviePrice(tc.movie)
-			if kind != tc.kind || label != tc.label {
-				t.Errorf("got %q %q, want %q %q", kind, label, tc.kind, tc.label)
-			}
-		})
-	}
 }
 
 func TestMovieProvidersSurfaceFailuresAndDoNotLeakSecrets(t *testing.T) {
@@ -114,10 +48,6 @@ func TestMovieProvidersSurfaceFailuresAndDoNotLeakSecrets(t *testing.T) {
 			got, status := s.queryBraveMovieSites(context.Background(), "Film", "US")
 			if len(got) != 0 || status.Status != "error" || strings.Contains(status.Detail, "private-api-key") || strings.Contains(status.Detail, "quota exceeded") {
 				t.Errorf("bad status/result: %+v %+v", got, status)
-			}
-			apple, appleStatus := s.queryAppleMovies(context.Background(), "Film", "US")
-			if len(apple) != 0 || appleStatus.Status != "error" {
-				t.Errorf("bad Apple failure status: %+v %+v", apple, appleStatus)
 			}
 		})
 	}
@@ -175,8 +105,9 @@ func TestWorldwideStoresAreBoundedAndRegionLabeled(t *testing.T) {
 		time.Sleep(time.Millisecond)
 		return providerResponse(200, fmt.Sprintf(`{"results":[{"kind":"feature-movie","trackId":1,"trackName":"Film","trackViewUrl":"https://itunes.apple.com/%s/movie/film/id1","currency":"USD","trackPrice":9.99}]}`, strings.ToLower(country))), nil
 	})
-	got, statuses := s.discoverMovieSites(context.Background(), "Film", "ALL")
-	if len(got) != 8 || len(statuses) != 10 || peak.Load() > 4 {
+	s.UseDrivers([]*crawler.Driver{testDriver(t, "apple-movies")})
+	got, statuses := s.queryDrivers(context.Background(), "Film", "ALL")
+	if len(got) != 8 || len(statuses) != 8 || peak.Load() > 4 {
 		t.Fatalf("unbounded/wrong stores: results=%d statuses=%d peak=%d", len(got), len(statuses), peak.Load())
 	}
 	for _, country := range []string{"US", "GB", "IN", "ZA", "DE", "FR", "JP", "AU"} {
@@ -188,19 +119,6 @@ func TestWorldwideStoresAreBoundedAndRegionLabeled(t *testing.T) {
 		if !countries[candidate.Region] || !candidate.ListingOnly {
 			t.Errorf("incorrect region label: %+v", candidate)
 		}
-	}
-}
-
-func TestProviderCanceledRequestIsObservable(t *testing.T) {
-	s := providerTestScout(func(req *http.Request) (*http.Response, error) {
-		<-req.Context().Done()
-		return nil, req.Context().Err()
-	})
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	got, status := s.queryAppleMovies(ctx, "Film", "US")
-	if len(got) != 0 || status.Status != "error" || !strings.Contains(status.Detail, "canceled or timed out") {
-		t.Errorf("cancellation was hidden: %+v %+v", got, status)
 	}
 }
 

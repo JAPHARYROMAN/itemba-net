@@ -19,9 +19,9 @@ func TestLiveFeatureMovieDiscovery(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 14*time.Second)
 	defer cancel()
 	s := &Scout{httpClient: &http.Client{Timeout: 5 * time.Second}, availabilityHTTPClient: newMovieAvailabilityClient()}
-	archive, err := s.queryInternetArchive(ctx, "His Girl Friday 1940")
-	if err != nil {
-		t.Fatal(err)
+	archive, status := s.queryDriver(ctx, s.driverFetcher(), testDriver(t, "internet-archive"), "His Girl Friday 1940", "His Girl Friday", "")
+	if status.Status == "error" {
+		t.Fatal(status.Detail)
 	}
 	full := 0
 	for _, source := range archive {

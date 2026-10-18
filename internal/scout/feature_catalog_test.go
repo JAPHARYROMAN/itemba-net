@@ -2,83 +2,12 @@ package scout
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync/atomic"
 	"testing"
 )
-
-func TestArchiveFeatureSearchKeepsTitleSeparateFromYear(t *testing.T) {
-	u, err := url.Parse(archiveMovieSearchURL("watch His Girl Friday (1940) full movie"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	values := u.Query()
-	if values.Get("q") != `title:("His Girl Friday") AND mediatype:movies` || values.Get("rows") != "30" || values.Get("sort[]") != "downloads desc" || !strings.Contains(values.Get("fl[]"), "collection") {
-		t.Fatalf("feature search lost its metadata window/title: %s", u)
-	}
-	if q := archiveMovieSearchURL(`Charade" OR mediatype:texts`); strings.Contains(q, `Charade%22`) {
-		t.Fatal("untrusted title broke out of literal search phrase")
-	}
-}
-
-func TestArchiveFeatureCandidatesRejectClipsMenusAndWrongYear(t *testing.T) {
-	docs := []archiveMovieDocument{
-		{Identifier: "trailer", Title: "Charade (1963) Trailer"},
-		{Identifier: "wrong", Title: "Charade", Year: "1953", Collection: "feature_films"},
-		{Identifier: "menu", Title: "Charade (1963) DVD Menu"},
-		{Identifier: "collection", Title: "Charade Collection", Year: "1963"},
-		{Identifier: "other", Title: "Charade Circuit 1963"},
-		{Identifier: "community", Title: "Charade", Year: "1963"},
-		{Identifier: "feature", Title: "Charade", Year: "1963", Runtime: "1:53:00", Collection: []any{"feature_films", "moviesandfilms"}},
-	}
-	got := archiveFeatureCandidates("Charade 1963", docs)
-	if len(got) != 2 || got[0].ID != "ia-discovered-feature" || got[1].ID != "ia-discovered-community" {
-		t.Fatalf("wrong feature candidates: %+v", got)
-	}
-	if got[0].DirectStreamURL != "" || !got[0].ListingOnly {
-		t.Fatal("search metadata alone claimed playable media")
-	}
-}
-
-func TestArchiveFeatureSearchResolvesOnlyBoundedRelevantMetadata(t *testing.T) {
-	var metadataRequests atomic.Int32
-	var docs []archiveMovieDocument
-	for i := 0; i < 8; i++ {
-		docs = append(docs, archiveMovieDocument{Identifier: fmt.Sprintf("film-%d", i), Title: "His Girl Friday", Year: "1940", Collection: "feature_films"})
-	}
-	docs = append([]archiveMovieDocument{{Identifier: "trailer", Title: "His Girl Friday Trailer"}}, docs...)
-	encoded, _ := json.Marshal(map[string]any{"response": map[string]any{"docs": docs}})
-	s := &Scout{httpClient: &http.Client{Transport: searchFixtureTransport(func(req *http.Request) (*http.Response, error) {
-		if req.URL.Path != "/advancedsearch.php" {
-			t.Errorf("unexpected discovery request: %s", req.URL)
-		}
-		return searchFixtureResponse(200, "application/json", string(encoded)), nil
-	})}}
-	s.availabilityHTTPClient = &http.Client{Transport: searchFixtureTransport(func(req *http.Request) (*http.Response, error) {
-		metadataRequests.Add(1)
-		id := strings.TrimPrefix(req.URL.Path, "/metadata/")
-		if id == "trailer" || !strings.HasPrefix(id, "film-") {
-			t.Errorf("irrelevant item reached metadata: %s", id)
-		}
-		body := fmt.Sprintf(`{"metadata":{"identifier":%q,"title":"His Girl Friday","mediatype":"movies","year":"1940","runtime":"5520"},"files":[{"name":"trailer.mp4","length":"90","size":"100000"},{"name":"feature.mp4","length":"5520","size":"120000000"},{"name":"original.mp4","length":"5520","size":"900000000"}]}`, id)
-		response := searchFixtureResponse(200, "application/json", body)
-		response.Request = req
-		return response, nil
-	})}
-	got, err := s.queryInternetArchive(context.Background(), "His Girl Friday 1940")
-	if err != nil || len(got) != maxArchiveMovieMetadata || metadataRequests.Load() != maxArchiveMovieMetadata {
-		t.Fatalf("unexpected bounded archive discovery: %d, %d, %v", len(got), metadataRequests.Load(), err)
-	}
-	for _, source := range got {
-		if !strings.HasSuffix(source.DirectStreamURL, "/feature.mp4") || source.AccessBasis != "archive_metadata" || source.Duration != "5520" || source.ListingOnly {
-			t.Fatalf("unmatched/short edition chosen: %+v", source)
-		}
-	}
-}
 
 func TestPublicDomainFeaturePageUsesObservedCardsAndPagination(t *testing.T) {
 	page, _ := url.Parse("https://publicdomainmovie.net/feature_movies")

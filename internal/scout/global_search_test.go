@@ -14,6 +14,7 @@ func TestGlobalMovieSearchResolvesNewFreeSiteAndKeepsPaidAccessSeparate(t *testi
 	t.Setenv("TAVILY_API_KEY", "fixture-key")
 	t.Setenv("BRAVE_SEARCH_API_KEY", "")
 	s := New(shield.New(), "http://127.0.0.1:8080")
+	s.UseDrivers(testDrivers(t))
 	s.httpClient = &http.Client{Transport: searchFixtureTransport(func(req *http.Request) (*http.Response, error) {
 		if req.URL.Hostname() == "api.tavily.com" {
 			return searchFixtureResponse(200, "application/json", `{"results":[{"title":"Fixture Film (2014) - Public Domain Movies","url":"https://publicdomainmovie.net/movie/fixture-film"},{"title":"Fixture Film (2014) | Netflix","url":"https://www.netflix.com/title/fixture"}]}`), nil

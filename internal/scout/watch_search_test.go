@@ -12,6 +12,7 @@ func TestSearchReturnsDirectWatchPagesWithTanzaniaEvidenceFirst(t *testing.T) {
 	t.Setenv("TAVILY_API_KEY", "fixture-key")
 	t.Setenv("BRAVE_SEARCH_API_KEY", "")
 	s := New(shield.New(), "http://127.0.0.1:8080")
+	s.UseDrivers(testDrivers(t))
 	s.httpClient = &http.Client{Transport: searchFixtureTransport(func(req *http.Request) (*http.Response, error) {
 		switch req.URL.Hostname() {
 		case "itunes.apple.com":

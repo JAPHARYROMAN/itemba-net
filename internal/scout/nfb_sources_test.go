@@ -116,36 +116,6 @@ func TestNFBRefusesTrailersMismatchesAndRestrictions(t *testing.T) {
 	}
 }
 
-func TestNFBCatalogUsesPublicSearchAndFullRuntime(t *testing.T) {
-	calls := 0
-	s := &Scout{availabilityHTTPClient: &http.Client{Transport: searchFixtureTransport(func(req *http.Request) (*http.Response, error) {
-		calls++
-		q := req.URL.Query()
-		if req.URL.Hostname() != "searchapi.nfb.ca" || req.URL.Path != "/api/search/v4/films/" || q.Get("q") != "We Will Stand Up" || q.Get("per_page") != "6" || q.Get("country") != "" {
-			t.Error("public global NFB search contract changed")
-		}
-		return searchFixtureResponse(200, "application/json", `{"items":[{"title":"nîpawistamâsowin: We Will Stand Up","slug":"nipawistamasowin-we-will-stand-up","year":2019,"time":"PT01:38:36","description":{"en":"A <em>full film</em> description.","fr":null},"is_streamable_for_free":true},{"title":"We Will Stand Up (52 minutes)","slug":"we-will-stand-up-52","year":2019,"time":"PT00:52:00","description":{"en":"Shorter version","fr":null},"is_streamable_for_free":false},{"title":"We Will Stand Up trailer","slug":"trailer","year":2019,"time":"PT00:02:12","is_streamable_for_free":true},{"title":"Unrelated movie","slug":"unrelated","year":2024,"time":"PT01:30:00","is_streamable_for_free":true}]}`), nil
-	})}}
-	items, err := s.queryNFBMovieSites(context.Background(), "We Will Stand Up 2019")
-	if err != nil || calls != 1 || len(items) != 1 || items[0].URL != nfbFixtureURL || items[0].Duration != "5916" || items[0].ReleaseYear != 2019 || items[0].AccessType != "unknown" || items[0].DirectStreamURL != "" {
-		t.Fatalf("catalog included previews, paid/unrelated entries or watch claims: count=%d items=%+v error=%v", calls, items, err)
-	}
-	if items[0].Description != "A full film description." {
-		t.Fatalf("localized catalog description was not parsed safely: %q", items[0].Description)
-	}
-}
-
-func TestNFBCatalogOptionalDescriptionDoesNotRejectFilm(t *testing.T) {
-	for _, raw := range []string{`null`, `{}`, `{"en":null,"fr":"French description"}`, `[]`, `123`} {
-		if text := nfbCatalogDescription(json.RawMessage(raw)); text != "" {
-			t.Errorf("unexpected description for unsupported optional metadata %s", raw)
-		}
-	}
-	if nfbCatalogDescription(json.RawMessage(`"Plain description"`)) != "Plain description" {
-		t.Fatal("plain description response was lost")
-	}
-}
-
 func TestNFBFullFilmEntersProtectedNativeChecksWithoutPublicMedia(t *testing.T) {
 	calls := 0
 	client := nfbFixtureClient(t, nfbFixturePage, nfbFixturePlayer, &calls)
@@ -226,39 +196,6 @@ func TestLiveNFBProtectedPlayback(t *testing.T) {
 		t.Fatalf("protected NFB full film start not confirmed: %+v", check)
 	}
 	t.Logf("NFB full film started: country=%s frames=%d progress=%.2fs duration=%.1fs", country, check.DecodedFrames, check.SecondsAdvanced, check.DurationSeconds)
-}
-
-func TestLiveNFBCatalogSearch(t *testing.T) {
-	if os.Getenv("ITEMBA_LIVE_NFB_SEARCH") != "1" {
-		t.Skip("opt-in single public catalog request")
-	}
-	client := newMovieAvailabilityClient()
-	transport := client.Transport
-	client.Transport = searchFixtureTransport(func(req *http.Request) (*http.Response, error) {
-		started := time.Now()
-		response, err := transport.RoundTrip(req)
-		if response != nil {
-			t.Logf("public catalog HTTP status=%d elapsed=%s", response.StatusCode, time.Since(started).Round(time.Millisecond))
-		} else {
-			t.Logf("public catalog transport error type=%T elapsed=%s", err, time.Since(started).Round(time.Millisecond))
-		}
-		return response, err
-	})
-	s := &Scout{availabilityHTTPClient: client}
-	items, err := s.queryNFBMovieSites(context.Background(), "We Will Stand Up 2019")
-	if err != nil {
-		t.Fatal(err)
-	}
-	found := false
-	for _, item := range items {
-		if item.URL == nfbFixtureURL && item.ReleaseYear == 2019 && item.Duration == "5916" {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatal("public catalog omitted the full main film")
-	}
-	t.Logf("public catalog returned %d relevant listings including the full main film", len(items))
 }
 
 type nfbPlaybackDebug struct {

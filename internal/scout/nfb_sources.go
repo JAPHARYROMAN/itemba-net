@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"math"
 	"net/http"
 	"net/url"
@@ -270,82 +268,4 @@ func parseNFBPlayerOptions(data []byte) (nfbPlayerOptions, string, bool) {
 	}
 	walk(doc)
 	return options, restriction, count == 1
-}
-
-// The public search page sets VUE_SEARCH_APP_API_BASE_URL=searchapi.nfb.ca;
-// its observed Vue bundle calls /api/search/v4/films/ with q, per_page and
-// language, then renders /film/{returned slug}/. One request, four seconds.
-func (s *Scout) queryNFBMovieSites(ctx context.Context, query string) ([]CandidateSource, error) {
-	searchCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
-	defer cancel()
-	title, _ := movieQuery(query)
-	values := url.Values{"q": {title}, "per_page": {"6"}, "language": {"en"}, "include": {"description"}, "page": {"1"}, "sort_by": {"relevance"}, "order_by": {"desc"}}
-	client := s.availabilityHTTPClient
-	if client == nil {
-		client = newMovieAvailabilityClient()
-	}
-	data, final, err := fetchFreeSourceDocument(searchCtx, client, "https://searchapi.nfb.ca/api/search/v4/films/?"+values.Encode())
-	if err != nil {
-		// URL errors include the query in their text; keep only the transport
-		// cause in provider diagnostics. No response body is exposed.
-		var requestError *url.Error
-		if errors.As(err, &requestError) {
-			err = requestError.Err
-		}
-		return nil, fmt.Errorf("NFB public film search unavailable: %w", err)
-	}
-	if final == nil || final.Hostname() != "searchapi.nfb.ca" || final.Path != "/api/search/v4/films/" {
-		return nil, errors.New("NFB public film search unavailable")
-	}
-	var payload struct {
-		Items []struct {
-			Title       string          `json:"title"`
-			Slug        string          `json:"slug"`
-			Year        int             `json:"year"`
-			Time        string          `json:"time"`
-			Description json.RawMessage `json:"description"`
-			Free        bool            `json:"is_streamable_for_free"`
-		} `json:"items"`
-	}
-	if err := json.Unmarshal(data, &payload); err != nil {
-		return nil, fmt.Errorf("NFB public film search response unrecognized: %w", err)
-	}
-	var out []CandidateSource
-	for _, item := range payload.Items {
-		if len(out) >= 6 {
-			break
-		}
-		duration := nfbDurationSeconds(item.Time)
-		if !freeArchiveIdentifier.MatchString(item.Slug) || !item.Free || duration > 0 && duration < 40*60 {
-			continue
-		}
-		source := CandidateSource{ID: resolvedFreeMovieID("nfb-search", item.Slug), Title: item.Title, URL: "https://www.nfb.ca/film/" + item.Slug + "/", ReleaseYear: item.Year, Provider: "NFB / ONF", SourceType: "Web Listing", AccessType: "unknown", ListingOnly: true, Description: nfbCatalogDescription(item.Description), AccessNote: "NFB's catalog lists free streaming; the full guest player and actual playback need separate checks."}
-		if duration > 0 {
-			source.Duration = strconv.FormatFloat(duration, 'f', -1, 64)
-		}
-		if relevanceScore(query, source) > 0 {
-			out = append(out, source)
-		}
-	}
-	return out, nil
-}
-
-// NFB's include=description response uses a language-keyed object, including
-// null translations. Missing prose must not discard otherwise valid listings.
-func nfbCatalogDescription(raw json.RawMessage) string {
-	var text string
-	if json.Unmarshal(raw, &text) != nil {
-		var localized struct {
-			English string `json:"en"`
-		}
-		if json.Unmarshal(raw, &localized) != nil {
-			return ""
-		}
-		text = localized.English
-	}
-	doc, err := html.Parse(strings.NewReader(text))
-	if err != nil {
-		return ""
-	}
-	return strings.Join(strings.Fields(availabilityNodeText(doc)), " ")
 }

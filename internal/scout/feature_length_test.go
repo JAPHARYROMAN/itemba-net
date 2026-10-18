@@ -30,6 +30,7 @@ func TestFeatureCoverageDoesNotCountSampledShortsExcludedFromResults(t *testing.
 	t.Setenv("TAVILY_API_KEY", "fixture-key")
 	t.Setenv("BRAVE_SEARCH_API_KEY", "")
 	s := New(shield.New(), "http://127.0.0.1:8080")
+	s.UseDrivers(testDrivers(t))
 	client := &http.Client{Transport: searchFixtureTransport(func(req *http.Request) (*http.Response, error) {
 		switch {
 		case req.URL.Hostname() == "api.tavily.com":
@@ -60,6 +61,7 @@ func TestFeatureCoverageDoesNotCountSampledShortsExcludedFromResults(t *testing.
 
 func TestDirectURLInspectionReportsItsEffectiveLengthPreference(t *testing.T) {
 	s := New(shield.New(), "http://127.0.0.1:8080")
+	s.UseDrivers(testDrivers(t))
 	s.httpClient = &http.Client{Transport: searchFixtureTransport(func(req *http.Request) (*http.Response, error) {
 		return searchFixtureResponse(206, "video/mp4", "\x00\x00\x00\x18ftypisom\x00\x00\x00\x00isom"), nil
 	})}
@@ -73,6 +75,7 @@ func TestFullLengthSearchFiltersKnownShortsKeepsUnknownAndSeparatesCache(t *test
 	t.Setenv("TAVILY_API_KEY", "")
 	t.Setenv("BRAVE_SEARCH_API_KEY", "")
 	s := New(shield.New(), "http://127.0.0.1:8080")
+	s.UseDrivers(testDrivers(t))
 	client := &http.Client{Transport: searchFixtureTransport(func(req *http.Request) (*http.Response, error) {
 		if req.URL.Hostname() == "itunes.apple.com" {
 			return searchFixtureResponse(200, "application/json", `{"results":[{"kind":"feature-movie","trackId":1,"trackName":"Fixture Film","trackViewUrl":"https://itunes.apple.com/us/movie/fixture-film/id1","releaseDate":"2014-01-01T00:00:00Z","trackTimeMillis":600000},{"kind":"feature-movie","trackId":2,"trackName":"Fixture Film","trackViewUrl":"https://itunes.apple.com/us/movie/fixture-film/id2","releaseDate":"2014-01-01T00:00:00Z","trackTimeMillis":2100000},{"kind":"feature-movie","trackId":3,"trackName":"Fixture Film","trackViewUrl":"https://itunes.apple.com/us/movie/fixture-film/id3","releaseDate":"2014-01-01T00:00:00Z"}]}`), nil

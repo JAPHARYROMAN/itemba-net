@@ -13,7 +13,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -165,182 +164,14 @@ func webMovieDescription(originalTitle, title, description string) string {
 // discoverMovieSites fetches destination pages, never promotional preview streams.
 // ALL samples storefronts across several markets alongside unrestricted web
 // discovery. Storefront coverage never means universal title availability.
+// discoverMovieSites runs the configured web-search provider. The storefront
+// catalogs it used to fan out to are the apple-movies driver now.
 func (s *Scout) discoverMovieSites(ctx context.Context, query, region string) ([]CandidateSource, []ProviderStatus) {
 	region = strings.ToUpper(strings.TrimSpace(region))
-	regions := []string{region}
-	if region == "" || region == "ALL" {
-		regions = []string{"US", "GB", "IN", "ZA", "DE", "FR", "JP", "AU"}
+	if region == "" {
 		region = "ALL"
 	}
-	type providerResult struct {
-		candidates []CandidateSource
-		status     ProviderStatus
-	}
-	results := make([]providerResult, len(regions))
-	var webCandidates []CandidateSource
-	var webStatuses []ProviderStatus
-	// More markets share one deadline and a fixed concurrency limit, so adding
-	// storefront coverage cannot keep extending discovery's elapsed time.
-	catalogCtx, cancelCatalog := context.WithTimeout(ctx, 10*time.Second)
-	defer cancelCatalog()
-	sem := make(chan struct{}, 4)
-	var wg sync.WaitGroup
-	for i, country := range regions {
-		wg.Add(1)
-		go func(idx int, country string) {
-			defer wg.Done()
-			select {
-			case sem <- struct{}{}:
-				defer func() { <-sem }()
-			case <-catalogCtx.Done():
-				results[idx].status = ProviderStatus{Name: "Apple movie catalog (" + country + ")", Status: "error", Detail: "Search canceled or timed out."}
-				return
-			}
-			results[idx].candidates, results[idx].status = s.queryAppleMovies(catalogCtx, query, country)
-		}(i, country)
-	}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		webCandidates, webStatuses = s.queryMovieWebProvider(ctx, query, region)
-	}()
-	wg.Wait()
-	var candidates []CandidateSource
-	statuses := make([]ProviderStatus, 0, len(results))
-	for _, result := range results {
-		candidates = append(candidates, result.candidates...)
-		statuses = append(statuses, result.status)
-	}
-	candidates = append(candidates, webCandidates...)
-	statuses = append(statuses, webStatuses...)
-	return candidates, statuses
-}
-
-type appleMovie struct {
-	Kind               string   `json:"kind"`
-	TrackID            int64    `json:"trackId"`
-	TrackName          string   `json:"trackName"`
-	TrackViewURL       string   `json:"trackViewUrl"`
-	ReleaseDate        string   `json:"releaseDate"`
-	TrackTimeMillis    int64    `json:"trackTimeMillis"`
-	Currency           string   `json:"currency"`
-	TrackPrice         *float64 `json:"trackPrice"`
-	TrackHDPrice       *float64 `json:"trackHdPrice"`
-	TrackRentalPrice   *float64 `json:"trackRentalPrice"`
-	TrackHDRentalPrice *float64 `json:"trackHdRentalPrice"`
-	LongDescription    string   `json:"longDescription"`
-	ShortDescription   string   `json:"shortDescription"`
-}
-
-func (s *Scout) queryAppleMovies(ctx context.Context, query, country string) ([]CandidateSource, ProviderStatus) {
-	status := ProviderStatus{Name: "Apple movie catalog (" + country + ")", Status: "ok"}
-	// Store search can miss titles when the release year is passed as text. Keep
-	// the candidate's release year for the common title/year relevance filter.
-	term, _ := movieQuery(query)
-	if term == "" {
-		term = query
-	}
-	params := url.Values{"term": {term}, "country": {country}, "entity": {"movie"}, "limit": {strconv.Itoa(providerResultLimit)}}
-	var payload struct {
-		Results []appleMovie `json:"results"`
-	}
-	if err := s.fetchProviderJSON(ctx, appleSearchEndpoint+"?"+params.Encode(), nil, &payload); err != nil {
-		status.Status, status.Detail = "error", "Store search failed: "+err.Error()
-		return nil, status
-	}
-	if len(payload.Results) == 0 {
-		// The documented entity=movie endpoint has intermittently returned no
-		// records while an unfiltered search still includes feature movies.
-		// One bounded retry preserves coverage without treating other media as films.
-		params.Del("entity")
-		if err := s.fetchProviderJSON(ctx, appleSearchEndpoint+"?"+params.Encode(), nil, &payload); err != nil {
-			status.Status, status.Detail = "error", "Store movie search was empty; catalog fallback failed: "+err.Error()
-			return nil, status
-		}
-	}
-	var out []CandidateSource
-	seen := make(map[string]bool)
-	for _, movie := range payload.Results {
-		if len(out) >= providerResultLimit {
-			break
-		}
-		if movie.Kind != "feature-movie" || strings.TrimSpace(movie.TrackName) == "" || !isAppleMovieURL(movie.TrackViewURL) || seen[movie.TrackViewURL] {
-			continue
-		}
-		seen[movie.TrackViewURL] = true
-		access, price := appleMoviePrice(movie)
-		year := 0
-		if released, err := time.Parse(time.RFC3339, movie.ReleaseDate); err == nil {
-			year = released.Year()
-		}
-		description := movie.ShortDescription
-		if description == "" {
-			description = movie.LongDescription
-		}
-		if description == "" {
-			description = "Movie detail page in the Apple movie store."
-		}
-		minutes := movie.TrackTimeMillis / 60000
-		duration := ""
-		if minutes > 0 {
-			duration = fmt.Sprintf("%dh %02dm", minutes/60, minutes%60)
-		}
-		out = append(out, CandidateSource{
-			ID:          "apple-" + strings.ToLower(country) + "-" + strconv.FormatInt(movie.TrackID, 10),
-			Title:       movie.TrackName,
-			URL:         movie.TrackViewURL,
-			Provider:    "Apple TV / iTunes",
-			SourceType:  "Movie Store",
-			Description: description,
-			Duration:    duration,
-			AccessType:  access,
-			AccessNote:  "Store listing for " + country + ". Confirm price and regional availability on the provider. Playback is unverified; an account or compatible player may be required.",
-			Price:       price,
-			Region:      country,
-			ReleaseYear: year,
-			ListingOnly: true,
-		})
-	}
-	status.Detail = fmt.Sprintf("%d movie listings returned for %s; playback and current availability are unverified.", len(out), country)
-	if len(out) == 0 {
-		status.Status = "empty"
-	}
-	return out, status
-}
-
-func appleMoviePrice(movie appleMovie) (string, string) {
-	price := func(primary, hd *float64) *float64 {
-		if primary != nil && *primary >= 0 {
-			return primary
-		}
-		if hd != nil && *hd >= 0 {
-			return hd
-		}
-		return nil
-	}
-	rent, buy := price(movie.TrackRentalPrice, movie.TrackHDRentalPrice), price(movie.TrackPrice, movie.TrackHDPrice)
-	currency := strings.TrimSpace(movie.Currency)
-	if currency == "" {
-		// A bare amount without its currency is not a meaningful offer.
-		return "unknown", ""
-	}
-	var labels []string
-	if rent != nil {
-		labels = append(labels, fmt.Sprintf("Rent %s %.2f", currency, *rent))
-	}
-	if buy != nil {
-		labels = append(labels, fmt.Sprintf("Buy %s %.2f", currency, *buy))
-	}
-	switch {
-	case rent != nil && buy != nil:
-		return "paid", strings.Join(labels, " · ")
-	case rent != nil:
-		return "rent", labels[0]
-	case buy != nil:
-		return "buy", labels[0]
-	default:
-		return "unknown", ""
-	}
+	return s.queryMovieWebProvider(ctx, query, region)
 }
 
 func isAppleMovieURL(raw string) bool {

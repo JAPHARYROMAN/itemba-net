@@ -319,6 +319,7 @@ func TestSearchWithRegionPreservesFreeMediaAndUnverifiedPaidListings(t *testing.
 		}
 	})}
 	s := New(shield.New(), "http://127.0.0.1:8080")
+	s.UseDrivers(testDrivers(t))
 	s.httpClient = client
 	s.availabilityHTTPClient = client
 	s.playbackProbe = func(_ context.Context, _ VerifiedSource, region, country string) *PlaybackCheck {
@@ -367,6 +368,7 @@ func TestSearchWithoutMatchesDoesNotInventFallbackResults(t *testing.T) {
 	t.Setenv("BRAVE_SEARCH_API_KEY", "")
 	t.Setenv("TAVILY_API_KEY", "")
 	s := New(shield.New(), "http://127.0.0.1:8080")
+	s.UseDrivers(testDrivers(t))
 	s.httpClient = &http.Client{Transport: searchFixtureTransport(func(req *http.Request) (*http.Response, error) {
 		return searchFixtureResponse(200, "application/json", `{"response":{"docs":[]},"data":[],"query":{"pages":{}},"results":[]}`), nil
 	})}

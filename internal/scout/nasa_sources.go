@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"html"
 	"net/http"
 	"net/url"
@@ -49,43 +48,6 @@ func nasaMovieTarget(source CandidateSource) bool {
 func nasaMainMediaURL(raw string) (*url.URL, bool) {
 	u, safe := safeAvailabilityURL(raw)
 	return u, safe && u.Scheme == "https" && u.Host == "nasaplus.akamaized.net" && strings.HasPrefix(u.Path, "/output/") && strings.HasSuffix(u.Path, ".m3u8") && u.RawQuery == ""
-}
-
-// The public WordPress route is advertised by each NASA+ movie page's JSON
-// alternate link. It supplies the main video-url separately from preview-url.
-// Contract observed on Planetary Defenders (2025), 4508 seconds, 2026-10-18.
-func (s *Scout) queryNASAMovieSites(ctx context.Context, query string) ([]CandidateSource, error) {
-	title, _ := movieQuery(query)
-	values := url.Values{"search": {title}, "per_page": {"20"}, "_fields": {"id,type,slug,link,date,title,meta"}}
-	client := s.availabilityHTTPClient
-	if client == nil {
-		client = newMovieAvailabilityClient()
-	}
-	data, final, err := fetchMovieDocumentWithinLimit(ctx, client, nasaMovieAPI+"?"+values.Encode(), 256<<10)
-	if err != nil {
-		return nil, err
-	}
-	if final.Host != "plus.nasa.gov" || final.Path != "/wp-json/wp/v2/video" {
-		return nil, nil
-	}
-	var documents []nasaMovieDocument
-	if json.Unmarshal(data, &documents) != nil {
-		return nil, errors.New("NASA+ returned an unreadable catalog")
-	}
-	var sources []CandidateSource
-	for _, doc := range documents {
-		candidate := CandidateSource{ID: "nasa-" + strconv.Itoa(doc.ID), Title: html.UnescapeString(doc.Title.Rendered), URL: doc.Link, Provider: "NASA+", SourceType: "Web Listing", Duration: doc.Meta.Runtime, AccessType: "unknown", ListingOnly: true, Region: "Unknown", Description: "NASA+ public film catalog. The matching main movie and protected playback are checked separately."}
-		// Publication dates identify this catalog entry, not a commercial film's
-		// original release. A later main-page check verifies documentary identity.
-		if !nasaMovieTarget(candidate) || doc.ID <= 0 || doc.Type != "video" || knownShortMovie(candidate.Duration, 0) || mediaDurationSeconds(candidate.Duration) < 40*60 || relevanceScore(query, candidate) == 0 || hasUnrequestedDerivative(query, candidate.Title) {
-			continue
-		}
-		sources = append(sources, candidate)
-		if len(sources) == 6 {
-			break
-		}
-	}
-	return sources, nil
 }
 
 func inspectNASAPlayback(ctx context.Context, client *http.Client, source CandidateSource) (CandidateSource, *PlaybackCheck) {
