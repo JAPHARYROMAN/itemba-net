@@ -8,3 +8,6 @@
 web/node_modules/
 web/dist/
 /itemba
+
+# Local dev-server launch configuration (carries the local database URL)
+.claude/launch.json

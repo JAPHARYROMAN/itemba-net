@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Shield, Cpu, Network } from 'lucide-react';
-import { ActiveRelayStream, SearchReport, TelemetrySnapshot, VaultStatus } from './types';
+import { ActiveRelayStream, SearchKnownEvent, SearchMergedEvent, SearchReport, TelemetrySnapshot, VaultStatus } from './types';
+import { readSearchStream, searchStreamUrl } from './searchStream';
 import { VaultViewport } from './components/VaultViewport';
+import './ladder.css';
 import { SearchScoutPanel } from './components/SearchScoutPanel';
 import { ShieldTelemetry } from './components/ShieldTelemetry';
 import { SystemTopologyModal } from './components/SystemTopologyModal';
@@ -46,6 +48,8 @@ export const App: React.FC = () => {
   const [activeRelay, setActiveRelay] = useState<ActiveRelayStream | null>(null);
 
   const [report, setReport] = useState<SearchReport | null>(null);
+  const [known, setKnown] = useState<SearchKnownEvent | null>(null);
+  const [merged, setMerged] = useState<SearchMergedEvent | null>(null);
   const [searching, setSearching] = useState<boolean>(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [launchError, setLaunchError] = useState<string | null>(null);
@@ -115,27 +119,26 @@ export const App: React.FC = () => {
       const controller = new AbortController();
       searchAbortRef.current = controller;
       const sequence = ++searchSequenceRef.current;
+      // A newer search, or an abort, makes every later event of this one stale.
+      const current = () => sequence === searchSequenceRef.current && !controller.signal.aborted;
       setSearching(true);
       setSearchError(null);
+      setKnown(null);
+      setMerged(null);
       try {
-        const res = await fetch('/api/scout/search', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query: query.trim(), region, fullLengthOnly }),
-          signal: controller.signal,
+        // The stream answers from the index first, then runs fresh discovery,
+        // then sends the ranked hundred across both.
+        await readSearchStream(searchStreamUrl(query.trim(), region, fullLengthOnly), controller.signal, {
+          onKnown: (event) => { if (current()) setKnown(event); },
+          onReport: (data) => { if (current()) setReport(data); },
+          onMerged: (event) => { if (current()) setMerged(event); },
         });
-        if (!res.ok) {
-          const detail = await res.json().catch(() => null);
-          throw new Error(detail?.error || `Movie search failed (${res.status}). Try again.`);
-        }
-        const data: SearchReport = await res.json();
-        if (sequence === searchSequenceRef.current) setReport(data);
       } catch (error) {
-        if (!controller.signal.aborted && sequence === searchSequenceRef.current) {
+        if (current()) {
           setSearchError(error instanceof Error ? error.message : 'Could not search movie sites. Check the server connection and try again.');
         }
       } finally {
-        if (sequence === searchSequenceRef.current && !controller.signal.aborted) {
+        if (current()) {
           setSearching(false);
           void fetchStatus();
         }
@@ -149,6 +152,8 @@ export const App: React.FC = () => {
     const sequence = ++searchSequenceRef.current;
     setSearching(true);
     setSearchError(null);
+    setKnown(null);
+    setMerged(null);
     try {
       const res = await fetch('/api/shield/benchmark', { method: 'POST' });
       if (!res.ok) throw new Error(`The ad-blocking benchmark failed (${res.status}).`);
@@ -305,6 +310,8 @@ export const App: React.FC = () => {
 
           <SearchScoutPanel
             report={report}
+            known={known}
+            merged={merged}
             searching={searching}
             searchError={searchError}
             launchError={launchError}

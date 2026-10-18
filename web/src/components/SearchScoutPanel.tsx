@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Play, Globe, Search, Shield, Clock, Sparkles } from 'lucide-react';
-import { ActiveRelayStream, FawesomeShelfPlaybackReport, MovieAvailabilityCheck, MovieDiscoveryItem, MovieDiscoveryMode, MovieDiscoveryReport, SearchReport, VerifiedSource } from '../types';
+import { ActiveRelayStream, FawesomeShelfPlaybackReport, MovieAvailabilityCheck, MovieDiscoveryItem, MovieDiscoveryMode, MovieDiscoveryReport, SearchKnownEvent, SearchMergedEvent, SearchReport, VerifiedSource } from '../types';
+import { RankedLocations } from './RankedLocations';
 
 interface SearchScoutPanelProps {
   report: SearchReport | null;
+  known: SearchKnownEvent | null;
+  merged: SearchMergedEvent | null;
   searching: boolean;
   searchError: string | null;
   launchError: string | null;
@@ -417,7 +420,7 @@ const MovieDiscoveryShelf: React.FC<{ region: string; onSelect: (query: string) 
 };
 
 export const SearchScoutPanel: React.FC<SearchScoutPanelProps> = ({
-  report, searching, searchError, launchError, launchingUrl, onSearch,
+  report, known, merged, searching, searchError, launchError, launchingUrl, onSearch,
   onRunBenchmark, onLaunchRbi, onPlayRelay,
 }) => {
   const [query, setQuery] = useState('');
@@ -501,6 +504,8 @@ export const SearchScoutPanel: React.FC<SearchScoutPanelProps> = ({
       {searchError && <p className="scout-error" role="alert">{searchError}</p>}
       {launchError && <p className="scout-error" role="alert">{launchError}</p>}
       {searching && <p className="scout-empty" role="status">Finding global movie sources and testing free playback…</p>}
+
+      <RankedLocations known={known} merged={merged} report={report} searching={searching} launchingUrl={launchingUrl} onLaunchRbi={onLaunchRbi} />
 
       {report && !searching && !searchError && (
         <>

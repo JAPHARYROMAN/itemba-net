@@ -256,7 +256,11 @@ Verified on 18 October 2026 on the WSL2 host with that database: a cold search f
 
 **No search cache.** The five-minute in-memory report cache is gone. The server keeps nothing between requests; Atlas is the memory, and the streamed search is the path that benefits. The discovery and shelf feeds keep their short provider throttles until Phase 2 turns providers into drivers.
 
-Still open in Phase 1: typed results and the evidence panel in the Console.
+**The Console reads the stream.** Every search in the dashboard now uses `GET /api/scout/search/stream` through a fetch-based event reader (`web/src/searchStream.ts`), so a newer search cancels an older one the same way as before. A **Ranked locations** section (`web/src/components/RankedLocations.tsx`) shows the index's known locations as soon as the first event arrives, each with its ladder badge (listed, reachable, identified, rendered, clean), host and access, the check age and egress country, and an origin marker; when the merged event arrives the section becomes the ranked hundred across index and fresh results, with origins `from index`, `fresh discovery` or `index + fresh`. Each card opens an evidence panel with level, method, status, egress and observation time, and an **Open with ad blocking** action. Without a database the section says so in one line and shows fresh results only. The detailed report cards below it are unchanged.
+
+Verified in the browser on 18 October 2026 against the WSL2 database: a first *Sintel* search showed the index empty within two seconds and the ranked list after the burst; the repeat search showed its two known locations from the index within a second, marked *from index* with their check age, and the merged list then marked them *index + fresh*.
+
+With that, every Phase 1 workstream in the implementation plan is in place: schema, Lens, read-through search, write-back with the cache retired, the ladder with decay, the Console and the golden fixtures.
 
 For hot-reloading frontend development on `http://127.0.0.1:5173`:
 

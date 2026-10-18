@@ -1,0 +1,112 @@
+/* Ranked locations on the verification ladder (white paper section 5). */
+
+.ladder-section {
+  margin: 14px 0 18px;
+  padding: 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--bg-card);
+}
+
+.ladder-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.ladder-header h3 {
+  margin: 0;
+  font-size: 15px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ladder-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.ladder-card {
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--bg-panel);
+}
+
+.ladder-card-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.ladder-card-title {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.ladder-card-title strong {
+  overflow-wrap: anywhere;
+}
+
+.ladder-card-main .btn {
+  margin-left: auto;
+}
+
+.ladder-badge {
+  display: inline-flex;
+  align-items: center;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  font-size: 11.5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  white-space: nowrap;
+  text-transform: capitalize;
+}
+
+.ladder-level-0 { color: var(--text-muted); }
+.ladder-level-1 { color: var(--accent-amber); border-color: rgba(245, 158, 11, 0.45); background: rgba(245, 158, 11, 0.1); }
+.ladder-level-2 { color: var(--accent-cyan); border-color: rgba(56, 189, 248, 0.45); background: rgba(56, 189, 248, 0.1); }
+.ladder-level-3 { color: #34d399; border-color: rgba(16, 185, 129, 0.45); background: rgba(16, 185, 129, 0.1); }
+.ladder-level-4 { color: var(--accent-purple); border-color: rgba(168, 85, 247, 0.45); background: rgba(168, 85, 247, 0.1); }
+
+.ladder-origin-index { border-left: 3px solid var(--accent-cyan); }
+.ladder-origin-both { border-left: 3px solid var(--accent-emerald); }
+
+.ladder-evidence {
+  margin-top: 8px;
+}
+
+.ladder-evidence dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 12px;
+  margin: 8px 0 0;
+  font-size: 12.5px;
+}
+
+.ladder-evidence dt {
+  color: var(--text-muted);
+}
+
+.ladder-evidence dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.ladder-url {
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  font-size: 11.5px;
+}

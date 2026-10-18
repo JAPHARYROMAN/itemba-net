@@ -191,6 +191,91 @@ export interface SearchReport {
   fullLengthOnly?: boolean;
   providers?: SearchProviderStatus[];
   availabilityChecks?: SearchAvailabilityChecks;
+  atlas?: AtlasRecordSummary;
+  atlasError?: string;
+}
+
+// The streamed search: GET /api/scout/search/stream sends known (from the
+// index), report (fresh discovery), merged (the ranked hundred) and done.
+
+export interface ObjectQuery {
+  raw: string;
+  type: string;
+  title: string;
+  titleKey: string;
+  rawKey?: string;
+  year?: number;
+  url?: string;
+  hash?: string;
+}
+
+export interface AtlasEvidence {
+  level: number;
+  method: string;
+  status: string;
+  detail?: string;
+  egress?: string;
+  observedAt: string;
+  artefacts?: Record<string, unknown>;
+}
+
+export interface KnownLocation {
+  object: { id: number; type: string; title: string; titleKey: string; year?: number; language?: string };
+  host: { id: number; hostname: string; provider?: string };
+  location: {
+    id: number;
+    objectId: number;
+    hostId: number;
+    url: string;
+    mediaUrl?: string;
+    accessType: string;
+    price?: string;
+    market?: string;
+    title?: string;
+    sourceType?: string;
+    lastSeen: string;
+  };
+  evidence?: AtlasEvidence;
+  effectiveLevel: number;
+  levelName: string;
+  ageSeconds: number;
+  relevance: number;
+}
+
+export interface SearchKnownEvent {
+  configured: boolean;
+  query: ObjectQuery;
+  locations: KnownLocation[];
+  error?: string;
+}
+
+export interface AtlasRecordSummary {
+  objects: number;
+  locations: number;
+  evidence: number;
+  skipped?: number;
+}
+
+export type LocationOrigin = 'index' | 'fresh' | 'both';
+
+export interface MergedLocation {
+  url: string;
+  host: string;
+  title: string;
+  level: number;
+  levelName: string;
+  observedAt?: string;
+  egress?: string;
+  accessType: string;
+  origin: LocationOrigin;
+  relevance: number;
+}
+
+export interface SearchMergedEvent {
+  query: ObjectQuery;
+  locations: MergedLocation[];
+  known: number;
+  fresh: number;
 }
 
 export interface VaultStatus {
