@@ -7,10 +7,9 @@ import (
 	"time"
 
 	"github.com/itemba-net/core/internal/lens"
-	"github.com/itemba-net/core/internal/scout"
 )
 
-// RecordSummary counts what one search wrote to Atlas.
+// RecordSummary counts what one recording wrote to Atlas.
 type RecordSummary struct {
 	Objects   int `json:"objects"`
 	Locations int `json:"locations"`
@@ -18,25 +17,27 @@ type RecordSummary struct {
 	Skipped   int `json:"skipped,omitempty"`
 }
 
-// RecordSearch writes every source of a search report back to Atlas as a
-// location with evidence. Sources whose title matches the query join the
-// query's object; others get their own object, because a location belongs
-// to what its title says it holds. Pruned sources are not locations and are
-// skipped. This is the Phase 1 bridge from scout's untyped results; it goes
-// away when scout's providers become typed drivers.
-func (s *Store) RecordSearch(ctx context.Context, q lens.ObjectQuery, report scout.SearchReport) (RecordSummary, error) {
+// Observation is a listing together with whatever was checked about it: the
+// neutral form every producer (the search pipeline, the crawler, later the
+// probes) hands to Atlas. Evidence without a location ID is attached to the
+// listing's location; an observation with no evidence is recorded as listed
+// by its provider.
+type Observation struct {
+	Listing
+	Evidence []Evidence
+}
+
+// RecordObservations writes observations for a query. A listing whose title
+// reads as the query's object joins it; any other title gets its own object,
+// because a location belongs to what it says it holds.
+func (s *Store) RecordObservations(ctx context.Context, q lens.ObjectQuery, observations []Observation) (RecordSummary, error) {
 	var summary RecordSummary
 	if s == nil || s.pool == nil {
 		return summary, errNoDatabase
 	}
-	sources := report.Sources
-	if len(sources) == 0 {
-		sources = report.VerifiedSources
-	}
-	if len(sources) == 0 {
+	if len(observations) == 0 {
 		return summary, nil
 	}
-
 	var queryObject *Object
 	if q.TitleKey != "" {
 		o, err := s.UpsertObject(ctx, Object{Type: q.Type, Title: q.Title, TitleKey: q.TitleKey, Year: q.Year})
@@ -48,24 +49,19 @@ func (s *Store) RecordSearch(ctx context.Context, q lens.ObjectQuery, report sco
 	}
 	objects := map[string]Object{}
 	hosts := map[string]Host{}
-	egress := ""
-	if report.AvailabilityChecks != nil {
-		egress = report.AvailabilityChecks.Country
-	}
-
-	for _, source := range sources {
-		hostname := lens.Hostname(source.URL)
+	for _, observation := range observations {
+		hostname := lens.Hostname(observation.URL)
 		if hostname == "" {
 			summary.Skipped++
 			continue
 		}
-		object, err := s.objectForTitle(ctx, q, queryObject, source.Title, source.ReleaseYear, objects, &summary)
+		object, err := s.objectForTitle(ctx, q, queryObject, observation.Title, observation.Year, objects, &summary)
 		if err != nil {
 			return summary, err
 		}
 		host, ok := hosts[hostname]
 		if !ok {
-			host, err = s.UpsertHost(ctx, hostname, source.Provider)
+			host, err = s.UpsertHost(ctx, hostname, observation.Provider)
 			if err != nil {
 				return summary, err
 			}
@@ -74,19 +70,24 @@ func (s *Store) RecordSearch(ctx context.Context, q lens.ObjectQuery, report sco
 		location, err := s.UpsertLocation(ctx, Location{
 			ObjectID:   object.ID,
 			HostID:     host.ID,
-			URL:        source.URL,
-			MediaURL:   source.DirectStreamURL,
-			AccessType: accessType(source.AccessType),
-			Price:      source.Price,
-			Market:     source.Region,
-			Title:      source.Title,
-			SourceType: source.SourceType,
+			URL:        observation.URL,
+			MediaURL:   observation.MediaURL,
+			AccessType: accessType(observation.AccessType),
+			Price:      observation.Price,
+			Market:     observation.Market,
+			Title:      observation.Title,
+			SourceType: observation.SourceType,
 		})
 		if err != nil {
 			return summary, err
 		}
 		summary.Locations++
-		for _, e := range evidenceFor(location.ID, source, egress) {
+		evidence := observation.Evidence
+		if len(evidence) == 0 {
+			evidence = []Evidence{{Level: lens.LevelListed, Method: "provider_listing", Status: "listed", Detail: observation.Provider, ObservedAt: time.Now()}}
+		}
+		for _, e := range evidence {
+			e.LocationID = location.ID
 			if err := s.RecordEvidence(ctx, e); err != nil {
 				return summary, err
 			}
@@ -132,78 +133,4 @@ func accessType(raw string) string {
 		return "purchase"
 	}
 	return "unknown"
-}
-
-// evidenceFor turns a source's checks into ladder evidence. A source with no
-// checks is Listed by its provider.
-func evidenceFor(locationID int64, source scout.VerifiedSource, defaultEgress string) []Evidence {
-	var out []Evidence
-	if check := source.AvailabilityCheck; check != nil && check.Status != "" {
-		out = append(out, Evidence{
-			LocationID: locationID,
-			Level:      lens.LevelFromChecks(check.Status, "", false),
-			Method:     firstNonEmpty(check.Method, "availability_check"),
-			Status:     check.Status,
-			Detail:     check.Detail,
-			Egress:     firstNonEmpty(check.Country, defaultEgress),
-			ObservedAt: parseObserved(check.CheckedAt),
-			Artefacts:  map[string]any{"httpStatus": check.HTTPStatus, "evidenceUrl": check.EvidenceURL, "requestedRegion": check.RequestedRegion},
-		})
-	}
-	if check := source.PlaybackCheck; check != nil && check.Status != "" && check.Status != "skipped" {
-		level := lens.LevelListed
-		if check.Status == "started" && check.PlaybackConfirmed {
-			level = lens.LevelRendered
-		} else if source.AvailabilityCheck != nil {
-			level = lens.LevelFromChecks(source.AvailabilityCheck.Status, "", false)
-		}
-		out = append(out, Evidence{
-			LocationID: locationID,
-			Level:      level,
-			Method:     firstNonEmpty(check.Method, "playback_sample"),
-			Status:     check.Status,
-			Detail:     firstNonEmpty(check.Reason, check.Detail),
-			Egress:     firstNonEmpty(check.Country, defaultEgress),
-			ObservedAt: parseObserved(check.CheckedAt),
-			Artefacts: map[string]any{
-				"secondsAdvanced": check.SecondsAdvanced,
-				"decodedFrames":   check.DecodedFrames,
-				"width":           check.Width,
-				"height":          check.Height,
-				"durationSeconds": check.DurationSeconds,
-				"evidenceUrl":     check.EvidenceURL,
-				"requestedRegion": check.RequestedRegion,
-			},
-		})
-	}
-	if len(out) == 0 {
-		out = append(out, Evidence{
-			LocationID: locationID,
-			Level:      lens.LevelListed,
-			Method:     "provider_listing",
-			Status:     "listed",
-			Detail:     source.Provider,
-			Egress:     defaultEgress,
-			ObservedAt: time.Now(),
-		})
-	}
-	return out
-}
-
-// parseObserved reads a check timestamp, falling back to now so evidence is
-// never recorded without a time.
-func parseObserved(value string) time.Time {
-	if t, ok := lens.ObservedTime(value); ok {
-		return t
-	}
-	return time.Now()
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, v := range values {
-		if strings.TrimSpace(v) != "" {
-			return v
-		}
-	}
-	return ""
 }

@@ -153,7 +153,7 @@ func (s *Server) record(ctx context.Context, q lens.ObjectQuery, report scout.Se
 	}
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancel()
-	summary, err := s.atlas.RecordSearch(ctx, q, report)
+	summary, err := s.atlas.RecordObservations(ctx, q, observationsFromReport(report))
 	if err != nil {
 		log.Printf("[console] atlas record: %v", err)
 		return nil, "Results could not be saved to the index."

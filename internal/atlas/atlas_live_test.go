@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/itemba-net/core/internal/lens"
-	"github.com/itemba-net/core/internal/scout"
 )
 
 // liveStore opens the disposable test database named by
@@ -121,39 +120,31 @@ func TestObjectsHostsLocationsAndEvidenceRoundTrip(t *testing.T) {
 	}
 }
 
-func TestRecordSearchWritesLocationsAndEvidenceThatLookupFinds(t *testing.T) {
+func TestRecordObservationsWritesLocationsAndEvidenceThatLookupFinds(t *testing.T) {
 	store, ctx := liveStore(t)
-	now := time.Now().UTC().Format(time.RFC3339)
-	report := scout.SearchReport{
-		Query:              "Sintel",
-		Region:             "ALL",
-		AvailabilityChecks: &scout.AvailabilityCheckCoverage{Country: "TZ"},
-		Sources: []scout.VerifiedSource{
-			{
-				CandidateSource:   scout.CandidateSource{Title: "Sintel (the Durian Open Movie project)", URL: "https://archive.org/details/sintel-dvd", DirectStreamURL: "https://archive.org/download/sintel-dvd/sintel.mp4", Provider: "Internet Archive", AccessType: "free", SourceType: "Public Domain", ReleaseYear: 2010},
-				AvailabilityCheck: &scout.AvailabilityCheck{Status: "media_reachable", Country: "TZ", CheckedAt: now, Method: "media_probe", Detail: "video/mp4"},
-				PlaybackCheck:     &scout.PlaybackCheck{Status: "started", PlaybackConfirmed: true, Country: "TZ", CheckedAt: now, Method: "isolated_video_sample", DecodedFrames: 40, SecondsAdvanced: 1.2, Width: 1920, Height: 818},
-			},
-			{
-				// A year in the listed title is a year, not part of the title: this joins the Sintel object.
-				CandidateSource:   scout.CandidateSource{Title: "Sintel (2010)", URL: "https://archive.org/details/sintel_cc_by_2010", Provider: "Internet Archive", AccessType: "free"},
-				AvailabilityCheck: &scout.AvailabilityCheck{Status: "page_reachable", CheckedAt: now, Method: "page_check"},
-			},
-			{
-				CandidateSource: scout.CandidateSource{Title: "Big Buck Bunny", URL: "https://peertube.example/w/bbb", Provider: "PeerTube", AccessType: "free", ReleaseYear: 2008},
-			},
-			{
-				CandidateSource: scout.CandidateSource{Title: "Broken", URL: "not a url"},
+	now := time.Now()
+	observations := []Observation{
+		{
+			Listing: Listing{Title: "Sintel (the Durian Open Movie project)", URL: "https://archive.org/details/sintel-dvd", MediaURL: "https://archive.org/download/sintel-dvd/sintel.mp4", Provider: "Internet Archive", AccessType: "free", SourceType: "Public Domain", Year: 2010},
+			Evidence: []Evidence{
+				{Level: lens.LevelIdentified, Method: "media_probe", Status: "media_reachable", Egress: "TZ", ObservedAt: now},
+				{Level: lens.LevelRendered, Method: "isolated_video_sample", Status: "started", Egress: "TZ", ObservedAt: now},
 			},
 		},
+		{
+			// A year in the listed title is a year, not part of the title: this joins the Sintel object.
+			Listing:  Listing{Title: "Sintel (2010)", URL: "https://archive.org/details/sintel_cc_by_2010", Provider: "Internet Archive", AccessType: "free"},
+			Evidence: []Evidence{{Level: lens.LevelReachable, Method: "page_check", Status: "page_reachable", ObservedAt: now}},
+		},
+		{Listing: Listing{Title: "Big Buck Bunny", URL: "https://peertube.example/w/bbb", Provider: "PeerTube", AccessType: "free", Year: 2008}},
+		{Listing: Listing{Title: "Broken", URL: "not a url"}},
 	}
 	q := lens.Parse("Sintel 2010")
-	summary, err := store.RecordSearch(ctx, q, report)
+	summary, err := store.RecordObservations(ctx, q, observations)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The query object, plus Big Buck Bunny; the "Sintel (the Durian Open
-	// Movie project)" listing reads as Sintel and joins the query object.
+	// The query object plus Big Buck Bunny; both Sintel listings join the query object.
 	if summary.Objects != 2 || summary.Locations != 3 || summary.Evidence != 4 || summary.Skipped != 1 {
 		t.Fatalf("unexpected summary: %+v", summary)
 	}
@@ -174,12 +165,12 @@ func TestRecordSearchWritesLocationsAndEvidenceThatLookupFinds(t *testing.T) {
 
 	bunny, err := store.Lookup(ctx, lens.Parse("Big Buck Bunny"), 100)
 	if err != nil || len(bunny) != 1 || bunny[0].Evidence == nil || bunny[0].Evidence.Method != "provider_listing" || bunny[0].EffectiveLevel != lens.LevelListed {
-		t.Fatalf("an unrelated source gets its own object and a provider listing: %v %+v", err, bunny)
+		t.Fatalf("an unrelated listing gets its own object and a provider listing: %v %+v", err, bunny)
 	}
 
-	again, err := store.RecordSearch(ctx, q, report)
+	again, err := store.RecordObservations(ctx, q, observations)
 	if err != nil || again.Locations != 3 {
-		t.Fatalf("recording the same report again must update, not duplicate: %+v %v", again, err)
+		t.Fatalf("recording the same observations again must update, not duplicate: %+v %v", again, err)
 	}
 	var locations int
 	if err := store.pool.QueryRow(ctx, "SELECT count(*) FROM atlas.locations").Scan(&locations); err != nil || locations != 3 {
@@ -187,9 +178,9 @@ func TestRecordSearchWritesLocationsAndEvidenceThatLookupFinds(t *testing.T) {
 	}
 }
 
-func TestRecordSearchOnANilStoreIsAnExplicitError(t *testing.T) {
+func TestRecordObservationsOnANilStoreIsAnExplicitError(t *testing.T) {
 	var store *Store
-	if _, err := store.RecordSearch(context.Background(), lens.Parse("x"), scout.SearchReport{}); err == nil {
+	if _, err := store.RecordObservations(context.Background(), lens.Parse("x"), []Observation{{Listing: Listing{Title: "x", URL: "https://h.example/x"}}}); err == nil {
 		t.Fatal("nil store must refuse to record")
 	}
 	if known, err := store.Lookup(context.Background(), lens.Parse("x"), 10); err != nil || known != nil {

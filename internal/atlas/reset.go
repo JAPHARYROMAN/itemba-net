@@ -44,3 +44,13 @@ func (s *Store) ResetForTests(ctx context.Context) (func(), error) {
 	}
 	return release, nil
 }
+
+// DropForTests drops the atlas schema again while the test lock from
+// ResetForTests is still held, so one test can start several cases clean.
+func (s *Store) DropForTests(ctx context.Context) error {
+	if s == nil || s.pool == nil {
+		return errNoDatabase
+	}
+	_, err := s.pool.Exec(ctx, "DROP SCHEMA IF EXISTS atlas CASCADE")
+	return err
+}

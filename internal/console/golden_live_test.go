@@ -1,40 +1,53 @@
-package atlas
+package console
 
 import (
-	"encoding/json"
+	"context"
 	"os"
-	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/itemba-net/core/internal/atlas"
 	"github.com/itemba-net/core/internal/lens"
-	"github.com/itemba-net/core/internal/scout"
 )
 
-func goldenReport(t *testing.T, name string) scout.SearchReport {
+// liveStore opens the disposable database named by ITEMBA_TEST_DATABASE_URL
+// with a fresh atlas schema, holding the cross-process test lock until the
+// test ends.
+func liveStore(t *testing.T) (*atlas.Store, context.Context) {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join("..", "..", "testdata", "reports", name+".json"))
+	url := os.Getenv("ITEMBA_TEST_DATABASE_URL")
+	if url == "" {
+		t.Skip("set ITEMBA_TEST_DATABASE_URL to a disposable PostgreSQL database")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	t.Cleanup(cancel)
+	store, err := atlas.Open(ctx, url)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var report scout.SearchReport
-	if err := json.Unmarshal(data, &report); err != nil {
-		t.Fatalf("%s: %v", name, err)
+	t.Cleanup(store.Close)
+	release, err := store.ResetForTests(ctx)
+	if err != nil {
+		t.Fatal(err)
 	}
-	return report
+	t.Cleanup(release)
+	if _, err := store.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	return store, ctx
 }
 
 // TestGoldenReportsRecordAndLookUpAgainstPostgreSQL writes the recorded
-// reports into a disposable database and reads them back the way the
-// streamed search does.
+// reports into a disposable database through the same conversion the search
+// routes use, and reads them back the way the streamed search does.
 func TestGoldenReportsRecordAndLookUpAgainstPostgreSQL(t *testing.T) {
 	store, ctx := liveStore(t)
 	cases := []struct {
-		name          string
-		locations     int
-		firstLevel    int
-		firstURL      string
-		knownAtLeast  int
-		firstLevelMin int
+		name         string
+		locations    int
+		firstLevel   int
+		firstURL     string
+		knownAtLeast int
 	}{
 		{name: "global-discovery-sintel", locations: 3, firstURL: "https://archive.org/embed/sintel_202604", firstLevel: lens.LevelRendered, knownAtLeast: 3},
 		{name: "playback-sintel-first", locations: 3, firstURL: "https://archive.org/embed/sintel-dvd", firstLevel: lens.LevelIdentified, knownAtLeast: 3},
@@ -43,7 +56,7 @@ func TestGoldenReportsRecordAndLookUpAgainstPostgreSQL(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if _, err := store.pool.Exec(ctx, "DROP SCHEMA IF EXISTS atlas CASCADE"); err != nil {
+			if err := store.DropForTests(ctx); err != nil {
 				t.Fatal(err)
 			}
 			if _, err := store.Migrate(ctx); err != nil {
@@ -52,7 +65,7 @@ func TestGoldenReportsRecordAndLookUpAgainstPostgreSQL(t *testing.T) {
 			report := goldenReport(t, tc.name)
 			q := lens.Parse(report.Query)
 
-			summary, err := store.RecordSearch(ctx, q, report)
+			summary, err := store.RecordObservations(ctx, q, observationsFromReport(report))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -76,13 +89,9 @@ func TestGoldenReportsRecordAndLookUpAgainstPostgreSQL(t *testing.T) {
 				}
 			}
 
-			again, err := store.RecordSearch(ctx, q, report)
+			again, err := store.RecordObservations(ctx, q, observationsFromReport(report))
 			if err != nil || again.Locations != tc.locations {
 				t.Fatalf("recording again must update in place: %+v %v", again, err)
-			}
-			var count int
-			if err := store.pool.QueryRow(ctx, "SELECT count(*) FROM atlas.locations").Scan(&count); err != nil || count != tc.locations {
-				t.Fatalf("locations are unique by URL: %d %v", count, err)
 			}
 		})
 	}

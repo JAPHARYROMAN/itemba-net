@@ -245,18 +245,27 @@ func (s *Store) StaleLocations(ctx context.Context, cutoff time.Time, limit int)
 // with whatever the host said about access. It is deliberately independent
 // of scout's types.
 type Listing struct {
+	// ID is the host's identity for the listing when the driver provides one.
+	ID          string `json:"id,omitempty"`
 	Title       string `json:"title"`
 	URL         string `json:"url"`
 	MediaURL    string `json:"mediaUrl,omitempty"`
 	Provider    string `json:"provider"`
 	SourceType  string `json:"sourceType,omitempty"`
 	AccessType  string `json:"accessType"`
+	AccessNote  string `json:"accessNote,omitempty"`
 	Price       string `json:"price,omitempty"`
 	Market      string `json:"market,omitempty"`
 	Year        int    `json:"year,omitempty"`
 	Duration    string `json:"duration,omitempty"`
 	Description string `json:"description,omitempty"`
 	Thumbnail   string `json:"thumbnail,omitempty"`
+	Resolution  string `json:"resolution,omitempty"`
+	// Tags are host categories such as Archive collections.
+	Tags []string `json:"tags,omitempty"`
+	// ListingOnly is true when the page lists the object without a known
+	// media URL; verification must open it before any playback claim.
+	ListingOnly bool `json:"listingOnly"`
 }
 
 // RecordListings writes a driver's listings for an object as locations with
