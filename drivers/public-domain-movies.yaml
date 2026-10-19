@@ -1,0 +1,38 @@
+# Public Domain Movies has an observed browse catalog, not a keyword API.
+# The feature list and at most two advertised continuation pages are read;
+# slugs are never guessed, and a listing stays a listing until the exact
+# Archive item in its download section is checked.
+# Source: https://publicdomainmovie.net/feature_movies (checked 2026-10-18).
+name: public-domain-movies
+provider: Public Domain Movies
+hosts: [publicdomainmovie.net, www.publicdomainmovie.net]
+rate:
+  per_minute: 20
+  concurrency: 2
+search:
+  url: https://publicdomainmovie.net/feature_movies
+  status_name: Public Domain Movies browse
+  timeout_seconds: 7
+  same_url: true
+  require_relevance: score
+  keep: 3
+  response: html
+  items: "a[href]"
+  within: ".view-content"
+  exclude: "nav, footer, script, style"
+  pages:
+    select: "a[href]"
+    match: '^https://(www\.)?publicdomainmovie\.net/feature_movies\?page=[12]$'
+    max: 2
+  limit: 60
+  fields:
+    title: { select: "." }
+    url: { select: ".", attr: href, match: '^https://(www\.)?publicdomainmovie\.net/movie/[A-Za-z0-9][A-Za-z0-9_.-]{0,199}$' }
+    # The observed card keeps the release year in a /year?v= link of its
+    # enclosing details block, never elsewhere on the page.
+    year: { closest: ".details", select: "a[href^='/year?v=']", attr: href, transform: "url_query:v", range: [1880, 2100], optional: true }
+    description: { default: "Movie found in the public catalog. Media identity, full runtime and playback are checked separately." }
+  constants:
+    source_type: Public Domain
+    access_type: free
+    access_note: Free catalog listing; availability is checked separately.

@@ -246,21 +246,26 @@ func (s *Store) StaleLocations(ctx context.Context, cutoff time.Time, limit int)
 // of scout's types.
 type Listing struct {
 	// ID is the host's identity for the listing when the driver provides one.
-	ID          string `json:"id,omitempty"`
-	Title       string `json:"title"`
-	URL         string `json:"url"`
-	MediaURL    string `json:"mediaUrl,omitempty"`
-	Provider    string `json:"provider"`
-	SourceType  string `json:"sourceType,omitempty"`
-	AccessType  string `json:"accessType"`
-	AccessNote  string `json:"accessNote,omitempty"`
-	Price       string `json:"price,omitempty"`
-	Market      string `json:"market,omitempty"`
-	Year        int    `json:"year,omitempty"`
-	Duration    string `json:"duration,omitempty"`
-	Description string `json:"description,omitempty"`
-	Thumbnail   string `json:"thumbnail,omitempty"`
-	Resolution  string `json:"resolution,omitempty"`
+	ID         string `json:"id,omitempty"`
+	Title      string `json:"title"`
+	URL        string `json:"url"`
+	MediaURL   string `json:"mediaUrl,omitempty"`
+	Provider   string `json:"provider"`
+	SourceType string `json:"sourceType,omitempty"`
+	AccessType string `json:"accessType"`
+	AccessNote string `json:"accessNote,omitempty"`
+	// AccessBasis names how the access type was established, for example a
+	// provider's published model or a page's own text; AccessEvidenceURL is
+	// where that basis can be seen.
+	AccessBasis       string `json:"accessBasis,omitempty"`
+	AccessEvidenceURL string `json:"accessEvidenceUrl,omitempty"`
+	Price             string `json:"price,omitempty"`
+	Market            string `json:"market,omitempty"`
+	Year              int    `json:"year,omitempty"`
+	Duration          string `json:"duration,omitempty"`
+	Description       string `json:"description,omitempty"`
+	Thumbnail         string `json:"thumbnail,omitempty"`
+	Resolution        string `json:"resolution,omitempty"`
 	// Tags are host categories such as Archive collections.
 	Tags []string `json:"tags,omitempty"`
 	// ListingOnly is true when the page lists the object without a known

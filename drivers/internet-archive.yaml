@@ -20,7 +20,7 @@ search:
     sort[]: downloads desc
   status_name: Internet Archive
   timeout_seconds: 8
-  require_relevance: true
+  require_relevance: score
   response: json
   items: response.docs
   limit: 30

@@ -1,0 +1,27 @@
+# ArcoirisTV's observed public search form, which redirects to
+# /search/s/<title>/type/all/. Results are listings until the page's own
+# first-party video metadata and feature-length runtime are checked.
+# Contract checked 2026-10-18.
+name: arcoiris-tv
+provider: ArcoirisTV
+hosts: [arcoiris.tv, www.arcoiris.tv, streaming.arcoiris.tv]
+rate:
+  per_minute: 20
+  concurrency: 2
+search:
+  url: https://www.arcoiris.tv/search/s/{query|path}/type/all/
+  status_name: ArcoirisTV feature catalog
+  timeout_seconds: 5
+  require_relevance: exact
+  keep: 6
+  response: html
+  items: "h2 > a, h3 > a"
+  exclude: "nav, footer, aside, script, style, noscript, template, svg, [hidden], [aria-hidden='true']"
+  limit: 30
+  fields:
+    title: { select: "." }
+    url: { select: ".", attr: href, match: '^https://(www\.)?arcoiris\.tv/scheda/[a-z]{2}/[1-9][0-9]*/$' }
+    description: { default: "A public feature-film catalog listing. Runtime, access and short playback observations are shown separately." }
+  constants:
+    source_type: Feature film catalog
+    access_type: unknown

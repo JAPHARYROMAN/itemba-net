@@ -16,7 +16,7 @@ search:
     _fields: id,type,slug,link,date,title,meta
   status_name: NASA+ free documentaries
   timeout_seconds: 8
-  require_relevance: true
+  require_relevance: score
   response: json
   items: "."
   limit: 6

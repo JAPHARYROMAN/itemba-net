@@ -14,22 +14,28 @@ import (
 
 	"github.com/itemba-net/core/internal/atlas"
 	"github.com/itemba-net/core/internal/crawler"
+	"github.com/itemba-net/core/internal/lens"
 )
 
-// UseDrivers gives the search its host drivers. The JSON catalog providers
-// that used to be hand-written here (Apple's storefronts, Internet Archive,
-// PeerTube, Wikimedia Commons, NASA+ and the NFB) are driver files under
-// drivers/, shared with the crawler. Without drivers the search covers only
-// the built-in reference catalog, the HTML catalogs and the web provider.
+// UseDrivers gives the search its host drivers. The catalogs that used to be
+// hand-written here (Apple's storefronts, Internet Archive, PeerTube,
+// Wikimedia Commons, NASA+, the NFB, the public-domain feature catalogs,
+// ArcoirisTV and Fawesome's guest search) are driver files under drivers/,
+// shared with the crawler. Without drivers the search covers only the
+// built-in reference catalog and the configured web provider.
 func (s *Scout) UseDrivers(drivers []*crawler.Driver) {
 	s.drivers = drivers
 }
 
-// driverFetcher builds a tier-one fetcher over the search's transport, so
-// tests that swap the transport reach the drivers too.
+// driverFetcher builds a tier-one fetcher over the guarded availability
+// transport, which refuses private and local destinations, so a driver can
+// never be steered at the host's own network. Tests that swap either client
+// reach the drivers through the same transport.
 func (s *Scout) driverFetcher() *crawler.Fetcher {
 	var transport http.RoundTripper
-	if s.httpClient != nil {
+	if s.availabilityHTTPClient != nil && s.availabilityHTTPClient.Transport != nil {
+		transport = s.availabilityHTTPClient.Transport
+	} else if s.httpClient != nil {
 		transport = s.httpClient.Transport
 	}
 	fetcher := crawler.NewFetcher(transport)
@@ -113,8 +119,9 @@ func (s *Scout) queryDrivers(ctx context.Context, query, region string) ([]Candi
 }
 
 // queryDriver runs one driver search in one market and applies the search
-// pipeline's rules: relevance where the driver asks for it, and the Archive
-// edition scoring and metadata resolution that precede verification.
+// pipeline's rules: the relevance the driver asks for, the cap it asks for,
+// and the Archive edition scoring and metadata resolution that precede
+// verification.
 func (s *Scout) queryDriver(ctx context.Context, fetcher *crawler.Fetcher, d *crawler.Driver, query, title, market string) ([]CandidateSource, ProviderStatus) {
 	status := ProviderStatus{Name: d.StatusName(market), Status: "ok"}
 	listings, err := d.Search(ctx, fetcher, title, market)
@@ -122,15 +129,49 @@ func (s *Scout) queryDriver(ctx context.Context, fetcher *crawler.Fetcher, d *cr
 		status.Status, status.Detail = "error", "Provider unavailable; results may be incomplete."
 		return nil, status
 	}
+	_, requestedYear := movieQuery(query)
 	candidates := make([]CandidateSource, 0, len(listings))
 	tags := make(map[string][]string, len(listings))
 	for _, listing := range listings {
 		candidate := candidateFromListing(d, listing)
-		if d.Spec.RequireRelevance && relevanceScore(query, candidate) == 0 {
-			continue
+		switch d.Spec.RequireRelevance {
+		case "score":
+			// The requested film, not a trailer, a DVD menu or a compilation
+			// that mentions it.
+			if archiveNonMovieEdition(query, candidate.Title) || relevanceScore(query, candidate) == 0 {
+				continue
+			}
+		case "exact":
+			// Feature catalogs list the exact film, possibly with a release
+			// label and marketing after it; the canonical title must match and
+			// a known year must agree. A requested year stays a constraint on
+			// the resolver when the listing names none.
+			if !lens.SameFeatureTitle(query, candidate.Title) {
+				continue
+			}
+			canonical, year := lens.TitleDetails(candidate.Title, candidate.ReleaseYear)
+			if requestedYear != 0 && year != 0 && requestedYear != year {
+				continue
+			}
+			if year == 0 {
+				year = requestedYear
+			}
+			candidate.Title, candidate.ReleaseYear = canonical, year
 		}
 		tags[candidate.URL] = listing.Tags
 		candidates = append(candidates, candidate)
+	}
+	if d.Spec.Keep > 0 && len(candidates) > 0 {
+		sort.SliceStable(candidates, func(i, j int) bool {
+			left, right := relevanceScore(query, candidates[i]), relevanceScore(query, candidates[j])
+			if left != right {
+				return left > right
+			}
+			return candidates[i].URL < candidates[j].URL
+		})
+		if len(candidates) > d.Spec.Keep {
+			candidates = candidates[:d.Spec.Keep]
+		}
 	}
 	if d.Name == "internet-archive" {
 		candidates = s.resolveArchiveCandidates(ctx, archiveFeatureCandidates(query, candidates, tags))
@@ -152,22 +193,24 @@ func candidateFromListing(d *crawler.Driver, listing atlas.Listing) CandidateSou
 		id = d.Name + "-" + hex.EncodeToString(sum[:6])
 	}
 	candidate := CandidateSource{
-		ID:              id,
-		Title:           listing.Title,
-		URL:             listing.URL,
-		DirectStreamURL: listing.MediaURL,
-		Provider:        listing.Provider,
-		SourceType:      listing.SourceType,
-		Description:     listing.Description,
-		Thumbnail:       listing.Thumbnail,
-		Duration:        listing.Duration,
-		Resolution:      listing.Resolution,
-		AccessType:      listing.AccessType,
-		AccessNote:      listing.AccessNote,
-		Price:           listing.Price,
-		Region:          listing.Market,
-		ReleaseYear:     listing.Year,
-		ListingOnly:     listing.ListingOnly,
+		ID:                id,
+		Title:             listing.Title,
+		URL:               listing.URL,
+		DirectStreamURL:   listing.MediaURL,
+		Provider:          listing.Provider,
+		SourceType:        listing.SourceType,
+		Description:       listing.Description,
+		Thumbnail:         listing.Thumbnail,
+		Duration:          listing.Duration,
+		Resolution:        listing.Resolution,
+		AccessType:        listing.AccessType,
+		AccessNote:        listing.AccessNote,
+		AccessBasis:       listing.AccessBasis,
+		AccessEvidenceURL: listing.AccessEvidenceURL,
+		Price:             listing.Price,
+		Region:            listing.Market,
+		ReleaseYear:       listing.Year,
+		ListingOnly:       listing.ListingOnly,
 	}
 	if listing.MediaURL != "" {
 		candidate.KnownManifests = []string{listing.MediaURL}

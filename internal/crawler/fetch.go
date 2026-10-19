@@ -75,10 +75,22 @@ func NewFetcher(transport http.RoundTripper) *Fetcher {
 	}
 }
 
+// FetchOptions adjust one request.
+type FetchOptions struct {
+	// NoRedirect returns a redirect as its own 3xx response instead of
+	// following it, so request headers never travel to another origin.
+	NoRedirect bool
+}
+
 // Get fetches a URL with the next identity profile. It returns ErrHostBackoff
 // without a request while the host is in backoff, and records a refusal
 // (403, 429, 503) so later calls back off exponentially up to six hours.
 func (f *Fetcher) Get(ctx context.Context, rawURL string, headers map[string]string) (*Response, error) {
+	return f.Fetch(ctx, rawURL, headers, FetchOptions{})
+}
+
+// Fetch is Get with options.
+func (f *Fetcher) Fetch(ctx context.Context, rawURL string, headers map[string]string, opts FetchOptions) (*Response, error) {
 	host := lens.Hostname(rawURL)
 	if host == "" {
 		return nil, fmt.Errorf("crawler: %q is not a fetchable URL", rawURL)
@@ -97,7 +109,13 @@ func (f *Fetcher) Get(ctx context.Context, rawURL string, headers map[string]str
 	for key, value := range headers {
 		req.Header.Set(key, value)
 	}
-	resp, err := f.client.Do(req)
+	client := f.client
+	if opts.NoRedirect {
+		copied := *f.client
+		copied.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+		client = &copied
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		f.recordOutcome(host, 0)
 		return nil, fmt.Errorf("crawler: fetch %s: %w", host, err)

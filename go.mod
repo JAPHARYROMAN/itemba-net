@@ -3,6 +3,7 @@ module github.com/itemba-net/core
 go 1.26.0
 
 require (
+	github.com/andybalholm/cascadia v1.3.5
 	github.com/gorilla/websocket v1.5.3
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/pion/webrtc/v4 v4.0.10

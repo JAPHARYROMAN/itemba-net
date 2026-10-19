@@ -17,8 +17,11 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/andybalholm/cascadia"
+	xhtml "golang.org/x/net/html"
 	"gopkg.in/yaml.v3"
 
 	"github.com/itemba-net/core/internal/atlas"
@@ -34,6 +37,11 @@ type Driver struct {
 	Rate     Rate        `yaml:"rate"`
 	Spec     *SearchSpec `yaml:"search"`
 	Path     string      `yaml:"-"`
+
+	// stepCache holds captured variables of cacheable steps, for example a
+	// host's public configuration, so every search need not refetch them.
+	mu        sync.Mutex
+	stepCache map[int]cachedStep
 }
 
 // Rate bounds how hard the crawler may lean on the driver's hosts.
@@ -43,52 +51,146 @@ type Rate struct {
 }
 
 // SearchSpec describes a host's search endpoint and how to read its items.
+// The endpoint answers in JSON or HTML; Steps run first when the host needs
+// configuration or a guest token before it will answer.
 type SearchSpec struct {
+	// URL is the search endpoint. It may carry {query}, {market} and step
+	// placeholders in its path; query parameters go in Params.
 	URL          string            `yaml:"url"`
 	Params       map[string]string `yaml:"params"`
 	Headers      map[string]string `yaml:"headers"`
 	RetryWithout []string          `yaml:"retry_without"`
 	Markets      []string          `yaml:"markets"`
-	Response     string            `yaml:"response"`
-	// Items is the path to the list of items; "." is the document itself, and
-	// an object at the path is read as its values.
-	Items   string            `yaml:"items"`
-	Require map[string]string `yaml:"require"`
-	// Forbid drops items whose field equals the value; a missing field passes,
-	// which is what a boolean flag such as isLive needs.
-	Forbid map[string]string `yaml:"forbid"`
-	// RequireMin drops items whose numeric field is below the value.
-	RequireMin map[string]float64 `yaml:"require_min"`
+	// Response is json, html or text. Default json.
+	Response string `yaml:"response"`
+	// Items locates the items: a JSON path ("." is the document itself, and
+	// an object at the path is read as its values) or a CSS selector.
+	Items string `yaml:"items"`
+	// Exclude and Within are CSS selectors for HTML items: an item inside an
+	// excluded element is dropped, and an item must sit inside Within.
+	Exclude string `yaml:"exclude"`
+	Within  string `yaml:"within"`
+	// Pages follows a bounded set of further result pages found on the first.
+	Pages *PageSpec `yaml:"pages"`
+	// Steps run before the search, in order, capturing variables.
+	Steps []StepSpec `yaml:"steps"`
+	// Require, Forbid, RequireMin, RequireEmpty and RequireMatch filter JSON
+	// items by their fields. RequireMatch values are regular expressions in
+	// which {field} placeholders expand to the item's own values.
+	Require      map[string]string  `yaml:"require"`
+	Forbid       map[string]string  `yaml:"forbid"`
+	RequireMin   map[string]float64 `yaml:"require_min"`
+	RequireEmpty []string           `yaml:"require_empty"`
+	RequireMatch map[string]string  `yaml:"require_match"`
+	// RequireDocument checks top-level JSON fields before any item is read.
+	RequireDocument map[string]string `yaml:"require_document"`
 	// MinDurationSeconds drops items whose read duration is known and shorter.
 	MinDurationSeconds float64              `yaml:"min_duration_seconds"`
 	Fields             map[string]FieldSpec `yaml:"fields"`
 	Offers             *OfferSpec           `yaml:"offers"`
 	Constants          map[string]string    `yaml:"constants"`
 	Limit              int                  `yaml:"limit"`
-	// TimeoutSeconds bounds one search request. Default 8.
+	// TimeoutSeconds bounds one whole search, steps included. Default 8.
 	TimeoutSeconds int `yaml:"timeout_seconds"`
 	// StatusName is the provider name the console shows for this search; it
 	// may use {market}. Default: the driver's provider.
 	StatusName string `yaml:"status_name"`
-	// RequireRelevance asks the search pipeline to drop listings whose title
-	// does not match the query, as the legacy providers did for open catalogs.
-	RequireRelevance bool `yaml:"require_relevance"`
+	// RequireRelevance asks the search pipeline to keep only listings that
+	// match the query: "score" keeps titles that score as the requested film,
+	// "exact" keeps titles that name exactly the requested feature.
+	RequireRelevance string `yaml:"require_relevance"`
+	// Keep caps the listings the search pipeline keeps after relevance.
+	Keep int `yaml:"keep"`
+	// SameURL requires the response to come from the requested URL, so a
+	// host cannot substitute another page for its catalog.
+	SameURL bool `yaml:"same_url"`
+	// NoRedirect refuses to follow redirects, so a guest header is never
+	// forwarded to another origin.
+	NoRedirect bool `yaml:"no_redirect"`
+
+	items   cascadia.Selector
+	exclude cascadia.Selector
+	within  cascadia.Selector
 }
 
-// FieldSpec reads one listing field from an item: a path, the first of
-// several paths, or a template over the item and the search variables, then
-// optional cleaning, a transform and a pattern the result must match.
+// PageSpec finds further result pages on the first page of results.
+type PageSpec struct {
+	Select string `yaml:"select"`
+	Attr   string `yaml:"attr"`
+	Match  string `yaml:"match"`
+	Max    int    `yaml:"max"`
+	sel    cascadia.Selector
+	match  *regexp.Regexp
+}
+
+// StepSpec is one request a host needs before it will answer a search: a
+// page that names the current script bundle, the bundle that holds public
+// identifiers, a guest token. Each step captures variables for later steps
+// and for the search itself.
+type StepSpec struct {
+	Name        string                 `yaml:"name"`
+	URL         string                 `yaml:"url"`
+	Params      map[string]string      `yaml:"params"`
+	Headers     map[string]string      `yaml:"headers"`
+	Response    string                 `yaml:"response"`
+	Capture     map[string]CaptureSpec `yaml:"capture"`
+	RequireText []string               `yaml:"require_text"`
+	// Assert compares captured variables: each key must equal its template.
+	Assert map[string]string `yaml:"assert"`
+	// CacheSeconds keeps this step's captures for later searches. Only
+	// public configuration should be cached; a guest token never is.
+	CacheSeconds int  `yaml:"cache_seconds"`
+	SameURL      bool `yaml:"same_url"`
+	NoRedirect   bool `yaml:"no_redirect"`
+}
+
+// CaptureSpec reads one variable from a step's response: by CSS selector and
+// attribute from HTML, by path from JSON, by regular expression group from
+// text, or by regular expression from an earlier variable (From). Match
+// filters the candidates; Unique requires exactly one to remain.
+type CaptureSpec struct {
+	Select  string `yaml:"select"`
+	Attr    string `yaml:"attr"`
+	Resolve bool   `yaml:"resolve"`
+	Path    string `yaml:"path"`
+	Regex   string `yaml:"regex"`
+	Group   int    `yaml:"group"`
+	From    string `yaml:"from"`
+	Unique  bool   `yaml:"unique"`
+	Match   string `yaml:"match"`
+	Default string `yaml:"default"`
+	sel     cascadia.Selector
+	regex   *regexp.Regexp
+	match   *regexp.Regexp
+}
+
+// FieldSpec reads one listing field from an item. JSON items are read by
+// path, the first of several paths, or a template over the item and the
+// search variables. HTML items are read by a CSS selector relative to the
+// item (or its Closest ancestor) and an attribute, or the element text. The
+// value is then cleaned, transformed and checked.
 type FieldSpec struct {
-	Path          string   `yaml:"path"`
-	Paths         []string `yaml:"paths"`
-	Template      string   `yaml:"template"`
-	Transform     string   `yaml:"transform"`
-	Default       string   `yaml:"default"`
-	Match         string   `yaml:"match"`
-	StripPrefix   string   `yaml:"strip_prefix"`
-	StripSuffixes []string `yaml:"strip_suffixes"`
-	Truncate      int      `yaml:"truncate"`
+	Path          string    `yaml:"path"`
+	Paths         []string  `yaml:"paths"`
+	Template      string    `yaml:"template"`
+	Select        string    `yaml:"select"`
+	Attr          string    `yaml:"attr"`
+	Closest       string    `yaml:"closest"`
+	Resolve       *bool     `yaml:"resolve"`
+	Transform     string    `yaml:"transform"`
+	Default       string    `yaml:"default"`
+	Match         string    `yaml:"match"`
+	Reject        string    `yaml:"reject"`
+	MaxLength     int       `yaml:"max_length"`
+	Range         []float64 `yaml:"range"`
+	Optional      bool      `yaml:"optional"`
+	StripPrefix   string    `yaml:"strip_prefix"`
+	StripSuffixes []string  `yaml:"strip_suffixes"`
+	Truncate      int       `yaml:"truncate"`
 	match         *regexp.Regexp
+	reject        *regexp.Regexp
+	sel           cascadia.Selector
+	closest       cascadia.Selector
 }
 
 // OfferSpec reads storefront prices: a currency field and labelled price
@@ -106,8 +208,14 @@ type PriceSpec struct {
 	Paths []string `yaml:"paths"`
 }
 
+type cachedStep struct {
+	vars    map[string]string
+	expires time.Time
+}
+
 var (
 	driverName  = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,63}$`)
+	captureName = regexp.MustCompile(`^[a-z][a-z0-9_]{0,63}$`)
 	marketCode  = regexp.MustCompile(`^[A-Z]{2}$`)
 	listingKeys = map[string]bool{
 		"id": true, "title": true, "url": true, "media_url": true, "year": true, "duration": true, "description": true,
@@ -117,9 +225,14 @@ var (
 	transforms = map[string]bool{
 		"": true, "scalar": true, "lower": true, "upper": true, "trim": true, "year_of_date": true, "year_in_text": true,
 		"duration_from_millis": true, "duration_from_seconds": true, "duration_seconds": true, "html_unescape": true, "html_text": true,
+		"url_query": true,
 	}
-	constantKeys = map[string]bool{"source_type": true, "access_type": true, "media_url": true, "price": true, "market": true, "listing_only": true, "access_note": true, "provider": true}
-	htmlTags     = regexp.MustCompile(`<[^>]*>`)
+	constantKeys = map[string]bool{
+		"source_type": true, "access_type": true, "media_url": true, "price": true, "market": true, "listing_only": true,
+		"access_note": true, "provider": true, "access_basis": true, "access_evidence_url": true,
+	}
+	responses = map[string]bool{"json": true, "html": true, "text": true}
+	htmlTags  = regexp.MustCompile(`<[^>]*>`)
 )
 
 // LoadDir reads every *.yaml and *.yml driver in dir, validates each and
@@ -202,22 +315,60 @@ func (d *Driver) Validate() error {
 	if d.Spec.StatusName == "" {
 		d.Spec.StatusName = d.Provider
 	}
+	d.stepCache = map[int]cachedStep{}
 	return d.Spec.validate()
 }
 
 func (s *SearchSpec) validate() error {
-	u, err := url.Parse(s.URL)
+	probe := expand(s.URL, func(string) string { return "x" })
+	u, err := url.Parse(probe)
 	if err != nil || u.Scheme != "https" || u.Host == "" || u.RawQuery != "" {
 		return fmt.Errorf("search.url %q must be an https URL without a query string; put the query in params", s.URL)
 	}
 	if s.Response == "" {
 		s.Response = "json"
 	}
-	if s.Response != "json" {
-		return fmt.Errorf("search.response %q is not supported; only json is in this phase", s.Response)
+	if !responses[s.Response] || s.Response == "text" {
+		return fmt.Errorf("search.response %q is not supported; use json or html", s.Response)
 	}
 	if strings.TrimSpace(s.Items) == "" {
 		return errors.New("search.items is required")
+	}
+	if s.Response == "html" {
+		if s.items, err = cascadia.Compile(s.Items); err != nil {
+			return fmt.Errorf("search.items: %w", err)
+		}
+		if s.Exclude != "" {
+			if s.exclude, err = cascadia.Compile(s.Exclude); err != nil {
+				return fmt.Errorf("search.exclude: %w", err)
+			}
+		}
+		if s.Within != "" {
+			if s.within, err = cascadia.Compile(s.Within); err != nil {
+				return fmt.Errorf("search.within: %w", err)
+			}
+		}
+		if s.Pages != nil {
+			if s.Pages.Select == "" || s.Pages.Max <= 0 {
+				return errors.New("search.pages needs a select and a positive max")
+			}
+			if s.Pages.sel, err = cascadia.Compile(s.Pages.Select); err != nil {
+				return fmt.Errorf("search.pages.select: %w", err)
+			}
+			if s.Pages.Attr == "" {
+				s.Pages.Attr = "href"
+			}
+			if s.Pages.Match != "" {
+				if s.Pages.match, err = regexp.Compile(s.Pages.Match); err != nil {
+					return fmt.Errorf("search.pages.match: %w", err)
+				}
+			}
+		}
+		if len(s.Require) > 0 || len(s.Forbid) > 0 || len(s.RequireMin) > 0 || len(s.RequireEmpty) > 0 || len(s.RequireMatch) > 0 || len(s.RequireDocument) > 0 || s.Offers != nil || len(s.RetryWithout) > 0 {
+			return errors.New("html searches support fields, exclude, within and pages; item rules and offers are for json")
+		}
+	} else if s.Exclude != "" || s.Within != "" || s.Pages != nil {
+		return errors.New("search.exclude, within and pages apply to html searches only")
 	}
 	for _, key := range s.RetryWithout {
 		if _, ok := s.Params[key]; !ok {
@@ -236,6 +387,14 @@ func (s *SearchSpec) validate() error {
 	if s.TimeoutSeconds <= 0 {
 		s.TimeoutSeconds = 8
 	}
+	switch s.RequireRelevance {
+	case "", "score", "exact":
+	default:
+		return fmt.Errorf("search.require_relevance %q must be score or exact", s.RequireRelevance)
+	}
+	if s.Keep < 0 {
+		return errors.New("search.keep must be positive")
+	}
 	if _, ok := s.Fields["title"]; !ok {
 		return errors.New("search.fields.title is required")
 	}
@@ -246,40 +405,19 @@ func (s *SearchSpec) validate() error {
 		if !listingKeys[key] {
 			return fmt.Errorf("search.fields.%s is not a listing field", key)
 		}
-		sources := 0
-		if spec.Path != "" {
-			sources++
-		}
-		if len(spec.Paths) > 0 {
-			sources++
-		}
-		if spec.Template != "" {
-			sources++
-		}
-		if sources > 1 {
-			return fmt.Errorf("search.fields.%s must use one of path, paths or template", key)
-		}
-		if sources == 0 && spec.Default == "" {
-			return fmt.Errorf("search.fields.%s needs a path, paths, template or default", key)
-		}
-		if !transforms[spec.Transform] {
-			return fmt.Errorf("search.fields.%s uses unknown transform %q", key, spec.Transform)
-		}
-		if spec.Truncate < 0 {
-			return fmt.Errorf("search.fields.%s truncate must be positive", key)
-		}
-		if spec.Match != "" {
-			re, err := regexp.Compile(spec.Match)
-			if err != nil {
-				return fmt.Errorf("search.fields.%s match: %w", key, err)
-			}
-			spec.match = re
+		if err := spec.validate(s.Response); err != nil {
+			return fmt.Errorf("search.fields.%s: %w", key, err)
 		}
 		s.Fields[key] = spec
 	}
 	for key := range s.Constants {
 		if !constantKeys[key] {
 			return fmt.Errorf("search.constants.%s is not a constant listing field", key)
+		}
+	}
+	for key, pattern := range s.RequireMatch {
+		if key == "" || pattern == "" {
+			return errors.New("search.require_match needs a field and a pattern")
 		}
 	}
 	if s.Offers != nil {
@@ -296,6 +434,143 @@ func (s *SearchSpec) validate() error {
 		}
 		if s.Offers.AccessOtherwise == "" {
 			s.Offers.AccessOtherwise = "unknown"
+		}
+	}
+	for i := range s.Steps {
+		if err := s.Steps[i].validate(); err != nil {
+			return fmt.Errorf("search.steps[%d]: %w", i, err)
+		}
+	}
+	return nil
+}
+
+func (f *FieldSpec) validate(response string) error {
+	sources := 0
+	if f.Path != "" {
+		sources++
+	}
+	if len(f.Paths) > 0 {
+		sources++
+	}
+	if f.Template != "" {
+		sources++
+	}
+	if f.Select != "" || f.Attr != "" || f.Closest != "" {
+		sources++
+	}
+	if sources > 1 {
+		return errors.New("use one of path, paths, template, or select/attr")
+	}
+	if sources == 0 && f.Default == "" {
+		return errors.New("needs a path, paths, template, select or default")
+	}
+	if response == "html" && (f.Path != "" || len(f.Paths) > 0) {
+		return errors.New("html items are read by select and attr, not path")
+	}
+	if response == "json" && (f.Select != "" || f.Closest != "" || f.Attr != "") {
+		return errors.New("json items are read by path, not select")
+	}
+	name, _, _ := strings.Cut(f.Transform, ":")
+	if !transforms[name] {
+		return fmt.Errorf("unknown transform %q", f.Transform)
+	}
+	if f.Truncate < 0 || f.MaxLength < 0 {
+		return errors.New("truncate and max_length must be positive")
+	}
+	if len(f.Range) != 0 && (len(f.Range) != 2 || f.Range[0] > f.Range[1]) {
+		return errors.New("range needs two numbers, low then high")
+	}
+	var err error
+	if f.Match != "" {
+		if f.match, err = regexp.Compile(f.Match); err != nil {
+			return fmt.Errorf("match: %w", err)
+		}
+	}
+	if f.Reject != "" {
+		if f.reject, err = regexp.Compile(f.Reject); err != nil {
+			return fmt.Errorf("reject: %w", err)
+		}
+	}
+	if f.Select != "" && f.Select != "." {
+		if f.sel, err = cascadia.Compile(f.Select); err != nil {
+			return fmt.Errorf("select: %w", err)
+		}
+	}
+	if f.Closest != "" {
+		if f.closest, err = cascadia.Compile(f.Closest); err != nil {
+			return fmt.Errorf("closest: %w", err)
+		}
+	}
+	return nil
+}
+
+func (st *StepSpec) validate() error {
+	if strings.TrimSpace(st.URL) == "" {
+		return errors.New("url is required")
+	}
+	if st.Response == "" {
+		st.Response = "json"
+	}
+	if !responses[st.Response] {
+		return fmt.Errorf("response %q must be json, html or text", st.Response)
+	}
+	if len(st.Capture) == 0 && len(st.RequireText) == 0 {
+		return errors.New("a step must capture a variable or require text")
+	}
+	for name, capture := range st.Capture {
+		if !captureName.MatchString(name) {
+			return fmt.Errorf("capture %q needs a simple name", name)
+		}
+		if err := capture.validate(st.Response); err != nil {
+			return fmt.Errorf("capture %s: %w", name, err)
+		}
+		st.Capture[name] = capture
+	}
+	if st.CacheSeconds < 0 {
+		return errors.New("cache_seconds must be positive")
+	}
+	return nil
+}
+
+func (c *CaptureSpec) validate(response string) error {
+	var err error
+	switch {
+	case c.From != "":
+		if c.Regex == "" {
+			return errors.New("from needs a regex")
+		}
+	case c.Select != "":
+		if response != "html" {
+			return errors.New("select reads html responses only")
+		}
+		if c.sel, err = cascadia.Compile(c.Select); err != nil {
+			return fmt.Errorf("select: %w", err)
+		}
+	case c.Path != "":
+		if response != "json" {
+			return errors.New("path reads json responses only")
+		}
+	case c.Regex != "":
+		if response != "text" && response != "html" {
+			return errors.New("regex reads text responses only")
+		}
+	default:
+		return errors.New("needs select, path, regex or from")
+	}
+	if c.Regex != "" {
+		if c.regex, err = regexp.Compile(c.Regex); err != nil {
+			return fmt.Errorf("regex: %w", err)
+		}
+		if c.Group < 0 || c.Group > c.regex.NumSubexp() {
+			return fmt.Errorf("group %d is not in the regex", c.Group)
+		}
+		if c.Group == 0 && c.regex.NumSubexp() > 0 {
+			c.Group = 1
+		}
+	}
+	if c.Match != "" {
+		if c.match, err = regexp.Compile(c.Match); err != nil {
+			return fmt.Errorf("match: %w", err)
 		}
 	}
 	return nil
@@ -317,10 +592,10 @@ func (d *Driver) HasMarkets() bool {
 
 // Host is the hostname of the search endpoint, which frontier budgets key on.
 func (d *Driver) Host() string {
-	return lens.Hostname(d.Spec.URL)
+	return lens.Hostname(expand(d.Spec.URL, func(string) string { return "" }))
 }
 
-// Timeout bounds one search request.
+// Timeout bounds one whole search, steps included.
 func (d *Driver) Timeout() time.Duration {
 	return time.Duration(d.Spec.TimeoutSeconds) * time.Second
 }
@@ -331,24 +606,26 @@ func (d *Driver) StatusName(market string) string {
 	return expand(d.Spec.StatusName, func(name string) string { return vars[name] })
 }
 
-// SearchURL builds the search request for a query and market.
+// SearchURL builds the search request for a query and market, without any
+// step variables; it is what the frontier records.
 func (d *Driver) SearchURL(query, market string) string {
-	return d.searchURL(query, market, nil)
+	return d.searchURL(searchVars(query, market), nil)
 }
 
-func (d *Driver) searchURL(query, market string, without map[string]bool) string {
-	vars := searchVars(query, market)
+func (d *Driver) searchURL(vars map[string]string, without map[string]bool) string {
+	resolve := func(name string) string { return vars[name] }
+	base := expand(d.Spec.URL, resolve)
 	values := url.Values{}
 	for key, template := range d.Spec.Params {
 		if without[key] {
 			continue
 		}
-		values.Set(key, expand(template, func(name string) string { return vars[name] }))
+		values.Set(key, expand(template, resolve))
 	}
 	if len(values) == 0 {
-		return d.Spec.URL
+		return base
 	}
-	return d.Spec.URL + "?" + values.Encode()
+	return base + "?" + values.Encode()
 }
 
 func searchVars(query, market string) map[string]string {
@@ -361,60 +638,182 @@ func searchVars(query, market string) map[string]string {
 	}
 }
 
-// Search runs one search against the host and returns its listings.
+// Search runs one search against the host and returns its listings: the
+// steps first, then the search request, then any further result pages.
 func (d *Driver) Search(ctx context.Context, fetcher *Fetcher, query, market string) ([]atlas.Listing, error) {
 	if d.Spec == nil {
 		return nil, fmt.Errorf("crawler: driver %s cannot search", d.Name)
 	}
 	ctx, cancel := context.WithTimeout(ctx, d.Timeout())
 	defer cancel()
-	items, err := d.fetchItems(ctx, fetcher, d.searchURL(query, market, nil))
+	vars := searchVars(query, market)
+	if err := d.runSteps(ctx, fetcher, vars); err != nil {
+		return nil, err
+	}
+	first, err := d.fetchDocument(ctx, fetcher, d.searchURL(vars, nil), vars)
 	if err != nil {
 		return nil, err
 	}
-	if len(items) == 0 && len(d.Spec.RetryWithout) > 0 {
+	documents := []*document{first}
+	if d.Spec.Response == "json" && len(first.items(d.Spec.Items)) == 0 && len(d.Spec.RetryWithout) > 0 {
 		without := map[string]bool{}
 		for _, key := range d.Spec.RetryWithout {
 			without[key] = true
 		}
-		if items, err = d.fetchItems(ctx, fetcher, d.searchURL(query, market, without)); err != nil {
+		if first, err = d.fetchDocument(ctx, fetcher, d.searchURL(vars, without), vars); err != nil {
 			return nil, err
 		}
+		documents = []*document{first}
 	}
-	vars := searchVars(query, market)
+	if d.Spec.Pages != nil {
+		for _, page := range first.pages(d.Spec.Pages) {
+			next, err := d.fetchDocument(ctx, fetcher, page, vars)
+			if err != nil {
+				continue
+			}
+			documents = append(documents, next)
+		}
+	}
 	seen := map[string]bool{}
 	var listings []atlas.Listing
-	for _, raw := range items {
-		if len(listings) >= d.Spec.Limit {
-			break
+	for _, doc := range documents {
+		for _, raw := range doc.items(d.Spec.Items) {
+			if len(listings) >= d.Spec.Limit {
+				return listings, nil
+			}
+			it := item{page: doc.url, vars: vars}
+			switch v := raw.(type) {
+			case map[string]any:
+				it.json = v
+			case *xhtml.Node:
+				it.node = v
+			default:
+				continue
+			}
+			if !d.itemAllowed(it) {
+				continue
+			}
+			listing, ok := d.listingFrom(it, market)
+			if !ok || seen[listing.URL] {
+				continue
+			}
+			seen[listing.URL] = true
+			listings = append(listings, listing)
 		}
-		item, ok := raw.(map[string]any)
-		if !ok || !d.requirementsMet(item) {
-			continue
-		}
-		listing, ok := d.listingFrom(item, vars, market)
-		if !ok || seen[listing.URL] {
-			continue
-		}
-		seen[listing.URL] = true
-		listings = append(listings, listing)
 	}
 	return listings, nil
 }
 
-func (d *Driver) fetchItems(ctx context.Context, fetcher *Fetcher, target string) ([]any, error) {
-	response, err := fetcher.Get(ctx, target, d.Spec.Headers)
+// document is one fetched search response, parsed per its format.
+type document struct {
+	url  *url.URL
+	json any
+	html *xhtml.Node
+	text string
+	spec *SearchSpec
+}
+
+func (d *Driver) fetchDocument(ctx context.Context, fetcher *Fetcher, target string, vars map[string]string) (*document, error) {
+	resolve := func(name string) string { return vars[name] }
+	headers := map[string]string{}
+	for key, template := range d.Spec.Headers {
+		headers[key] = expand(template, resolve)
+	}
+	body, final, err := d.fetch(ctx, fetcher, target, headers, d.Spec.SameURL, d.Spec.NoRedirect)
 	if err != nil {
-		return nil, fmt.Errorf("crawler: %s: %w", d.Name, err)
+		return nil, err
+	}
+	doc := &document{url: final, spec: d.Spec}
+	switch d.Spec.Response {
+	case "html":
+		parsed, err := xhtml.Parse(strings.NewReader(string(body)))
+		if err != nil {
+			return nil, fmt.Errorf("crawler: %s: response is not HTML", d.Name)
+		}
+		doc.html = parsed
+	default:
+		if err := json.Unmarshal(body, &doc.json); err != nil {
+			return nil, fmt.Errorf("crawler: %s: response is not JSON: %w", d.Name, err)
+		}
+		for key, want := range d.Spec.RequireDocument {
+			if scalarString(lookup(doc.json, key)) != want {
+				return nil, fmt.Errorf("crawler: %s: response did not pass the document checks", d.Name)
+			}
+		}
+	}
+	return doc, nil
+}
+
+// fetch performs one driver request under the driver's rules and returns
+// the body and the URL it came from. Errors name the host, never a token.
+func (d *Driver) fetch(ctx context.Context, fetcher *Fetcher, target string, headers map[string]string, sameURL, noRedirect bool) ([]byte, *url.URL, error) {
+	requested, err := url.Parse(target)
+	if err != nil || requested.Scheme != "https" || requested.Host == "" {
+		return nil, nil, fmt.Errorf("crawler: %s: %q is not an https URL", d.Name, target)
+	}
+	response, err := fetcher.Fetch(ctx, target, headers, FetchOptions{NoRedirect: noRedirect})
+	if err != nil {
+		return nil, nil, fmt.Errorf("crawler: %s: %w", d.Name, err)
 	}
 	if response.Status < 200 || response.Status > 299 {
-		return nil, fmt.Errorf("crawler: %s: HTTP %d from %s", d.Name, response.Status, lens.Hostname(target))
+		return nil, nil, fmt.Errorf("crawler: %s: HTTP %d from %s", d.Name, response.Status, requested.Hostname())
 	}
-	var document any
-	if err := json.Unmarshal(response.Body, &document); err != nil {
-		return nil, fmt.Errorf("crawler: %s: response is not JSON: %w", d.Name, err)
+	final, err := url.Parse(response.FinalURL)
+	if err != nil || final.Host == "" {
+		final = requested
 	}
-	return itemsAt(document, d.Spec.Items), nil
+	if sameURL && final.String() != requested.String() {
+		return nil, nil, fmt.Errorf("crawler: %s: %s answered from a different page", d.Name, requested.Hostname())
+	}
+	return response.Body, final, nil
+}
+
+// items returns the raw items of a document: decoded JSON values, or HTML
+// element nodes that pass the exclude and within rules.
+func (doc *document) items(path string) []any {
+	if doc.html != nil {
+		var out []any
+		for _, node := range doc.spec.items.MatchAll(doc.html) {
+			if doc.spec.exclude != nil && hasAncestorOrSelf(node, doc.spec.exclude) {
+				continue
+			}
+			if doc.spec.within != nil && !hasAncestor(node, doc.spec.within) {
+				continue
+			}
+			out = append(out, node)
+		}
+		return out
+	}
+	return itemsAt(doc.json, path)
+}
+
+// pages returns the further result pages linked from an HTML document.
+func (doc *document) pages(spec *PageSpec) []string {
+	if doc.html == nil {
+		return nil
+	}
+	seen := map[string]bool{}
+	var out []string
+	for _, node := range spec.sel.MatchAll(doc.html) {
+		raw := attribute(node, spec.Attr)
+		if raw == "" {
+			continue
+		}
+		ref, err := url.Parse(raw)
+		if err != nil {
+			continue
+		}
+		target := doc.url.ResolveReference(ref).String()
+		if seen[target] || (spec.match != nil && !spec.match.MatchString(target)) {
+			continue
+		}
+		seen[target] = true
+		out = append(out, target)
+		if len(out) >= spec.Max {
+			break
+		}
+	}
+	return out
 }
 
 // itemsAt reads the item list at path: the document itself for ".", a list
@@ -442,41 +841,70 @@ func itemsAt(document any, path string) []any {
 	return nil
 }
 
-func (d *Driver) requirementsMet(item map[string]any) bool {
+// item is one candidate listing in a document, JSON or HTML.
+type item struct {
+	json map[string]any
+	node *xhtml.Node
+	page *url.URL
+	vars map[string]string
+}
+
+// resolve answers template placeholders: search and step variables first,
+// then the item's own JSON fields.
+func (it item) resolve(name string) string {
+	if v, ok := it.vars[name]; ok {
+		return v
+	}
+	if it.json != nil {
+		return scalarString(lookup(it.json, name))
+	}
+	return ""
+}
+
+func (d *Driver) itemAllowed(it item) bool {
+	if it.json == nil {
+		return true
+	}
 	for key, want := range d.Spec.Require {
-		if scalarString(lookup(item, key)) != want {
+		if scalarString(lookup(it.json, key)) != want {
 			return false
 		}
 	}
 	for key, forbidden := range d.Spec.Forbid {
-		if scalarString(lookup(item, key)) == forbidden {
+		if scalarString(lookup(it.json, key)) == forbidden {
+			return false
+		}
+	}
+	for _, key := range d.Spec.RequireEmpty {
+		if scalarString(lookup(it.json, key)) != "" {
 			return false
 		}
 	}
 	for key, min := range d.Spec.RequireMin {
-		number, ok := lookup(item, key).(float64)
+		number, ok := lookup(it.json, key).(float64)
 		if !ok || number < min {
+			return false
+		}
+	}
+	for key, template := range d.Spec.RequireMatch {
+		pattern := expand(template, func(name string) string { return regexp.QuoteMeta(it.resolve(name)) })
+		re, err := regexp.Compile(pattern)
+		if err != nil || !re.MatchString(scalarString(lookup(it.json, key))) {
 			return false
 		}
 	}
 	return true
 }
 
-func (d *Driver) listingFrom(item map[string]any, vars map[string]string, market string) (atlas.Listing, bool) {
-	resolve := func(name string) string {
-		if v, ok := vars[name]; ok {
-			return v
-		}
-		return scalarString(lookup(item, name))
-	}
+func (d *Driver) listingFrom(it item, market string) (atlas.Listing, bool) {
 	values := map[string]string{}
 	var tags []string
 	for key, spec := range d.Spec.Fields {
 		if key == "tags" {
-			tags = spec.readTags(item)
+			tags = spec.readTags(it)
 			continue
 		}
-		value, ok := spec.read(item, resolve)
+		value, ok := spec.read(it)
 		if !ok {
 			return atlas.Listing{}, false
 		}
@@ -484,7 +912,7 @@ func (d *Driver) listingFrom(item map[string]any, vars map[string]string, market
 	}
 	for key, value := range d.Spec.Constants {
 		if values[key] == "" {
-			values[key] = expand(value, resolve)
+			values[key] = expand(value, it.resolve)
 		}
 	}
 	if strings.TrimSpace(values["title"]) == "" || values["url"] == "" {
@@ -499,28 +927,30 @@ func (d *Driver) listingFrom(item map[string]any, vars map[string]string, market
 		}
 	}
 	listing := atlas.Listing{
-		ID:          values["id"],
-		Title:       strings.TrimSpace(values["title"]),
-		URL:         values["url"],
-		MediaURL:    values["media_url"],
-		Provider:    firstNonEmpty(values["provider"], d.Provider),
-		SourceType:  values["source_type"],
-		AccessType:  values["access_type"],
-		AccessNote:  values["access_note"],
-		Price:       values["price"],
-		Market:      firstNonEmpty(values["market"], market),
-		Duration:    values["duration"],
-		Description: values["description"],
-		Thumbnail:   values["thumbnail"],
-		Resolution:  values["resolution"],
-		Tags:        tags,
-		ListingOnly: values["media_url"] == "",
+		ID:                values["id"],
+		Title:             strings.TrimSpace(values["title"]),
+		URL:               values["url"],
+		MediaURL:          values["media_url"],
+		Provider:          firstNonEmpty(values["provider"], d.Provider),
+		SourceType:        values["source_type"],
+		AccessType:        values["access_type"],
+		AccessBasis:       values["access_basis"],
+		AccessEvidenceURL: values["access_evidence_url"],
+		AccessNote:        values["access_note"],
+		Price:             values["price"],
+		Market:            firstNonEmpty(values["market"], market),
+		Duration:          values["duration"],
+		Description:       values["description"],
+		Thumbnail:         values["thumbnail"],
+		Resolution:        values["resolution"],
+		Tags:              tags,
+		ListingOnly:       values["media_url"] == "",
 	}
 	if year, err := strconv.Atoi(values["year"]); err == nil {
 		listing.Year = year
 	}
-	if d.Spec.Offers != nil {
-		listing.Price, listing.AccessType = d.Spec.Offers.read(item)
+	if d.Spec.Offers != nil && it.json != nil {
+		listing.Price, listing.AccessType = d.Spec.Offers.read(it.json)
 	}
 	if listing.AccessType == "" {
 		listing.AccessType = "unknown"
@@ -531,21 +961,24 @@ func (d *Driver) listingFrom(item map[string]any, vars map[string]string, market
 	return listing, true
 }
 
-// read evaluates a field. It reports false when a required match fails,
-// which drops the item rather than recording a wrong URL.
-func (f FieldSpec) read(item map[string]any, resolve func(string) string) (string, bool) {
+// read evaluates a field. It reports false when a required rule fails,
+// which drops the item rather than recording a wrong value; an optional
+// field that fails its rules is blank instead.
+func (f FieldSpec) read(it item) (string, bool) {
 	var value string
 	switch {
 	case f.Path != "":
-		value = scalarString(lookup(item, f.Path))
+		value = scalarString(lookup(it.json, f.Path))
 	case len(f.Paths) > 0:
 		for _, path := range f.Paths {
-			if value = scalarString(lookup(item, path)); value != "" {
+			if value = scalarString(lookup(it.json, path)); value != "" {
 				break
 			}
 		}
 	case f.Template != "":
-		value = expand(f.Template, resolve)
+		value = expand(f.Template, it.resolve)
+	case it.node != nil && (f.Select != "" || f.Attr != "" || f.Closest != ""):
+		value = f.readNode(it)
 	}
 	value = transform(f.Transform, value)
 	if f.StripPrefix != "" {
@@ -563,19 +996,71 @@ func (f FieldSpec) read(item map[string]any, resolve func(string) string) (strin
 		}
 	}
 	if value == "" {
-		value = expand(f.Default, resolve)
+		value = expand(f.Default, it.resolve)
 	}
-	if f.match != nil && !f.match.MatchString(value) {
+	if !f.accepts(value) {
+		if f.Optional {
+			return "", true
+		}
 		return "", false
 	}
 	return value, true
 }
 
+// accepts applies the match, reject, length and range rules to a value.
+func (f FieldSpec) accepts(value string) bool {
+	if f.match != nil && !f.match.MatchString(value) {
+		return false
+	}
+	if f.reject != nil && value != "" && f.reject.MatchString(value) {
+		return false
+	}
+	if f.MaxLength > 0 && len(value) > f.MaxLength {
+		return false
+	}
+	if len(f.Range) == 2 && value != "" {
+		number, err := strconv.ParseFloat(value, 64)
+		if err != nil || number < f.Range[0] || number > f.Range[1] {
+			return false
+		}
+	}
+	return true
+}
+
+// readNode reads an HTML field: the selected element's attribute or text,
+// with URL attributes resolved against the page unless resolve is false.
+func (f FieldSpec) readNode(it item) string {
+	scope := it.node
+	if f.closest != nil {
+		scope = closest(it.node, f.closest)
+		if scope == nil {
+			return ""
+		}
+	}
+	target := scope
+	if f.sel != nil {
+		if target = f.sel.MatchFirst(scope); target == nil {
+			return ""
+		}
+	}
+	if f.Attr == "" {
+		return nodeText(target)
+	}
+	value := attribute(target, f.Attr)
+	resolve := f.Resolve == nil && (strings.EqualFold(f.Attr, "href") || strings.EqualFold(f.Attr, "src")) || f.Resolve != nil && *f.Resolve
+	if value != "" && resolve && it.page != nil {
+		if ref, err := url.Parse(value); err == nil {
+			value = it.page.ResolveReference(ref).String()
+		}
+	}
+	return value
+}
+
 // readTags reads a list field, accepting a single scalar as a one-item list.
-func (f FieldSpec) readTags(item map[string]any) []string {
+func (f FieldSpec) readTags(it item) []string {
 	var raw any
-	if f.Path != "" {
-		raw = lookup(item, f.Path)
+	if f.Path != "" && it.json != nil {
+		raw = lookup(it.json, f.Path)
 	}
 	var tags []string
 	switch v := raw.(type) {
@@ -615,7 +1100,8 @@ func (o *OfferSpec) read(item map[string]any) (string, string) {
 	return strings.Join(labels, " · "), o.AccessWhenPriced
 }
 
-func transform(name, value string) string {
+func transform(spec, value string) string {
+	name, arg, _ := strings.Cut(spec, ":")
 	switch name {
 	case "lower":
 		return strings.ToLower(value)
@@ -656,6 +1142,12 @@ func transform(name, value string) string {
 		return strings.TrimSpace(html.UnescapeString(value))
 	case "html_text":
 		return strings.Join(strings.Fields(html.UnescapeString(htmlTags.ReplaceAllString(value, " "))), " ")
+	case "url_query":
+		u, err := url.Parse(strings.TrimSpace(value))
+		if err != nil {
+			return ""
+		}
+		return strings.TrimSpace(u.Query().Get(arg))
 	}
 	return value
 }
@@ -717,9 +1209,10 @@ func scalarString(value any) string {
 	return ""
 }
 
-// expand replaces {name} and {name|filter} in a template. Filters: lower,
-// upper, path (URL path escaping) and query (URL query escaping). An unknown
-// name expands to nothing.
+// expand replaces {name} and {name|filter|filter} in a template. Filters:
+// lower, upper, path (URL path escaping), query (URL query escaping) and
+// strip_article (drop a leading the, an or a). An unknown name expands to
+// nothing.
 func expand(template string, resolve func(string) string) string {
 	var b strings.Builder
 	for {
@@ -734,17 +1227,27 @@ func expand(template string, resolve func(string) string) string {
 			return b.String()
 		}
 		b.WriteString(template[:open])
-		name, filter, _ := strings.Cut(template[open+1:open+close], "|")
-		value := resolve(strings.TrimSpace(name))
-		switch strings.TrimSpace(filter) {
-		case "lower":
-			value = strings.ToLower(value)
-		case "upper":
-			value = strings.ToUpper(value)
-		case "path":
-			value = url.PathEscape(value)
-		case "query":
-			value = url.QueryEscape(value)
+		parts := strings.Split(template[open+1:open+close], "|")
+		value := resolve(strings.TrimSpace(parts[0]))
+		for _, filter := range parts[1:] {
+			switch strings.TrimSpace(filter) {
+			case "lower":
+				value = strings.ToLower(value)
+			case "upper":
+				value = strings.ToUpper(value)
+			case "path":
+				value = url.PathEscape(value)
+			case "query":
+				value = url.QueryEscape(value)
+			case "strip_article":
+				lowered := strings.ToLower(strings.TrimSpace(value))
+				for _, article := range []string{"the ", "an ", "a "} {
+					if strings.HasPrefix(lowered, article) && len(lowered) > len(article) {
+						value = strings.TrimSpace(value[len(article):])
+						break
+					}
+				}
+			}
 		}
 		b.WriteString(value)
 		template = template[open+close+1:]

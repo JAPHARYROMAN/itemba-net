@@ -18,7 +18,7 @@ search:
     isLocal: "true"
   status_name: Blender open movies
   timeout_seconds: 4
-  require_relevance: true
+  require_relevance: score
   response: json
   items: data
   limit: 6

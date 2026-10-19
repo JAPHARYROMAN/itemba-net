@@ -1,0 +1,121 @@
+# Fawesome's normal public guest search, as its own website performs it:
+# the shell names the current player bundle, the bundle holds the public
+# identifiers, getSecurityToken.php hands out an anonymous token, and
+# recipes.php answers the search with that token in a same-origin header.
+# No account, cookie, alternate country or private API is used. The public
+# configuration is cached for five minutes; the guest token never is.
+# Contracts checked 2026-10-18 in the bundle linked by https://fawesome.tv/.
+name: fawesome
+provider: Fawesome
+hosts: [fawesome.tv, www.fawesome.tv]
+rate:
+  per_minute: 20
+  concurrency: 2
+search:
+  steps:
+    - name: shell
+      url: https://fawesome.tv/
+      response: html
+      same_url: true
+      cache_seconds: 300
+      capture:
+        # Exactly one current bundle, on this origin, with at most a numeric
+        # version query.
+        bundle: { select: "script[src]", attr: src, resolve: true, unique: true, match: '^https://fawesome\.tv/home/new/v[1-9][0-9]{0,5}/assets/js/iptv-main\.js(\?ver=[0-9]{1,10})?$' }
+        version: { from: bundle, regex: '/home/new/(v[1-9][0-9]{0,5})/assets/' }
+    - name: bundle
+      url: "{bundle}"
+      response: text
+      same_url: true
+      cache_seconds: 300
+      require_text:
+        - "function getSearchURL()"
+        - "getSecurityToken.php"
+        - "i.token=appConfig.securityToken"
+        - 'appConfig.siteId=helper.getIptvParameterFromUrl("siteId")'
+        - ",getCustomParameterFromCustomUrl:"
+      capture:
+        app_id: { regex: '\bappConfig\.appId=([1-9][0-9]{0,5})(?:[,;])', unique: true }
+        constructor_site_id: { regex: '\bappConfig\.siteId=([1-9][0-9]{0,5})(?:[,;])', unique: true }
+        platform_id: { regex: '\bwindow\.platform_id\|\|\(appConfig\.platform_id=([1-9][0-9]{0,11})\)', unique: true }
+        build: { regex: '\bbuildVersion:"(v[1-9][0-9]{0,5})"', unique: true }
+        api_env: { regex: '\bappConfig\.apiEnv="([a-z]{1,24})",appConfig\.appId=', unique: true }
+        # Constructor siteId=1 belongs to the shared iFood application. The
+        # plain Fawesome website's URL helper replaces it with these explicit
+        # guest defaults; parsing the constructor alone selects another catalog.
+        guest_site_id: { regex: 'getIptvParameterFromUrl:function\(e\)\{[\s\S]{0,1000}?var a=\{iptv:!0,siteId:([1-9][0-9]{0,5}),platform_id:([1-9][0-9]{0,11}),buildVer:appInfo\.buildVersion\};return o\[e\]\?o\[e\]:a\[e\]\}', group: 1, unique: true }
+        guest_platform_id: { regex: 'getIptvParameterFromUrl:function\(e\)\{[\s\S]{0,1000}?var a=\{iptv:!0,siteId:([1-9][0-9]{0,5}),platform_id:([1-9][0-9]{0,11}),buildVer:appInfo\.buildVersion\};return o\[e\]\?o\[e\]:a\[e\]\}', group: 2, unique: true }
+      assert:
+        build: "{version}"
+        guest_platform_id: "{platform_id}"
+    - name: guest
+      url: https://fawesome.tv/home/new/{version}/api/getSecurityToken.php
+      params:
+        appId: "{app_id}"
+        siteId: "{guest_site_id}"
+        auth-token: "{platform_id}"
+        apiEnv: "{api_env}"
+      headers:
+        Accept: "application/json, text/javascript, */*; q=0.01"
+        User-Agent: "ITEMBA-NET/2 (public guest movie discovery)"
+        Referer: https://fawesome.tv/
+        X-Requested-With: XMLHttpRequest
+      response: json
+      same_url: true
+      no_redirect: true
+      capture:
+        token: { path: securityToken, match: '^[^\x00-\x1f\x7f]+$' }
+  url: https://fawesome.tv/home/new/{version}/api/recipes.php
+  params:
+    searchType: search
+    # The provider searches common words broadly. Removing only a leading
+    # article keeps a typed title useful; the query still constrains results.
+    keys: "{query|strip_article|lower}"
+    platform_id: "{platform_id}"
+    appId: "{app_id}"
+    siteId: "{guest_site_id}"
+    auth-token: "{platform_id}"
+    apiEnv: "{api_env}"
+  headers:
+    Accept: "application/json, text/javascript, */*; q=0.01"
+    User-Agent: "ITEMBA-NET/2 (public guest movie discovery)"
+    Referer: https://fawesome.tv/
+    X-Requested-With: XMLHttpRequest
+    token: "{token}"
+  status_name: Fawesome live movie search
+  # A cold search is four sequential requests, including the player bundle;
+  # inside a loaded burst that once outran the legacy eight-second budget.
+  # Later searches reuse the cached configuration and need two.
+  timeout_seconds: 12
+  same_url: true
+  no_redirect: true
+  require_relevance: score
+  response: json
+  require_document:
+    status: ok
+    type: result
+  items: results
+  limit: 12
+  require:
+    item_type: movie
+    feed_type: video
+    actiontype: video
+  forbid:
+    blockItem: "true"
+  require_empty: [series_name]
+  require_match:
+    web_url: '^movies/{node_id}/[a-z0-9]+(?:-[a-z0-9]+)*/?$'
+  fields:
+    id: { template: "fawesome-{node_id}" }
+    title: { path: title, max_length: 240, reject: '(?i)^S[0-9]{1,3}\s*E[0-9]{1,3}\b|[<>\r\n\x00]' }
+    url: { template: "https://fawesome.tv/{web_url}", match: '^https://fawesome\.tv/movies/[1-9][0-9]{0,11}/[a-z0-9]+(?:-[a-z0-9]+)*/?$' }
+    # A supplied runtime must be a feature length; a missing one stays unknown.
+    duration: { path: runtime, range: [2400, 43200], optional: false }
+    description: { path: description }
+    thumbnail: { path: main_picture, match: '^https://', optional: true }
+  constants:
+    source_type: Provider movie listing
+    access_type: free
+    access_basis: provider_model
+    access_evidence_url: https://fawesome.tv/
+    access_note: Fawesome lists free guest movies; current main-movie availability and protected playback are checked separately.

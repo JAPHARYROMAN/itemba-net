@@ -19,7 +19,7 @@ search:
     order_by: desc
   status_name: NFB / ONF free film catalog
   timeout_seconds: 4
-  require_relevance: true
+  require_relevance: score
   response: json
   items: items
   limit: 6

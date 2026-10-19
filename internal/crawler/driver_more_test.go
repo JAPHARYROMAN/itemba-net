@@ -16,6 +16,7 @@ func TestAllShippedDriversHaveTheirIdentity(t *testing.T) {
 	want := map[string]string{
 		"apple-movies": "Apple movie catalog ({market})", "internet-archive": "Internet Archive", "peertube-sepia": "PeerTube",
 		"peertube-blender": "Blender open movies", "wikimedia-commons": "Wikimedia Commons", "nasa-plus": "NASA+ free documentaries", "nfb": "NFB / ONF free film catalog",
+		"public-domain-movies": "Public Domain Movies browse", "arcoiris-tv": "ArcoirisTV feature catalog", "publicdomainmovie-org": "PublicDomainMovie.org feature catalog", "fawesome": "Fawesome live movie search",
 	}
 	if len(drivers) != len(want) {
 		t.Fatalf("expected %d drivers, got %d", len(want), len(drivers))
@@ -234,7 +235,7 @@ func TestRuntimeReadsRootAndObjectItemsAndNewTransforms(t *testing.T) {
 		t.Fatal("html transforms")
 	}
 	spec := FieldSpec{Path: "t", StripPrefix: "File:", StripSuffixes: []string{" 60fps 4K"}, Truncate: 5}
-	if value, ok := spec.read(map[string]any{"t": "File:Sintel 60fps 4K"}, func(string) string { return "" }); !ok || value != "Sinte…" {
+	if value, ok := spec.read(item{json: map[string]any{"t": "File:Sintel 60fps 4K"}}); !ok || value != "Sinte…" {
 		t.Fatalf("prefix, suffix and truncate: %q %v", value, ok)
 	}
 }
