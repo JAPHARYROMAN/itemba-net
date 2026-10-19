@@ -59,7 +59,7 @@ type BrowserInstance struct {
 	ContainerID string
 	Mode        string // "local-isolated", "docker-container", or "pooled-target"
 
-	cmd         *exec.Cmd
+	tree        *processTree
 	conn        *websocket.Conn
 	writeMu     sync.Mutex
 	nextID      atomic.Int64
@@ -369,11 +369,15 @@ func (b *BrowserInstance) launchLocal(ctx context.Context, opts LaunchOptions) e
 		_ = os.RemoveAll(tmpDir)
 		return err
 	}
-	if err := cmd.Start(); err != nil {
+	// The browser is started so that Close can later reach its whole process
+	// tree (zygote, renderers, GPU and utility processes, or the child of a
+	// launcher script that does not exec), not only the process started here.
+	tree, err := startProcessTree(cmd)
+	if err != nil {
 		_ = os.RemoveAll(tmpDir)
 		return fmt.Errorf("failed to start browser binary %s: %w", bin, err)
 	}
-	b.cmd = cmd
+	b.tree = tree
 
 	if err := b.connectDebugger(ctx); err != nil {
 		b.Close()
@@ -600,23 +604,21 @@ func (b *BrowserInstance) Close() {
 		return
 	}
 
-	var process *os.Process
-	if b.cmd != nil && b.cmd.Process != nil {
-		process = b.cmd.Process
-		_ = process.Kill()
+	if b.tree != nil {
+		b.tree.kill()
 	}
 	containerName := ""
 	if b.ContainerID != "" {
 		containerName = fmt.Sprintf("itemba-vault-%s", b.ID)
 	}
-	go releaseBrowser(process, containerName, b.UserDataDir)
+	go releaseBrowser(b.tree, containerName, b.UserDataDir)
 }
 
-// releaseBrowser reaps the killed browser process, removes its container and
-// finally its ephemeral profile, which is only safe once no process holds it.
-func releaseBrowser(process *os.Process, containerName, userDataDir string) {
-	if process != nil {
-		_, _ = process.Wait()
+// releaseBrowser reaps the killed browser process tree, removes its container
+// and finally its ephemeral profile, which is only safe once no process holds it.
+func releaseBrowser(tree *processTree, containerName, userDataDir string) {
+	if tree != nil {
+		tree.wait()
 	}
 	if containerName != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
