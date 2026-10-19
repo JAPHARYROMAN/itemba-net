@@ -51,6 +51,11 @@ type CandidateSource struct {
 	providerContentBound bool
 	providerSSAI         bool
 	providerStreamURL    string
+	// providerCheck names the driver whose access check bound the media and
+	// providerCheckPage the page it checked, so the binding can be verified
+	// again before any sample.
+	providerCheck     string
+	providerCheckPage string
 }
 
 // VerifiedSource represents a candidate source after stream verification and cleanliness scoring.

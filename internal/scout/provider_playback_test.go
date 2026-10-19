@@ -51,6 +51,7 @@ func TestProviderRestrictionsStopBeforeNativePlaybackAndRankLowerGlobally(t *tes
 		t.Error("a restricted provider launched a browser")
 		return nil
 	}}
+	s.UseDrivers(testDrivers(t))
 	results := []VerifiedSource{providerFixtureListing("https://pluto.tv/us/on-demand/movies/imprint-2007/details"), providerFixtureListing("https://filmzie.com/content/imprint-2007")}
 	s.checkFreeMoviePlayback(context.Background(), results, "ALL", "TZ")
 	if requests.Load() != 3 {
@@ -93,6 +94,7 @@ func TestFilmzieMainMediaRequiresProtectedNativeProofAndKeepsSignedURLPrivate(t 
 				}
 				return startedFixture(region, country)
 			}}
+			s.UseDrivers(testDrivers(t))
 			results := []VerifiedSource{providerFixtureListing("https://filmzie.com/content/imprint-2007")}
 			s.checkFreeMoviePlayback(context.Background(), results, "ALL", "TZ")
 			result := results[0]
@@ -122,6 +124,7 @@ func TestProviderChecksKeepProtectionAndPaidExclusion(t *testing.T) {
 	free := providerFixtureListing("https://filmzie.com/content/imprint-2007")
 	paid := free
 	paid.AccessType = "subscription"
+	s.UseDrivers(testDrivers(t))
 	results := []VerifiedSource{free, paid}
 	s.checkFreeMoviePlayback(context.Background(), results, "ALL", "TZ")
 	if requests.Load() != 0 || results[0].PlaybackCheck.Reason != "blocked_with_protection" || results[1].PlaybackCheck != nil {
@@ -145,6 +148,7 @@ func TestDiscoveredAndPastedProviderMovieLinksRunTheSameChecks(t *testing.T) {
 	t.Setenv("TAVILY_API_KEY", "fixture-key")
 	t.Setenv("BRAVE_SEARCH_API_KEY", "")
 	s := New(shield.New(), "http://127.0.0.1:8080")
+	s.UseDrivers(testDrivers(t))
 	s.httpClient = &http.Client{Transport: searchFixtureTransport(func(req *http.Request) (*http.Response, error) {
 		if req.URL.Hostname() == "api.tavily.com" {
 			return searchFixtureResponse(200, "application/json", `{"results":[{"title":"Watch Imprint (2007) | Filmzie","url":"https://filmzie.com/content/imprint-2007"},{"title":"Watch Imprint (2007) | Pluto TV","url":"https://pluto.tv/us/on-demand/movies/imprint-2007/details"},{"title":"Watch Imprint (2007) | Netflix","url":"https://www.netflix.com/title/imprint2007"}]}`), nil
@@ -183,7 +187,7 @@ func TestDiscoveredAndPastedProviderMovieLinksRunTheSameChecks(t *testing.T) {
 			t.Fatalf("provider checks were lost between discovery and API report for %q: %+v", query, report)
 		}
 		for _, source := range report.Sources {
-			if supportedProviderPlayback(source.CandidateSource) && (source.PlaybackCheck == nil || source.PlaybackCheck.Reason != "region_unavailable") {
+			if s.supportedProviderPlayback(source.CandidateSource) && (source.PlaybackCheck == nil || source.PlaybackCheck.Reason != "region_unavailable") {
 				t.Fatalf("provider link bypassed the access check: %+v", source)
 			}
 		}

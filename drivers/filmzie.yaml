@@ -1,0 +1,151 @@
+# Filmzie's public content pages and guest playback response, read as its
+# own player reads them. The page's APP_STATE names the film, its runtime
+# and its videos; the PAID_CONTENT video (a provider asset label, not a
+# purchase claim) is the main movie and TRAILER is a separate video. The
+# player then GETs /api/v1/video/stream/<id> and plays data.source.hlsV2.
+# Contracts checked 2026-10-18 on https://filmzie.com/content/imprint-2007
+# and https://filmzie.com/js/content-bda3e39a4bc8daf94c3e.js. Only existing
+# public guest responses are read: country, account and DRM restrictions
+# stop the check, and no alternate origin, identity or token is used. A
+# legacy MP4 of the main asset may enter the protected sampler; the
+# server-inserted-ad HLS cannot, because a preroll cannot prove the film
+# started. Filmzie has no public search contract here, so this driver only
+# checks.
+name: filmzie
+provider: Filmzie
+hosts: [filmzie.com, www.filmzie.com]
+rate:
+  per_minute: 20
+  concurrency: 2
+check:
+  url: '^https://(?:www\.)?filmzie\.com/content/[A-Za-z0-9][A-Za-z0-9_.-]{0,199}/?$'
+  url_title: '^https://(?:www\.)?filmzie\.com/content/([^/?#]+)/?$'
+  timeout_seconds: 7
+  requests:
+    - name: page
+      url: "{page}"
+      response: html
+      timeout_seconds: 4
+      max_bytes: 524288
+      # A redirect may only stay on this page; the homepage is not the film.
+      redirects: same_path
+      evidence: "{page}"
+      headers:
+        Accept: "application/json,text/html;q=0.9"
+        User-Agent: "ITEMBA-NET/2 (public movie playback check)"
+      failure:
+        detail: "Filmzie's public movie page could not be checked with protection enabled."
+      timeout:
+        reason: timeout
+        detail: "Filmzie's protected movie-page check timed out; playback remains unconfirmed."
+      capture:
+        # Exactly one script assigns the page state.
+        state: { select: script, regex: 'window\[[''"]APP_STATE[''"]\]\s*=\s*', json: true, unique: true }
+        content_id: { from: state, path: contentPage.content.id, match: '^[a-f0-9]{24}$' }
+        content_type: { from: state, path: contentPage.content.type }
+        title: { from: state, path: contentPage.content.title }
+        content_duration: { from: state, path: contentPage.content.duration }
+        year: { from: state, path: contentPage.content.released, transform: year_of_date }
+        share_link: { from: state, path: contentPage.content.shareLink }
+        sef_name: { from: state, path: contentPage.content.sefName }
+        coming_soon: { from: state, path: contentPage.content.comingSoon }
+        available: { from: state, path: contentPage.isAvailableInUserCountry }
+        # The one main asset; two, or none, is not a film to sample.
+        main_id: { from: state, path: 'contentPage.content.videos[type=PAID_CONTENT].id', unique: true, match: '^[a-f0-9]{24}$' }
+        main_duration: { from: state, path: 'contentPage.content.videos[type=PAID_CONTENT].duration', unique: true }
+        # A supplied legacy movie file is an explicit member of the asset.
+        # Never derive an HTTP URL from gs: paths or storage keys.
+        legacy_url: { from: state, path: 'contentPage.content.videos[type=PAID_CONTENT].formats.MP4_WURL.legacyUrl', unique: true, match: '^https://[^?#]+\.(?i:mp4|webm)(?:[?#].*)?$' }
+        legacy_approved: { from: state, path: 'contentPage.content.videos[type=PAID_CONTENT].formats.MP4_WURL.approved', unique: true }
+        legacy_job: { from: state, path: 'contentPage.content.videos[type=PAID_CONTENT].formats.MP4_WURL.jobStatus', unique: true }
+        ssai_approved: { from: state, path: 'contentPage.content.videos[type=PAID_CONTENT].formats.HLS_SSAI.approved', unique: true }
+        ssai_job: { from: state, path: 'contentPage.content.videos[type=PAID_CONTENT].formats.HLS_SSAI.jobStatus', unique: true }
+      identity:
+        title: "{title}"
+        year: "{year}"
+        duration: "{main_duration}"
+        page_duration: "{content_duration}"
+      rules:
+        - unless: { vars: { state: '.' } }
+          result: { detail: "Filmzie's full movie stream could not be identified with protection enabled." }
+        - unless:
+            vars:
+              share_link: '^https://(?:www\.)?filmzie\.com{final_path}$'
+              sef_name: '^{final_base}$'
+              content_type: '^MOVIE$'
+              coming_soon: '^(?:false)?$'
+              content_id: '.'
+          result: { detail: "Filmzie's full movie stream could not be identified with protection enabled." }
+        - unless: { vars: { main_id: '.' } }
+          result: { detail: "Filmzie did not identify one full movie asset; trailer playback is not verification." }
+        - unless:
+            range: { content_duration: [2400, 86400], main_duration: [2400, 86400] }
+            runtime: agree
+            metadata: match
+          result: { detail: "Filmzie's title, release year or full movie runtime did not match this source." }
+    - name: stream
+      url: "https://filmzie.com/api/v1/video/stream/{main_id}"
+      response: json
+      timeout_seconds: 4
+      max_bytes: 131072
+      redirects: same_path
+      evidence: "{url}"
+      headers:
+        Accept: "application/json,text/html;q=0.9"
+        User-Agent: "ITEMBA-NET/2 (public movie playback check)"
+      failure:
+        detail: "Filmzie's guest playback response could not be checked with protection enabled."
+      timeout:
+        reason: timeout
+        detail: "Filmzie's protected guest playback check timed out; playback remains unconfirmed."
+      capture:
+        error: { path: error }
+        error_raw: { path: error, json: true }
+        data_type: { path: data.type }
+        data_id: { path: data.id }
+        stream: { paths: [data.source.hlsV2, data.source.hlsV2.src], match: '^https://' }
+        drm: { path: data.source.hlsV2.keySystems, json: true }
+      rules:
+        - when: { status: '^401$' }
+          result: { status: not_started, reason: sign_in_required, detail: "Filmzie requires an account or authorization for this movie; automatic playback did not proceed." }
+        - when: { status: '^(?:403|429)$', vars: { parsed: '^false$' } }
+          result: { detail: "Filmzie restricted the automated guest playback request; playback remains unconfirmed." }
+        - unless: { vars: { parsed: '^true$' } }
+          result: { detail: "Filmzie did not return a recognized guest playback response." }
+        - when: { vars: { error: '^(?:content_)?not_available_in_your_country$' } }
+          result: { status: not_started, reason: region_unavailable, detail: "Filmzie reports that this movie is unavailable in the check network's country. No movie stream was requested." }
+        - when: { status: '^(?:403|429)$' }
+          result: { detail: "Filmzie restricted the automated guest playback request; playback remains unconfirmed." }
+        - when: { vars: { error_raw: '.' } }
+          result: { detail: "Filmzie did not authorize a public main movie stream for this request." }
+        - unless: { status: '^200$' }
+          result: { detail: "Filmzie did not authorize a public main movie stream for this request." }
+        - when: { vars: { available: '^false$' } }
+          result: { status: not_started, reason: region_unavailable, detail: "Filmzie's movie page marks this movie unavailable in the check network's country. No movie stream was requested." }
+        - when: { vars: { data_type: '^TRAILER$' } }
+          result: { status: not_started, reason: trailer_only, detail: "Filmzie returned a trailer; it cannot verify full movie playback." }
+        - unless: { vars: { data_type: '^PAID_CONTENT$', data_id: '^(?:{main_id})?$' } }
+          result: { detail: "Filmzie's full movie stream could not be identified with protection enabled." }
+        - when: { vars: { drm: '^\{.*:.*\}$' } }
+          result: { status: not_started, reason: drm_required, detail: "Filmzie's source requires DRM; the protected automatic sample did not proceed." }
+        - when: { vars: { legacy_url: '.', legacy_approved: '^true$', legacy_job: '^SUCCESS$' } }
+          result:
+            bind:
+              media: "{legacy_url}"
+              evidence: "{url}"
+              ssai: "false"
+              source_type: Provider free movie
+              access_basis: filmzie_movie_metadata
+              access_note: "A Filmzie guest response identified the full movie asset. Availability and actual protected playback are checked separately; the service may insert ads."
+        - when: { vars: { stream: '.', ssai_approved: '^true$', ssai_job: '^SUCCESS$' } }
+          result:
+            detail: "Filmzie supplied the main movie's stream, but its server-inserted ads cannot be distinguished from movie playback with the current protected check. Playback remains unconfirmed."
+            bind:
+              media: "{stream}"
+              evidence: "{url}"
+              ssai: "true"
+              source_type: Provider free movie
+              access_basis: filmzie_movie_metadata
+              access_note: "A Filmzie guest response identified the full movie asset. Availability and actual protected playback are checked separately; the service may insert ads."
+  otherwise:
+    detail: "Filmzie did not supply an attributable public full movie stream. Trailer or ad playback is not movie verification."

@@ -1,0 +1,50 @@
+# Pluto TV's on-demand movie pages, checked as a visitor would reach them.
+# The page itself is the whole contract: the first-party site redirects a
+# connection it does not serve to /intl/ and says so in its primary heading
+# (observed 2026-10-18); a page that does come back is a JavaScript shell
+# whose main movie cannot be attributed from its markup. No anonymous
+# bootstrap token, regional override, private player API or unobserved
+# stream URL is used, so a reachable page never becomes playback. Pluto has
+# no public search contract here, so this driver only checks.
+name: pluto-tv
+provider: Pluto TV
+hosts: [pluto.tv, www.pluto.tv]
+rate:
+  per_minute: 20
+  concurrency: 2
+check:
+  # An individual on-demand movie, behind at most two locale segments, with
+  # or without /details. Channels, series, trailers and review pages are not.
+  url: '^https://(?:www\.)?pluto\.tv/(?:(?:[a-z]{2}(?:-[a-z]{2})?|intl)/){0,2}(?:watch/)?on-demand/movies/[^/?#]{1,200}(?:/details)?/?$'
+  timeout_seconds: 4
+  requests:
+    - name: page
+      url: "{page}"
+      response: html
+      timeout_seconds: 4
+      max_bytes: 524288
+      redirects: public
+      failure:
+        detail: "Pluto TV's public movie page could not be checked within the guarded request limits. Playback remains unconfirmed."
+      capture:
+        # The service's own refusal, in a heading a visitor sees. The same
+        # sentence in a footer, a FAQ or a hidden block is not the page's verdict.
+        blocked: { select: "h1, h2, h3", visible: true, match: '^(?i)pluto tv is not available in your (?:location|country)\.?$' }
+      rules:
+        - unless: { final_url: '^https://(?:www\.)?pluto\.tv/' }
+          result: { evidence: "{page}", detail: "The Pluto TV link redirected away from its consumer site. Playback remains unconfirmed." }
+        - when:
+            final_url: '^https://(?:www\.)?pluto\.tv/(?:intl|plutotv-is-not-available)/?$|^https://(?:www\.)?pluto\.tv/(?:(?:[a-z]{2}(?:-[a-z]{2})?|intl)/){0,2}(?:watch/)?on-demand/movies/[^/?#]{1,200}(?:/details)?/?$'
+            vars: { blocked: '.' }
+            page: { challenge: "false" }
+          result: { status: not_started, reason: region_unavailable, detail: "Pluto TV explicitly reports that its service is not available from this connection. No movie playback was confirmed." }
+        - when: { page: { challenge: "true" } }
+          result: { detail: "Pluto TV presented an automated-access challenge; playback remains unconfirmed." }
+        - when: { page: { sign_in: "true" } }
+          result: { status: not_started, reason: sign_in_required, detail: "Pluto TV requires sign-in before the requested player can be checked. No account state was used." }
+        - unless:
+            final_url: '^https://(?:www\.)?pluto\.tv/(?:(?:[a-z]{2}(?:-[a-z]{2})?|intl)/){0,2}(?:watch/)?on-demand/movies/[^/?#]{1,200}(?:/details)?/?$'
+            page: { soft_not_found: "false", identity: match }
+          result: { detail: "The returned Pluto TV page did not establish the requested movie's identity. A protected native check must verify the movie before confirming playback." }
+  otherwise:
+    detail: "Pluto TV's page does not provide enough verified main-movie attribution for a native playback sample. Movie playback and in-stream advertisements remain unconfirmed."

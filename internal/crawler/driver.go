@@ -29,19 +29,29 @@ import (
 )
 
 // Driver is a declarative description of how to search one host and read
-// its listings. Drivers are data files under drivers/, loaded at startup.
+// its listings, and, where the host has them, how to read its catalog feeds
+// and check access to one of its movie pages. Drivers are data files under
+// drivers/, loaded at startup.
 type Driver struct {
 	Name     string      `yaml:"name"`
 	Provider string      `yaml:"provider"`
 	Hosts    []string    `yaml:"hosts"`
 	Rate     Rate        `yaml:"rate"`
 	Spec     *SearchSpec `yaml:"search"`
-	Path     string      `yaml:"-"`
+	// Feeds are the host's catalogs without a query, such as the shelves the
+	// console shows; they share the search's steps and item rules.
+	Feeds map[string]*FeedSpec `yaml:"feeds"`
+	// Check is the host's access check for one of its movie pages, run by
+	// the search pipeline before any playback sample.
+	Check *CheckSpec `yaml:"check"`
+	Path  string     `yaml:"-"`
 
 	// stepCache holds captured variables of cacheable steps, for example a
 	// host's public configuration, so every search need not refetch them.
+	// Keys name the step list and index, so a feed's steps and the search's
+	// stay apart.
 	mu        sync.Mutex
-	stepCache map[int]cachedStep
+	stepCache map[string]cachedStep
 }
 
 // Rate bounds how hard the crawler may lean on the driver's hosts.
@@ -144,24 +154,36 @@ type StepSpec struct {
 	NoRedirect   bool `yaml:"no_redirect"`
 }
 
-// CaptureSpec reads one variable from a step's response: by CSS selector and
-// attribute from HTML, by path from JSON, by regular expression group from
-// text, or by regular expression from an earlier variable (From). Match
-// filters the candidates; Unique requires exactly one to remain.
+// CaptureSpec reads one variable from a response: by CSS selector and
+// attribute (or text) from HTML, by path from JSON, by regular expression
+// group from text or from a selected element's script, or from an earlier
+// variable (From) by regular expression or, when that variable holds JSON,
+// by path. A path through a [key=value] filter yields one candidate per
+// kept element. Match filters the candidates; Unique requires exactly one
+// to remain.
 type CaptureSpec struct {
 	Select  string `yaml:"select"`
 	Attr    string `yaml:"attr"`
 	Resolve bool   `yaml:"resolve"`
-	Path    string `yaml:"path"`
-	Regex   string `yaml:"regex"`
-	Group   int    `yaml:"group"`
-	From    string `yaml:"from"`
-	Unique  bool   `yaml:"unique"`
-	Match   string `yaml:"match"`
-	Default string `yaml:"default"`
-	sel     cascadia.Selector
-	regex   *regexp.Regexp
-	match   *regexp.Regexp
+	// Visible skips elements outside the page's primary visible content:
+	// navigation, footers, hidden blocks, FAQ and recommendation sections.
+	Visible bool     `yaml:"visible"`
+	Path    string   `yaml:"path"`
+	Paths   []string `yaml:"paths"`
+	Regex   string   `yaml:"regex"`
+	Group   int      `yaml:"group"`
+	From    string   `yaml:"from"`
+	// JSON keeps a non-scalar value as its JSON text, or decodes the JSON
+	// value that follows a regex match, so a later capture can read it by
+	// path (From with Path).
+	JSON      bool   `yaml:"json"`
+	Transform string `yaml:"transform"`
+	Unique    bool   `yaml:"unique"`
+	Match     string `yaml:"match"`
+	Default   string `yaml:"default"`
+	sel       cascadia.Selector
+	regex     *regexp.Regexp
+	match     *regexp.Regexp
 }
 
 // FieldSpec reads one listing field from an item. JSON items are read by
@@ -216,16 +238,19 @@ type cachedStep struct {
 var (
 	driverName  = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,63}$`)
 	captureName = regexp.MustCompile(`^[a-z][a-z0-9_]{0,63}$`)
-	marketCode  = regexp.MustCompile(`^[A-Z]{2}$`)
-	listingKeys = map[string]bool{
+	// placeholderName is what {…} may hold in a template; a brace pair that
+	// starts otherwise, such as a regular expression's {2,5}, is literal.
+	placeholderName = regexp.MustCompile(`^[A-Za-z_][]A-Za-z0-9_.[]*$`)
+	marketCode      = regexp.MustCompile(`^[A-Z]{2}$`)
+	listingKeys     = map[string]bool{
 		"id": true, "title": true, "url": true, "media_url": true, "year": true, "duration": true, "description": true,
 		"thumbnail": true, "access_type": true, "price": true, "market": true, "source_type": true, "provider": true,
-		"access_note": true, "resolution": true, "tags": true,
+		"access_note": true, "resolution": true, "tags": true, "catalog_date": true,
 	}
 	transforms = map[string]bool{
 		"": true, "scalar": true, "lower": true, "upper": true, "trim": true, "year_of_date": true, "year_in_text": true,
 		"duration_from_millis": true, "duration_from_seconds": true, "duration_seconds": true, "html_unescape": true, "html_text": true,
-		"url_query": true,
+		"url_query": true, "date": true,
 	}
 	constantKeys = map[string]bool{
 		"source_type": true, "access_type": true, "media_url": true, "price": true, "market": true, "listing_only": true,
@@ -309,14 +334,35 @@ func (d *Driver) Validate() error {
 	if d.Rate.Concurrency <= 0 {
 		d.Rate.Concurrency = 2
 	}
-	if d.Spec == nil {
-		return errors.New("a search section is required in this phase")
+	if d.Spec == nil && d.Check == nil {
+		return errors.New("a search or check section is required")
 	}
-	if d.Spec.StatusName == "" {
-		d.Spec.StatusName = d.Provider
+	d.stepCache = map[string]cachedStep{}
+	if d.Spec != nil {
+		if d.Spec.StatusName == "" {
+			d.Spec.StatusName = d.Provider
+		}
+		if err := d.Spec.validate(); err != nil {
+			return err
+		}
 	}
-	d.stepCache = map[int]cachedStep{}
-	return d.Spec.validate()
+	if len(d.Feeds) > 0 && d.Spec == nil {
+		return errors.New("feeds need a search section, whose steps and item rules they share")
+	}
+	for name, feed := range d.Feeds {
+		if !feedName.MatchString(name) || feed == nil {
+			return fmt.Errorf("feeds.%s needs a simple name and a body", name)
+		}
+		if err := feed.validate(d.Spec); err != nil {
+			return fmt.Errorf("feeds.%s: %w", name, err)
+		}
+	}
+	if d.Check != nil {
+		if err := d.Check.validate(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *SearchSpec) validate() error {
@@ -534,10 +580,13 @@ func (st *StepSpec) validate() error {
 
 func (c *CaptureSpec) validate(response string) error {
 	var err error
+	if c.Path != "" && len(c.Paths) > 0 {
+		return errors.New("use path or paths, not both")
+	}
 	switch {
 	case c.From != "":
-		if c.Regex == "" {
-			return errors.New("from needs a regex")
+		if c.Regex == "" && c.Path == "" && len(c.Paths) == 0 {
+			return errors.New("from needs a regex or a path")
 		}
 	case c.Select != "":
 		if response != "html" {
@@ -546,7 +595,7 @@ func (c *CaptureSpec) validate(response string) error {
 		if c.sel, err = cascadia.Compile(c.Select); err != nil {
 			return fmt.Errorf("select: %w", err)
 		}
-	case c.Path != "":
+	case c.Path != "" || len(c.Paths) > 0:
 		if response != "json" {
 			return errors.New("path reads json responses only")
 		}
@@ -556,6 +605,12 @@ func (c *CaptureSpec) validate(response string) error {
 		}
 	default:
 		return errors.New("needs select, path, regex or from")
+	}
+	if c.Visible && c.Select == "" {
+		return errors.New("visible applies to select")
+	}
+	if name, _, _ := strings.Cut(c.Transform, ":"); !transforms[name] {
+		return fmt.Errorf("unknown transform %q", c.Transform)
 	}
 	if c.Regex != "" {
 		if c.regex, err = regexp.Compile(c.Regex); err != nil {
@@ -590,18 +645,31 @@ func (d *Driver) HasMarkets() bool {
 	return d.Spec != nil && len(d.Spec.Markets) > 0
 }
 
-// Host is the hostname of the search endpoint, which frontier budgets key on.
+// Host is the hostname of the search endpoint, which frontier budgets key
+// on, or the first host of a driver that only checks pages.
 func (d *Driver) Host() string {
+	if d.Spec == nil {
+		if len(d.Hosts) > 0 {
+			return d.Hosts[0]
+		}
+		return ""
+	}
 	return lens.Hostname(expand(d.Spec.URL, func(string) string { return "" }))
 }
 
 // Timeout bounds one whole search, steps included.
 func (d *Driver) Timeout() time.Duration {
+	if d.Spec == nil {
+		return 0
+	}
 	return time.Duration(d.Spec.TimeoutSeconds) * time.Second
 }
 
 // StatusName is the provider name shown for a search in a market.
 func (d *Driver) StatusName(market string) string {
+	if d.Spec == nil {
+		return d.Provider
+	}
 	vars := searchVars("", market)
 	return expand(d.Spec.StatusName, func(name string) string { return vars[name] })
 }
@@ -609,6 +677,9 @@ func (d *Driver) StatusName(market string) string {
 // SearchURL builds the search request for a query and market, without any
 // step variables; it is what the frontier records.
 func (d *Driver) SearchURL(query, market string) string {
+	if d.Spec == nil {
+		return ""
+	}
 	return d.searchURL(searchVars(query, market), nil)
 }
 
@@ -647,7 +718,7 @@ func (d *Driver) Search(ctx context.Context, fetcher *Fetcher, query, market str
 	ctx, cancel := context.WithTimeout(ctx, d.Timeout())
 	defer cancel()
 	vars := searchVars(query, market)
-	if err := d.runSteps(ctx, fetcher, vars); err != nil {
+	if err := d.runSteps(ctx, fetcher, d.Spec.Steps, "search", vars); err != nil {
 		return nil, err
 	}
 	first, err := d.fetchDocument(ctx, fetcher, d.searchURL(vars, nil), vars)
@@ -693,7 +764,7 @@ func (d *Driver) Search(ctx context.Context, fetcher *Fetcher, query, market str
 			if !d.itemAllowed(it) {
 				continue
 			}
-			listing, ok := d.listingFrom(it, market)
+			listing, ok := d.listingFrom(it, market, d.Spec.Fields)
 			if !ok || seen[listing.URL] {
 				continue
 			}
@@ -714,9 +785,15 @@ type document struct {
 }
 
 func (d *Driver) fetchDocument(ctx context.Context, fetcher *Fetcher, target string, vars map[string]string) (*document, error) {
+	return d.fetchDocumentWith(ctx, fetcher, target, d.Spec.Headers, vars)
+}
+
+// fetchDocumentWith fetches a search or feed response with the given header
+// templates and parses it per the search's response format and checks.
+func (d *Driver) fetchDocumentWith(ctx context.Context, fetcher *Fetcher, target string, headerTemplates map[string]string, vars map[string]string) (*document, error) {
 	resolve := func(name string) string { return vars[name] }
 	headers := map[string]string{}
-	for key, template := range d.Spec.Headers {
+	for key, template := range headerTemplates {
 		headers[key] = expand(template, resolve)
 	}
 	body, final, err := d.fetch(ctx, fetcher, target, headers, d.Spec.SameURL, d.Spec.NoRedirect)
@@ -896,10 +973,10 @@ func (d *Driver) itemAllowed(it item) bool {
 	return true
 }
 
-func (d *Driver) listingFrom(it item, market string) (atlas.Listing, bool) {
+func (d *Driver) listingFrom(it item, market string, fields map[string]FieldSpec) (atlas.Listing, bool) {
 	values := map[string]string{}
 	var tags []string
-	for key, spec := range d.Spec.Fields {
+	for key, spec := range fields {
 		if key == "tags" {
 			tags = spec.readTags(it)
 			continue
@@ -943,6 +1020,7 @@ func (d *Driver) listingFrom(it item, market string) (atlas.Listing, bool) {
 		Description:       values["description"],
 		Thumbnail:         values["thumbnail"],
 		Resolution:        values["resolution"],
+		CatalogDate:       values["catalog_date"],
 		Tags:              tags,
 		ListingOnly:       values["media_url"] == "",
 	}
@@ -1142,6 +1220,18 @@ func transform(spec, value string) string {
 		return strings.TrimSpace(html.UnescapeString(value))
 	case "html_text":
 		return strings.Join(strings.Fields(html.UnescapeString(htmlTags.ReplaceAllString(value, " "))), " ")
+	case "date":
+		// A host's listed date in the layout the host uses, kept as a day;
+		// a date before cinema or more than a year ahead is noise.
+		layout := arg
+		if layout == "" {
+			layout = time.RFC3339
+		}
+		t, err := time.Parse(layout, strings.TrimSpace(value))
+		if err != nil || t.Year() < 1880 || t.After(time.Now().AddDate(1, 0, 0)) {
+			return ""
+		}
+		return t.Format("2006-01-02")
 	case "url_query":
 		u, err := url.Parse(strings.TrimSpace(value))
 		if err != nil {
@@ -1153,25 +1243,23 @@ func transform(spec, value string) string {
 }
 
 // lookup walks a decoded JSON document by a dotted path with optional
-// [index] steps, for example response.docs or items[0].title.
+// [index] steps, for example response.docs or items[0].title, and
+// [key=value] filters that keep the list elements whose key says value
+// (case and spacing aside); the rest of the path then applies to each kept
+// element, so channels[name=New Arrivals].url is every such channel's URL.
 func lookup(document any, path string) any {
+	return lookupSteps(document, strings.Split(path, "."))
+}
+
+func lookupSteps(document any, steps []string) any {
 	current := document
-	for _, step := range strings.Split(path, ".") {
+	for i, step := range steps {
 		if step == "" {
 			return nil
 		}
-		key, indices := step, []int(nil)
-		for strings.HasSuffix(key, "]") {
-			open := strings.LastIndex(key, "[")
-			if open < 0 {
-				return nil
-			}
-			index, err := strconv.Atoi(key[open+1 : len(key)-1])
-			if err != nil {
-				return nil
-			}
-			indices = append([]int{index}, indices...)
-			key = key[:open]
+		key, brackets, ok := splitBrackets(step)
+		if !ok {
+			return nil
 		}
 		if key != "" {
 			object, ok := current.(map[string]any)
@@ -1180,15 +1268,74 @@ func lookup(document any, path string) any {
 			}
 			current = object[key]
 		}
-		for _, index := range indices {
+		for j, bracket := range brackets {
+			if index, err := strconv.Atoi(bracket); err == nil {
+				list, ok := current.([]any)
+				if !ok || index < 0 || index >= len(list) {
+					return nil
+				}
+				current = list[index]
+				continue
+			}
+			name, want, found := strings.Cut(bracket, "=")
 			list, ok := current.([]any)
-			if !ok || index < 0 || index >= len(list) {
+			if !found || !ok || j != len(brackets)-1 {
 				return nil
 			}
-			current = list[index]
+			var matches []any
+			for _, element := range list {
+				if object, ok := element.(map[string]any); ok && normalizedEqual(scalarString(object[name]), want) {
+					matches = append(matches, element)
+				}
+			}
+			rest := steps[i+1:]
+			if len(matches) == 0 {
+				return nil
+			}
+			if len(rest) == 0 {
+				return matches
+			}
+			var out []any
+			for _, match := range matches {
+				if value := lookupSteps(match, rest); !emptyValue(value) {
+					out = append(out, value)
+				}
+			}
+			if len(out) == 0 {
+				return nil
+			}
+			return out
 		}
 	}
 	return current
+}
+
+// splitBrackets separates items[0][name=x] into its key and bracket contents.
+func splitBrackets(step string) (string, []string, bool) {
+	key := step
+	var brackets []string
+	for strings.HasSuffix(key, "]") {
+		open := strings.LastIndex(key, "[")
+		if open < 0 {
+			return "", nil, false
+		}
+		brackets = append([]string{key[open+1 : len(key)-1]}, brackets...)
+		key = key[:open]
+	}
+	return key, brackets, true
+}
+
+func emptyValue(value any) bool {
+	if value == nil {
+		return true
+	}
+	list, ok := value.([]any)
+	return ok && len(list) == 0
+}
+
+func normalizedEqual(a, b string) bool {
+	normalize := func(s string) string { return strings.ToLower(strings.Join(strings.Fields(s), " ")) }
+	return normalize(a) == normalize(b)
 }
 
 // scalarString renders a JSON scalar as text. A one-element array is its
@@ -1228,7 +1375,14 @@ func expand(template string, resolve func(string) string) string {
 		}
 		b.WriteString(template[:open])
 		parts := strings.Split(template[open+1:open+close], "|")
-		value := resolve(strings.TrimSpace(parts[0]))
+		name := strings.TrimSpace(parts[0])
+		if !placeholderName.MatchString(name) {
+			// Not a placeholder: a regular expression's {2,5}, for instance.
+			b.WriteString(template[open : open+close+1])
+			template = template[open+close+1:]
+			continue
+		}
+		value := resolve(name)
 		for _, filter := range parts[1:] {
 			switch strings.TrimSpace(filter) {
 			case "lower":

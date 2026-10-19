@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/netip"
+	"net/url"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -80,6 +82,19 @@ type FetchOptions struct {
 	// NoRedirect returns a redirect as its own 3xx response instead of
 	// following it, so request headers never travel to another origin.
 	NoRedirect bool
+	// MaxRedirects, SamePath and Hosts bound the redirects that are followed.
+	// When any is set, every hop must be an https URL at a public host: a
+	// redirect to a private address or a plain-http URL is refused without
+	// being fetched. SamePath refuses a hop that changes the path, so a host
+	// cannot answer a movie page with its homepage; Hosts limits where a hop
+	// may go. MaxRedirects defaults to 10.
+	MaxRedirects int
+	SamePath     bool
+	Hosts        []string
+	// MaxBody, when set, makes a longer body an error rather than a silent
+	// truncation: a check reads bounded documents and must know when a host
+	// sends more.
+	MaxBody int64
 }
 
 // Get fetches a URL with the next identity profile. It returns ErrHostBackoff
@@ -110,9 +125,14 @@ func (f *Fetcher) Fetch(ctx context.Context, rawURL string, headers map[string]s
 		req.Header.Set(key, value)
 	}
 	client := f.client
-	if opts.NoRedirect {
+	switch {
+	case opts.NoRedirect:
 		copied := *f.client
 		copied.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+		client = &copied
+	case opts.MaxRedirects > 0 || opts.SamePath || len(opts.Hosts) > 0:
+		copied := *f.client
+		copied.CheckRedirect = redirectPolicy(req.URL, opts)
 		client = &copied
 	}
 	resp, err := client.Do(req)
@@ -121,9 +141,19 @@ func (f *Fetcher) Fetch(ctx context.Context, rawURL string, headers map[string]s
 		return nil, fmt.Errorf("crawler: fetch %s: %w", host, err)
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, f.maxBody))
+	limit := f.maxBody
+	if opts.MaxBody > 0 {
+		limit = opts.MaxBody
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
 	if err != nil {
 		return nil, fmt.Errorf("crawler: read %s: %w", host, err)
+	}
+	if int64(len(body)) > limit {
+		if opts.MaxBody > 0 {
+			return nil, fmt.Errorf("crawler: %s answered with more than %d bytes", host, limit)
+		}
+		body = body[:limit]
 	}
 	f.recordOutcome(host, resp.StatusCode)
 	final := rawURL
@@ -131,6 +161,55 @@ func (f *Fetcher) Fetch(ctx context.Context, rawURL string, headers map[string]s
 		final = resp.Request.URL.String()
 	}
 	return &Response{Status: resp.StatusCode, Body: body, ContentType: strings.TrimSpace(resp.Header.Get("Content-Type")), FinalURL: final}, nil
+}
+
+// redirectPolicy is the CheckRedirect for bounded redirects: so many hops,
+// each https and public, optionally on the same path and within the hosts.
+func redirectPolicy(origin *url.URL, opts FetchOptions) func(*http.Request, []*http.Request) error {
+	limit := opts.MaxRedirects
+	if limit <= 0 {
+		limit = 10
+	}
+	return func(req *http.Request, via []*http.Request) error {
+		if len(via) >= limit {
+			return fmt.Errorf("more than %d redirects", limit)
+		}
+		if req.URL.Scheme != "https" || !PublicHost(req.URL.Hostname()) {
+			return errors.New("redirect to a private or unencrypted destination refused")
+		}
+		if opts.SamePath && req.URL.Path != origin.Path {
+			return errors.New("redirect changed the page")
+		}
+		if len(opts.Hosts) > 0 && !hostAllowed(req.URL.Hostname(), opts.Hosts) {
+			return errors.New("redirect left the host")
+		}
+		return nil
+	}
+}
+
+// PublicHost reports whether a hostname can be a public destination: not
+// localhost or a local suffix, and not a literal loopback, private,
+// link-local or unspecified address. Names that resolve to private
+// addresses are the transport's concern.
+func PublicHost(host string) bool {
+	host = strings.ToLower(strings.TrimSuffix(strings.Trim(host, "[]"), "."))
+	if host == "" || host == "localhost" || strings.HasSuffix(host, ".localhost") || strings.HasSuffix(host, ".local") || strings.HasSuffix(host, ".internal") {
+		return false
+	}
+	if ip, err := netip.ParseAddr(host); err == nil {
+		return ip.IsGlobalUnicast() && !ip.IsPrivate() && !ip.IsLoopback() && !ip.IsLinkLocalUnicast() && !ip.IsUnspecified()
+	}
+	return true
+}
+
+func hostAllowed(host string, hosts []string) bool {
+	host = strings.ToLower(host)
+	for _, allowed := range hosts {
+		if host == strings.ToLower(allowed) {
+			return true
+		}
+	}
+	return false
 }
 
 func (f *Fetcher) inBackoff(host string) (time.Time, bool) {

@@ -17,6 +17,8 @@ func TestAllShippedDriversHaveTheirIdentity(t *testing.T) {
 		"apple-movies": "Apple movie catalog ({market})", "internet-archive": "Internet Archive", "peertube-sepia": "PeerTube",
 		"peertube-blender": "Blender open movies", "wikimedia-commons": "Wikimedia Commons", "nasa-plus": "NASA+ free documentaries", "nfb": "NFB / ONF free film catalog",
 		"public-domain-movies": "Public Domain Movies browse", "arcoiris-tv": "ArcoirisTV feature catalog", "publicdomainmovie-org": "PublicDomainMovie.org feature catalog", "fawesome": "Fawesome live movie search",
+		// Drivers that only check a provider's pages have no search status.
+		"pluto-tv": "", "filmzie": "",
 	}
 	if len(drivers) != len(want) {
 		t.Fatalf("expected %d drivers, got %d", len(want), len(drivers))
@@ -25,6 +27,12 @@ func TestAllShippedDriversHaveTheirIdentity(t *testing.T) {
 		d, ok := drivers[name]
 		if !ok {
 			t.Fatalf("driver %s is missing", name)
+		}
+		if status == "" {
+			if d.Spec != nil || d.Check == nil || d.StatusName("") != d.Provider || d.Host() != d.Hosts[0] {
+				t.Fatalf("%s must only check pages", name)
+			}
+			continue
 		}
 		if d.Spec.StatusName != status {
 			t.Fatalf("%s status name %q, want %q", name, d.Spec.StatusName, status)

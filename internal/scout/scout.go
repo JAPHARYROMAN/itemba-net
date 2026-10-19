@@ -54,8 +54,6 @@ type Scout struct {
 	countryAt       time.Time
 	discoveryMu     sync.Mutex
 	discoveryCache  map[string]cachedMovieDiscovery
-	fawesomeMu      sync.Mutex
-	fawesomeConfig  fawesomePublicConfig
 	fawesomeShelfMu sync.Mutex
 	fawesomeShelf   *fawesomeShelfPlaybackState
 	// drivers are the host drivers the search fans out to; see UseDrivers.
@@ -140,7 +138,7 @@ func (s *Scout) SearchWithOptions(ctx context.Context, query, region string, opt
 	}
 
 	isDirectURL := strings.HasPrefix(query, "http://") || strings.HasPrefix(query, "https://")
-	providerInput, isProviderMovieURL := providerMovieURLInput(query, region)
+	providerInput, isProviderMovieURL := s.providerMovieURLInput(query, region)
 	if isDirectURL {
 		// An explicit URL is an inspection request, even when the search form
 		// currently prefers features. Echo the effective filter accurately.

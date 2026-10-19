@@ -4,11 +4,14 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/itemba-net/core/internal/crawler"
 	"github.com/itemba-net/core/internal/shield"
 )
 
@@ -31,16 +34,36 @@ func (t *providerPlaybackTransport) RoundTrip(req *http.Request) (*http.Response
 	return t.base.RoundTrip(req)
 }
 
-func supportedProviderPlayback(source CandidateSource) bool {
-	return providerPlaybackKind(source) != ""
+// providerCheckDriver is the loaded driver whose access check covers a free
+// listing's page; Pluto TV and Filmzie are such drivers. A paid or priced
+// listing is never checked as a free provider's film.
+func (s *Scout) providerCheckDriver(source CandidateSource) *crawler.Driver {
+	if source.AccessType != "free" || source.Price != "" {
+		return nil
+	}
+	page, safe := safeAvailabilityURL(source.URL)
+	if !safe || page.Scheme != "https" {
+		return nil
+	}
+	for _, d := range s.drivers {
+		if d.Checks(source.URL) {
+			return d
+		}
+	}
+	return nil
 }
 
-func providerPlaybackKind(source CandidateSource) string {
+func (s *Scout) supportedProviderPlayback(source CandidateSource) bool {
+	return s.providerPlaybackKind(source) != ""
+}
+
+// providerPlaybackKind names the check a listing gets: a driver's name, or
+// one of the inspectors still written in Go.
+func (s *Scout) providerPlaybackKind(source CandidateSource) string {
+	if d := s.providerCheckDriver(source); d != nil {
+		return d.Name
+	}
 	switch {
-	case plutoMoviePlaybackTarget(source):
-		return "pluto"
-	case filmzieMovieTarget(source):
-		return "filmzie"
 	case nasaMovieTarget(source):
 		return "nasa"
 	case creatorMovieTarget(source):
@@ -60,9 +83,10 @@ func providerPlaybackBinding(source CandidateSource) bool {
 	if !source.providerContentBound || source.providerSSAI || !pageOK || !mediaOK || !evidenceOK {
 		return false
 	}
+	if source.providerCheck != "" {
+		return driverBoundPlaybackPair(source, page, media, evidence)
+	}
 	switch source.AccessBasis {
-	case "filmzie_movie_metadata":
-		return filmzieResolvedPlaybackPair(source, page, media, evidence)
 	case "nasa_movie_metadata":
 		return nasaResolvedPlaybackPair(source, page, media, evidence)
 	case "creator_movie_metadata":
@@ -75,29 +99,49 @@ func providerPlaybackBinding(source CandidateSource) bool {
 	return false
 }
 
+// driverBoundPlaybackPair accepts only the exact page, media and evidence a
+// driver's check bound together: the media the host handed over for this
+// page, with nothing derived or substituted since.
+func driverBoundPlaybackPair(source CandidateSource, page, media, evidence *url.URL) bool {
+	boundPage, pageOK := safeAvailabilityURL(source.providerCheckPage)
+	boundMedia, mediaOK := safeAvailabilityURL(source.providerStreamURL)
+	boundEvidence, evidenceOK := safeAvailabilityURL(source.AccessEvidenceURL)
+	if !pageOK || !mediaOK || !evidenceOK || source.AccessType != "free" || media.Scheme != "https" || evidence.Scheme != "https" {
+		return false
+	}
+	return page.String() == boundPage.String() && media.String() == boundMedia.String() && evidence.String() == boundEvidence.String()
+}
+
 // Pasted supported movie links use the same provider check as discovered links.
 // The URL-derived title is only a matching hint; provider metadata must bind
 // the full movie before any media is requested or a start can be confirmed.
-func providerMovieURLInput(raw, region string) (CandidateSource, bool) {
+func (s *Scout) providerMovieURLInput(raw, region string) (CandidateSource, bool) {
 	source := CandidateSource{ID: resolvedFreeMovieID("provider", raw), URL: raw, AccessType: "free", SourceType: "Web Listing", ListingOnly: true, DestinationType: "watch", Region: "Unknown"}
-	if !supportedProviderPlayback(source) {
+	if !s.supportedProviderPlayback(source) {
 		return CandidateSource{}, false
 	}
 	page, _ := safeAvailabilityURL(raw)
-	brand := providerPlaybackKind(source)
-	source.Title, source.Provider = "Pluto TV movie", "Pluto TV"
-	if brand == "filmzie" || brand == "nasa" {
-		parts := strings.Split(strings.Trim(page.Path, "/"), "/")
+	brand := s.providerPlaybackKind(source)
+	parts := strings.Split(strings.Trim(page.Path, "/"), "/")
+	switch {
+	case s.providerCheckDriver(source) != nil:
+		d := s.providerCheckDriver(source)
+		source.Title, source.Provider = d.Provider+" movie", d.Provider
+		if slug := d.URLTitle(raw); slug != "" {
+			source.Title, source.ReleaseYear = movieQuery(strings.ReplaceAll(slug, "-", " "))
+		}
+		// The watch-option brand labels access the same way for a pasted
+		// link as for a discovered one.
+		brand, _ = movieDestination(source, page)
+	case brand == "nasa":
 		source.Title, source.ReleaseYear = movieQuery(strings.ReplaceAll(parts[1], "-", " "))
-		source.Provider = map[string]string{"filmzie": "Filmzie", "nasa": "NASA+"}[brand]
-	} else if brand == "creator" {
+		source.Provider = "NASA+"
+	case brand == "creator":
 		source.Title, source.Provider, source.ReleaseYear = "Seder-Masochism", "Catsuka / Nina Paley", 2018
-	} else if brand == "fawesome" {
-		parts := strings.Split(strings.Trim(page.Path, "/"), "/")
+	case brand == "fawesome":
 		source.Title = strings.ReplaceAll(parts[len(parts)-1], "-", " ")
 		source.Provider = "Fawesome"
-	} else if brand == "nfb" {
-		parts := strings.Split(strings.Trim(page.Path, "/"), "/")
+	case brand == "nfb":
 		source.Title = strings.ReplaceAll(strings.ReplaceAll(parts[len(parts)-1], "-", " "), "_", " ")
 		source.Provider = "NFB / ONF"
 	}
@@ -111,14 +155,14 @@ func providerMovieURLInput(raw, region string) (CandidateSource, bool) {
 // playback: even a matching main-asset response cannot prove a movie start.
 func (s *Scout) checkProviderMoviePlayback(ctx context.Context, results []VerifiedSource, region, country string) {
 	var targets []int
-	// Reserve coverage for both providers before another copy from one site.
+	// Reserve coverage for every provider before another copy from one site.
 	seen := map[string]bool{}
 	for pass := 0; pass < 2; pass++ {
 		for i := range results {
-			if !supportedProviderPlayback(results[i].CandidateSource) {
+			if !s.supportedProviderPlayback(results[i].CandidateSource) {
 				continue
 			}
-			provider := providerPlaybackKind(results[i].CandidateSource)
+			provider := s.providerPlaybackKind(results[i].CandidateSource)
 			if pass == 0 && seen[provider] {
 				continue
 			}
@@ -179,19 +223,19 @@ func (s *Scout) inspectProviderMoviePlayback(ctx context.Context, result *Verifi
 	source := result.CandidateSource
 	source.DirectStreamURL, source.KnownManifests = "", nil
 	var check *PlaybackCheck
-	switch providerPlaybackKind(source) {
-	case "pluto":
-		source, check = inspectPlutoPlayback(ctx, &guarded, source)
-	case "filmzie":
-		source, check = inspectFilmziePlayback(ctx, &guarded, source)
-	case "nasa":
-		source, check = inspectNASAPlayback(ctx, &guarded, source)
-	case "creator":
-		source, check = inspectCreatorPlayback(ctx, &guarded, source)
-	case "fawesome":
-		source, check = inspectFawesomePlayback(ctx, &guarded, source)
-	case "nfb":
-		source, check = inspectNFBPlayback(ctx, &guarded, source)
+	if d := s.providerCheckDriver(source); d != nil {
+		source, check = s.inspectDriverPlayback(ctx, trace, d, source)
+	} else {
+		switch s.providerPlaybackKind(source) {
+		case "nasa":
+			source, check = inspectNASAPlayback(ctx, &guarded, source)
+		case "creator":
+			source, check = inspectCreatorPlayback(ctx, &guarded, source)
+		case "fawesome":
+			source, check = inspectFawesomePlayback(ctx, &guarded, source)
+		case "nfb":
+			source, check = inspectNFBPlayback(ctx, &guarded, source)
+		}
 	}
 	if trace.blocked.Load() {
 		check = &PlaybackCheck{Status: "unconfirmed", Reason: "blocked_with_protection", Detail: "A resource needed for the provider check was blocked by ad protection. Protection remained enabled; movie playback was not confirmed.", EvidenceURL: source.URL}
@@ -244,4 +288,67 @@ func (s *Scout) inspectProviderMoviePlayback(ctx context.Context, result *Verifi
 		}
 		result.AvailabilityCheck = &AvailabilityCheck{Status: status, Country: check.Country, RequestedRegion: check.RequestedRegion, CheckedAt: check.CheckedAt, EvidenceURL: check.EvidenceURL, Method: check.Method, Detail: check.Detail}
 	}
+}
+
+// checkEnvironment gives a driver's check the pipeline's judgments about the
+// listing it is checking: what a page shows and whether a declared identity
+// names the film. The driver says what the host's answers mean; it never
+// decides film identity itself.
+type checkEnvironment struct {
+	source CandidateSource
+}
+
+func (e checkEnvironment) PageFacts(body []byte, final *url.URL) map[string]string {
+	page := parseAvailabilityPage(string(body))
+	identity := "mismatch"
+	if availabilityMovieMatches(e.source, page, final.Hostname()) {
+		identity = "match"
+	}
+	return map[string]string{
+		"challenge":      strconv.FormatBool(page.challenge),
+		"sign_in":        strconv.FormatBool(page.signIn || availabilityLoginPath(final.Path)),
+		"soft_not_found": strconv.FormatBool(availabilitySoftNotFound(e.source, page)),
+		"identity":       identity,
+	}
+}
+
+func (e checkEnvironment) MetadataMatches(title string, year int, duration float64) bool {
+	return matchingFreeMovieMetadata(e.source, title, year, duration)
+}
+
+// inspectDriverPlayback runs a driver's access check over the protected
+// transport and turns its verdict into the pipeline's terms: a preflight
+// check naming a restriction or the lack of attribution, or a source bound
+// to the main media the host handed over, for the protected sampler alone.
+func (s *Scout) inspectDriverPlayback(ctx context.Context, transport http.RoundTripper, d *crawler.Driver, source CandidateSource) (CandidateSource, *PlaybackCheck) {
+	fetcher := crawler.NewFetcher(transport)
+	fetcher.DisableBackoff()
+	result := d.RunCheck(ctx, fetcher, source.URL, checkEnvironment{source: source})
+	if result.Metadata != nil {
+		// Matching page metadata stays useful even when playback is restricted.
+		source.Title, source.ReleaseYear = result.Metadata.Title, result.Metadata.Year
+		source.Duration = strconv.FormatFloat(result.Metadata.Duration, 'f', -1, 64)
+	}
+	if bind := result.Bind; bind != nil {
+		source.ID = resolvedFreeMovieID(d.Name, source.URL)
+		source.Provider = d.Provider
+		source.SourceType = checkDefault(bind.SourceType, "Provider free movie")
+		source.AccessType, source.AccessBasis, source.AccessEvidenceURL = "free", checkDefault(bind.AccessBasis, "provider_check"), bind.Evidence
+		source.AccessNote = bind.AccessNote
+		source.providerContentBound, source.providerSSAI, source.providerStreamURL = true, bind.SSAI, bind.Media
+		source.providerCheck, source.providerCheckPage = d.Name, source.URL
+		source.DirectStreamURL, source.KnownManifests = "", nil
+		if !bind.SSAI {
+			return source, nil
+		}
+	}
+	check := &PlaybackCheck{Status: result.Status, Reason: result.Reason, Detail: result.Detail, Method: "provider_playback_preflight", CheckedAt: time.Now().UTC().Format(time.RFC3339), EvidenceURL: result.EvidenceURL}
+	return source, check
+}
+
+func checkDefault(value, fallback string) string {
+	if strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	return value
 }

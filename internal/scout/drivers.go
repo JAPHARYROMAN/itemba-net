@@ -27,6 +27,16 @@ func (s *Scout) UseDrivers(drivers []*crawler.Driver) {
 	s.drivers = drivers
 }
 
+// driver returns the loaded driver of that name, or nil.
+func (s *Scout) driver(name string) *crawler.Driver {
+	for _, d := range s.drivers {
+		if d.Name == name {
+			return d
+		}
+	}
+	return nil
+}
+
 // driverFetcher builds a tier-one fetcher over the guarded availability
 // transport, which refuses private and local destinations, so a driver can
 // never be steered at the host's own network. Tests that swap either client
@@ -69,6 +79,9 @@ func (s *Scout) queryDrivers(ctx context.Context, query, region string) ([]Candi
 
 	var jobs []driverJob
 	for _, d := range s.drivers {
+		if d.Spec == nil {
+			continue // a driver that only checks pages has nothing to search
+		}
 		if !d.HasMarkets() {
 			jobs = append(jobs, driverJob{d, ""})
 			continue

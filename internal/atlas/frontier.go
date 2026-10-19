@@ -266,6 +266,9 @@ type Listing struct {
 	Description       string `json:"description,omitempty"`
 	Thumbnail         string `json:"thumbnail,omitempty"`
 	Resolution        string `json:"resolution,omitempty"`
+	// CatalogDate is the day a host's own catalog lists the item under, as a
+	// feed reports it; it is not a release date.
+	CatalogDate string `json:"catalogDate,omitempty"`
 	// Tags are host categories such as Archive collections.
 	Tags []string `json:"tags,omitempty"`
 	// ListingOnly is true when the page lists the object without a known

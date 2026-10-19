@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/itemba-net/core/internal/crawler"
 	"io"
 	"net"
 	"net/http"
@@ -281,82 +282,11 @@ type availabilityPage struct {
 	signIn    bool
 }
 
-func availabilityIgnoredNode(node *html.Node) bool {
-	if node.Type == html.CommentNode {
-		return true
-	}
-	if node.Type != html.ElementNode {
-		return false
-	}
-	switch node.Data {
-	case "script", "style", "noscript", "template", "svg", "nav", "footer", "aside", "details":
-		return true
-	}
-	if node.Data == "dialog" {
-		opened := false
-		for _, attr := range node.Attr {
-			opened = opened || attr.Key == "open"
-		}
-		if !opened {
-			return true
-		}
-	}
-	for _, attr := range node.Attr {
-		key, value := strings.ToLower(attr.Key), strings.ToLower(attr.Val)
-		if key == "hidden" || key == "aria-hidden" && value == "true" || key == "style" && (strings.Contains(strings.ReplaceAll(value, " ", ""), "display:none") || strings.Contains(strings.ReplaceAll(value, " ", ""), "visibility:hidden")) {
-			return true
-		}
-		if key == "role" && (value == "navigation" || value == "complementary" || value == "contentinfo") {
-			return true
-		}
-		if key == "class" || key == "id" || key == "aria-label" {
-			value = strings.NewReplacer("_", " ", "-", " ").Replace(value)
-			for _, word := range strings.Fields(value) {
-				switch word {
-				case "hidden", "invisible", "faq", "faqs", "recommendation", "recommendations", "recommended", "related", "similar", "suggestions", "trailer", "trailers", "teaser", "teasers":
-					return true
-				}
-			}
-		}
-	}
-	// Some sites mark a recommendation/FAQ section only with its heading.
-	if node.Data == "section" || node.Data == "div" {
-		for child := node.FirstChild; child != nil; child = child.NextSibling {
-			if child.Type == html.TextNode && strings.TrimSpace(child.Data) == "" {
-				continue
-			}
-			if child.Type == html.ElementNode && (child.Data == "h2" || child.Data == "h3") {
-				label := strings.ToLower(availabilityNodeText(child))
-				for _, phrase := range []string{"frequently asked", "faqs", "more like this", "you may also", "recommended", "related movies", "similar movies", "trailers"} {
-					if strings.Contains(label, phrase) {
-						return true
-					}
-				}
-			}
-			break
-		}
-	}
-	return false
-}
+// availabilityIgnoredNode and availabilityNodeText are the one judgment of
+// what a visitor reads on a page, shared with the drivers' checks.
+func availabilityIgnoredNode(node *html.Node) bool { return crawler.IgnoredNode(node) }
 
-func availabilityNodeText(node *html.Node) string {
-	var text strings.Builder
-	var walk func(*html.Node)
-	walk = func(n *html.Node) {
-		if availabilityIgnoredNode(n) {
-			return
-		}
-		if n.Type == html.TextNode {
-			text.WriteString(n.Data)
-			text.WriteByte(' ')
-		}
-		for child := n.FirstChild; child != nil; child = child.NextSibling {
-			walk(child)
-		}
-	}
-	walk(node)
-	return strings.Join(strings.Fields(text.String()), " ")
-}
+func availabilityNodeText(node *html.Node) string { return crawler.VisibleText(node) }
 
 func availabilityBlockElement(node *html.Node) bool {
 	if node.Type != html.ElementNode {

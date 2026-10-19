@@ -21,11 +21,11 @@ func skippedPlayback(region, country, detail string) *PlaybackCheck {
 func (s *Scout) checkFreeMoviePlayback(ctx context.Context, results []VerifiedSource, region, country string) {
 	var indexes []int
 	for i := range results {
-		if results[i].AccessType != "free" && !supportedProviderPlayback(results[i].CandidateSource) {
+		if results[i].AccessType != "free" && !s.supportedProviderPlayback(results[i].CandidateSource) {
 			continue
 		}
 		results[i].PlaybackCheck = skippedPlayback(region, country, "Automatic playback needs a reachable free video from a supported movie catalog. Open the source to check playback.")
-		if supportedProviderPlayback(results[i].CandidateSource) {
+		if s.supportedProviderPlayback(results[i].CandidateSource) {
 			results[i].PlaybackCheck.Detail = "Not checked within this search's four-link provider access-check budget. Open the movie page with ad blocking to check access."
 		}
 	}

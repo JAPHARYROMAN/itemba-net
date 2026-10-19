@@ -119,3 +119,80 @@ search:
     access_basis: provider_model
     access_evidence_url: https://fawesome.tv/
     access_note: Fawesome lists free guest movies; current main-movie availability and protected playback are checked separately.
+# The shelves the console shows. Popular is the site's own getPopularSearchURL
+# contract. New arrivals follows the one home row the site names New Arrivals
+# in its sub-categories response, keeping only the catalog controls that row's
+# recipes.php URL carries and never its identifiers; a row that names anything
+# else, or that carries a session, device or location, is refused. Both share
+# the search's steps: the cached public configuration and a fresh guest token
+# per feed. Cold requests: popular four, new arrivals five; a warm
+# configuration saves two. A listing without a known feature runtime is not
+# advertised on a shelf, and a catalog date is never a release year.
+feeds:
+  popular:
+    params:
+      searchType: popular
+      appId: "{app_id}"
+      siteId: "{guest_site_id}"
+      auth-token: "{platform_id}"
+      apiEnv: "{api_env}"
+    limit: 24
+    timeout_seconds: 8
+    fields:
+      duration: { path: runtime, match: '^[0-9]+(?:\.[0-9]+)?$', range: [2400, 43200] }
+      catalog_date: { path: date, transform: "date:Jan. 2, 2006", optional: true }
+  recent:
+    steps:
+      - name: home-rows
+        url: https://fawesome.tv/home/new/{version}/api/sub-categories.php
+        params:
+          parent: home
+          appId: "{app_id}"
+          siteId: "{guest_site_id}"
+          auth-token: "{platform_id}"
+          apiEnv: "{api_env}"
+        headers:
+          Accept: "application/json, text/javascript, */*; q=0.01"
+          User-Agent: "ITEMBA-NET/2 (public guest movie discovery)"
+          Referer: https://fawesome.tv/
+          X-Requested-With: XMLHttpRequest
+          token: "{token}"
+        response: json
+        same_url: true
+        no_redirect: true
+        capture:
+          rows_status: { path: status, match: '^ok$' }
+          new_arrivals: { path: 'channels[name=New Arrivals].url', unique: true, match: '^https://(?:rapi\.ifood\.tv|fawesome\.tv/home/new/v[1-9][0-9]{0,5}/api)/recipes\.php\?[^#]*$' }
+    params_from:
+      var: new_arrivals
+      require: [searchType, keys]
+      drop: [appId, siteId, auth-token, platform_id, deviceModel, deviceId, session-id]
+      allow:
+        searchType: '^(?:new-qid|mixedcontent)$'
+        keys: '^[1-9][0-9]{0,11}$'
+        start-index: '^(?:[0-9]|[1-9][0-9]|1[0-9]{2}|200)?$'
+        max-results: '^(?:[0-9]|[1-9][0-9]|1[0-9]{2}|200)?$'
+        highlight: '^[01]?$'
+        order: '^[012]?$'
+        dltype: '^[01]$'
+        rowType: '^mixedcontent$'
+        sort_type: '^$'
+        logic: '^$'
+        akp: '^(?:-?[0-9]{1,12}(?:-[0-9]{1,12}){0,8})?$'
+        gridstyle: '^(?:flat-movie)?$'
+        version: '^(?:sv[0-9]{1,2}\.[0-9]{1,2})?$'
+        parent: '^(?:[Hh]ome)?$'
+        userType: '^(?:new)?$'
+        deviceModel: '^$'
+        deviceId: '^$'
+        session-id: '^$'
+    params:
+      appId: "{app_id}"
+      siteId: "{guest_site_id}"
+      auth-token: "{platform_id}"
+      apiEnv: "{api_env}"
+    limit: 24
+    timeout_seconds: 8
+    fields:
+      duration: { path: runtime, match: '^[0-9]+(?:\.[0-9]+)?$', range: [2400, 43200] }
+      catalog_date: { path: date, transform: "date:Jan. 2, 2006", optional: true }

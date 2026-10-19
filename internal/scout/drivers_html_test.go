@@ -83,9 +83,9 @@ func TestFawesomeDriverSearchDropsTrailersAndUnrelatedTitles(t *testing.T) {
 		case "/":
 			r = searchFixtureResponse(200, "text/html", `<html><script src="/home/new/v987/assets/js/iptv-main.js?ver=2345"></script></html>`)
 		case "/home/new/v987/assets/js/iptv-main.js":
-			r = searchFixtureResponse(200, "application/javascript", fawesomeDiscoveryBundleFixture)
+			r = searchFixtureResponse(200, "application/javascript", fawesomeGuestBundleFixture)
 		case "/home/new/v987/api/getSecurityToken.php":
-			r = searchFixtureResponse(200, "application/json", `{"securityToken":"`+fawesomeDiscoveryGuestFixture+`"}`)
+			r = searchFixtureResponse(200, "application/json", `{"securityToken":"`+fawesomeGuestTokenFixture+`"}`)
 		case "/home/new/v987/api/recipes.php":
 			r = searchFixtureResponse(200, "application/json", string(payload))
 		default:
@@ -102,7 +102,7 @@ func TestFawesomeDriverSearchDropsTrailersAndUnrelatedTitles(t *testing.T) {
 		t.Fatalf("the listing must enter the Fawesome playback check as before: %+v", got[0])
 	}
 	encoded, _ := json.Marshal(got)
-	if strings.Contains(string(encoded), fawesomeDiscoveryGuestFixture) {
+	if strings.Contains(string(encoded), fawesomeGuestTokenFixture) {
 		t.Fatal("guest token escaped into candidates")
 	}
 }

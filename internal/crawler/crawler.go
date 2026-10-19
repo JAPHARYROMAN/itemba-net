@@ -244,6 +244,9 @@ func (c *Crawler) Seed(ctx context.Context) (int, error) {
 			continue
 		}
 		for _, d := range c.opts.Drivers {
+			if d.Spec == nil {
+				continue // a driver that only checks pages has no search to seed
+			}
 			for _, market := range d.Markets() {
 				entries = append(entries, atlas.FrontierEntry{
 					Kind: atlas.FrontierSearch, Driver: d.Name, ObjectID: object.ID,
