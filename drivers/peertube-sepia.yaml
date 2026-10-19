@@ -1,5 +1,7 @@
 # Sepia Search, the public index of federated PeerTube instances. A listing's
-# embed page is verified over HTTP before any playback claim.
+# embed page is verified over HTTP before any playback claim. The index answers
+# searches only on /api/v1/search/videos; the plain /api/v1/videos path the
+# legacy provider used returns an empty 400 (checked 2026-10-19).
 name: peertube-sepia
 provider: PeerTube
 hosts: [sepiasearch.org]
@@ -7,7 +9,7 @@ rate:
   per_minute: 30
   concurrency: 2
 search:
-  url: https://sepiasearch.org/api/v1/videos
+  url: https://sepiasearch.org/api/v1/search/videos
   params:
     search: "{query}"
     count: "3"

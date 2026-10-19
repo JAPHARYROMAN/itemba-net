@@ -50,7 +50,7 @@ func TestSepiaDriverReadsFederatedListings(t *testing.T) {
 	d := shippedDrivers(t)["peertube-sepia"]
 	fetcher := NewFetcher(roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		q := req.URL.Query()
-		if req.URL.Host != "sepiasearch.org" || req.URL.Path != "/api/v1/videos" || q.Get("search") != "Big Buck Bunny" || q.Get("count") != "3" || q.Get("nsfw") != "false" {
+		if req.URL.Host != "sepiasearch.org" || req.URL.Path != "/api/v1/search/videos" || q.Get("search") != "Big Buck Bunny" || q.Get("count") != "3" || q.Get("nsfw") != "false" {
 			t.Errorf("unexpected sepia query: %s", req.URL)
 		}
 		return jsonResponse(200, `{"data":[
