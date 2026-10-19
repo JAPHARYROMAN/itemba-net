@@ -173,8 +173,8 @@ func (s *Store) ObjectByID(ctx context.Context, id int64) (Object, error) {
 		return Object{}, errNoDatabase
 	}
 	var o Object
-	err := s.pool.QueryRow(ctx, `SELECT id, type, title, title_key, COALESCE(year, 0), COALESCE(language, '') FROM atlas.objects WHERE id = $1`, id).
-		Scan(&o.ID, &o.Type, &o.Title, &o.TitleKey, &o.Year, &o.Language)
+	err := s.pool.QueryRow(ctx, `SELECT id, type, title, title_key, COALESCE(creator, ''), creator_key, COALESCE(year, 0), COALESCE(language, '') FROM atlas.objects WHERE id = $1`, id).
+		Scan(&o.ID, &o.Type, &o.Title, &o.TitleKey, &o.Creator, &o.CreatorKey, &o.Year, &o.Language)
 	if err != nil {
 		return Object{}, fmt.Errorf("atlas: object %d: %w", id, err)
 	}
@@ -187,7 +187,7 @@ func (s *Store) ObjectsForCrawl(ctx context.Context, limit int) ([]Object, error
 	if s == nil || s.pool == nil {
 		return nil, errNoDatabase
 	}
-	rows, err := s.pool.Query(ctx, `SELECT id, type, title, title_key, COALESCE(year, 0), COALESCE(language, '') FROM atlas.objects ORDER BY updated_at DESC LIMIT $1`, limit)
+	rows, err := s.pool.Query(ctx, `SELECT id, type, title, title_key, COALESCE(creator, ''), creator_key, COALESCE(year, 0), COALESCE(language, '') FROM atlas.objects ORDER BY updated_at DESC LIMIT $1`, limit)
 	if err != nil {
 		return nil, fmt.Errorf("atlas: objects for crawl: %w", err)
 	}
@@ -195,7 +195,7 @@ func (s *Store) ObjectsForCrawl(ctx context.Context, limit int) ([]Object, error
 	var objects []Object
 	for rows.Next() {
 		var o Object
-		if err := rows.Scan(&o.ID, &o.Type, &o.Title, &o.TitleKey, &o.Year, &o.Language); err != nil {
+		if err := rows.Scan(&o.ID, &o.Type, &o.Title, &o.TitleKey, &o.Creator, &o.CreatorKey, &o.Year, &o.Language); err != nil {
 			return nil, err
 		}
 		objects = append(objects, o)
@@ -246,8 +246,15 @@ func (s *Store) StaleLocations(ctx context.Context, cutoff time.Time, limit int)
 // of scout's types.
 type Listing struct {
 	// ID is the host's identity for the listing when the driver provides one.
-	ID         string `json:"id,omitempty"`
-	Title      string `json:"title"`
+	ID string `json:"id,omitempty"`
+	// Kind is the object type the listing describes, as the driver declares
+	// it: video unless the driver says otherwise. Empty means the kind of
+	// whatever query produced it.
+	Kind  string `json:"kind,omitempty"`
+	Title string `json:"title"`
+	// Creator is the performer, author or maker the host credits; for a
+	// recording it is part of the identity.
+	Creator    string `json:"creator,omitempty"`
 	URL        string `json:"url"`
 	MediaURL   string `json:"mediaUrl,omitempty"`
 	Provider   string `json:"provider"`
@@ -287,7 +294,7 @@ func (s *Store) RecordListings(ctx context.Context, object Object, listings []Li
 	if object.ID == 0 || strings.TrimSpace(method) == "" {
 		return summary, errors.New("atlas: listings need a stored object and a method")
 	}
-	q := lens.ObjectQuery{Type: object.Type, Title: object.Title, TitleKey: object.TitleKey, RawKey: object.TitleKey, Year: object.Year}
+	q := lens.ObjectQuery{Type: object.Type, Title: object.Title, TitleKey: object.TitleKey, RawKey: object.TitleKey, Creator: object.Creator, CreatorKey: object.CreatorKey, Year: object.Year}
 	objects := map[string]Object{}
 	hosts := map[string]Host{}
 	now := time.Now()
@@ -297,7 +304,7 @@ func (s *Store) RecordListings(ctx context.Context, object Object, listings []Li
 			summary.Skipped++
 			continue
 		}
-		target, err := s.objectForTitle(ctx, q, &object, listing.Title, listing.Year, objects, &summary)
+		target, err := s.objectForTitle(ctx, q, &object, listing, objects, &summary)
 		if err != nil {
 			return summary, err
 		}
@@ -310,15 +317,16 @@ func (s *Store) RecordListings(ctx context.Context, object Object, listings []Li
 			hosts[hostname] = host
 		}
 		location, err := s.UpsertLocation(ctx, Location{
-			ObjectID:   target.ID,
-			HostID:     host.ID,
-			URL:        listing.URL,
-			MediaURL:   listing.MediaURL,
-			AccessType: accessType(listing.AccessType),
-			Price:      listing.Price,
-			Market:     listing.Market,
-			Title:      listing.Title,
-			SourceType: listing.SourceType,
+			ObjectID:        target.ID,
+			HostID:          host.ID,
+			URL:             listing.URL,
+			MediaURL:        listing.MediaURL,
+			AccessType:      accessType(listing.AccessType),
+			Price:           listing.Price,
+			Market:          listing.Market,
+			Title:           listing.Title,
+			SourceType:      listing.SourceType,
+			DurationSeconds: int(lens.DurationSeconds(listing.Duration)),
 		})
 		if err != nil {
 			return summary, err

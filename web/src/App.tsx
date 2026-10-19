@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Shield, Cpu, Network, Wifi, WifiOff, Loader } from 'lucide-react';
-import { ActiveRelayStream, SearchKnownEvent, SearchMergedEvent, SearchReport, TelemetrySnapshot, VaultStatus } from './types';
+import { ActiveRelayStream, SearchKind, SearchKnownEvent, SearchMergedEvent, SearchReport, TelemetrySnapshot, VaultStatus } from './types';
 import { readSearchStream, searchStreamUrl } from './searchStream';
 import { VaultViewport } from './components/VaultViewport';
 import './ladder.css';
@@ -201,7 +201,7 @@ export const App: React.FC = () => {
   }, []);
 
   const handleSearch = useCallback(
-    async (query: string, region = 'ALL', fullLengthOnly = true) => {
+    async (query: string, region = 'ALL', fullLengthOnly = true, kind: SearchKind = 'video') => {
       if (!query.trim()) return;
       searchAbortRef.current?.abort();
       const controller = new AbortController();
@@ -216,14 +216,14 @@ export const App: React.FC = () => {
       try {
         // The stream answers from the index first, then runs fresh discovery,
         // then sends the ranked hundred across both.
-        await readSearchStream(searchStreamUrl(query.trim(), region, fullLengthOnly), controller.signal, {
+        await readSearchStream(searchStreamUrl(query.trim(), region, fullLengthOnly, kind), controller.signal, {
           onKnown: (event) => { if (current()) setKnown(event); },
           onReport: (data) => { if (current()) setReport(data); },
           onMerged: (event) => { if (current()) setMerged(event); },
         });
       } catch (error) {
         if (current()) {
-          setSearchError(error instanceof Error ? error.message : 'Could not search movie sites. Check the server connection and try again.');
+          setSearchError(error instanceof Error ? error.message : 'Could not run the search. Check the server connection and try again.');
         }
       } finally {
         if (current()) {

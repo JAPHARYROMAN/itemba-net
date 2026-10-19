@@ -17,8 +17,12 @@ type Object struct {
 	Type     string `json:"type"`
 	Title    string `json:"title"`
 	TitleKey string `json:"titleKey"`
-	Year     int    `json:"year,omitempty"`
-	Language string `json:"language,omitempty"`
+	// Creator is the performer of a recording, part of an audio object's
+	// identity; it is empty for every other type so far.
+	Creator    string `json:"creator,omitempty"`
+	CreatorKey string `json:"creatorKey,omitempty"`
+	Year       int    `json:"year,omitempty"`
+	Language   string `json:"language,omitempty"`
 }
 
 // Host is a site that holds locations.
@@ -30,17 +34,20 @@ type Host struct {
 
 // Location is a URL on a host that holds, or claims to hold, an object.
 type Location struct {
-	ID         int64     `json:"id"`
-	ObjectID   int64     `json:"objectId"`
-	HostID     int64     `json:"hostId"`
-	URL        string    `json:"url"`
-	MediaURL   string    `json:"mediaUrl,omitempty"`
-	AccessType string    `json:"accessType"`
-	Price      string    `json:"price,omitempty"`
-	Market     string    `json:"market,omitempty"`
-	Title      string    `json:"title,omitempty"`
-	SourceType string    `json:"sourceType,omitempty"`
-	LastSeen   time.Time `json:"lastSeen"`
+	ID         int64  `json:"id"`
+	ObjectID   int64  `json:"objectId"`
+	HostID     int64  `json:"hostId"`
+	URL        string `json:"url"`
+	MediaURL   string `json:"mediaUrl,omitempty"`
+	AccessType string `json:"accessType"`
+	Price      string `json:"price,omitempty"`
+	Market     string `json:"market,omitempty"`
+	Title      string `json:"title,omitempty"`
+	SourceType string `json:"sourceType,omitempty"`
+	// DurationSeconds is the length the host listed, part of a recording's
+	// identity; zero when the host gave none.
+	DurationSeconds int       `json:"durationSeconds,omitempty"`
+	LastSeen        time.Time `json:"lastSeen"`
 }
 
 // Evidence is one probe result for one location.
@@ -70,8 +77,10 @@ type KnownLocation struct {
 
 var errNoDatabase = errors.New("atlas: no database configured")
 
-// UpsertObject creates or refreshes the object identified by type, title key
-// and year, and returns it with its ID.
+// UpsertObject creates or refreshes the object identified by type, title key,
+// creator key and year, and returns it with its ID. The conflict target is
+// the identity constraint by name, so the statement is the same whichever
+// columns the constraint spans.
 func (s *Store) UpsertObject(ctx context.Context, o Object) (Object, error) {
 	if s == nil || s.pool == nil {
 		return Object{}, errNoDatabase
@@ -85,17 +94,21 @@ func (s *Store) UpsertObject(ctx context.Context, o Object) (Object, error) {
 	if o.TitleKey == "" {
 		return Object{}, errors.New("atlas: an object needs a title")
 	}
+	if o.CreatorKey == "" {
+		o.CreatorKey = lens.NormalizeTitle(o.Creator)
+	}
 	var out Object
 	err := s.pool.QueryRow(ctx, `
-		INSERT INTO atlas.objects (type, title, title_key, year, language)
-		VALUES ($1, $2, $3, NULLIF($4, 0), NULLIF($5, ''))
-		ON CONFLICT (type, title_key, year) DO UPDATE
+		INSERT INTO atlas.objects (type, title, title_key, creator, creator_key, year, language)
+		VALUES ($1, $2, $3, NULLIF($4, ''), $5, NULLIF($6, 0), NULLIF($7, ''))
+		ON CONFLICT ON CONSTRAINT objects_identity DO UPDATE
 		SET title = EXCLUDED.title,
+		    creator = COALESCE(EXCLUDED.creator, atlas.objects.creator),
 		    language = COALESCE(EXCLUDED.language, atlas.objects.language),
 		    updated_at = now()
-		RETURNING id, type, title, title_key, COALESCE(year, 0), COALESCE(language, '')`,
-		o.Type, o.Title, o.TitleKey, o.Year, o.Language,
-	).Scan(&out.ID, &out.Type, &out.Title, &out.TitleKey, &out.Year, &out.Language)
+		RETURNING id, type, title, title_key, COALESCE(creator, ''), creator_key, COALESCE(year, 0), COALESCE(language, '')`,
+		o.Type, o.Title, o.TitleKey, o.Creator, o.CreatorKey, o.Year, o.Language,
+	).Scan(&out.ID, &out.Type, &out.Title, &out.TitleKey, &out.Creator, &out.CreatorKey, &out.Year, &out.Language)
 	if err != nil {
 		return Object{}, fmt.Errorf("atlas: upsert object: %w", err)
 	}
@@ -155,8 +168,8 @@ func (s *Store) UpsertLocation(ctx context.Context, l Location) (Location, error
 	}
 	var out Location
 	err := s.pool.QueryRow(ctx, `
-		INSERT INTO atlas.locations (object_id, host_id, url, media_url, access_type, price, market, title, source_type)
-		VALUES ($1, $2, $3, NULLIF($4, ''), $5, NULLIF($6, ''), NULLIF($7, ''), NULLIF($8, ''), NULLIF($9, ''))
+		INSERT INTO atlas.locations (object_id, host_id, url, media_url, access_type, price, market, title, source_type, duration_seconds)
+		VALUES ($1, $2, $3, NULLIF($4, ''), $5, NULLIF($6, ''), NULLIF($7, ''), NULLIF($8, ''), NULLIF($9, ''), NULLIF($10, 0))
 		ON CONFLICT (url) DO UPDATE
 		SET object_id = EXCLUDED.object_id,
 		    host_id = EXCLUDED.host_id,
@@ -166,10 +179,11 @@ func (s *Store) UpsertLocation(ctx context.Context, l Location) (Location, error
 		    market = COALESCE(EXCLUDED.market, atlas.locations.market),
 		    title = COALESCE(EXCLUDED.title, atlas.locations.title),
 		    source_type = COALESCE(EXCLUDED.source_type, atlas.locations.source_type),
+		    duration_seconds = COALESCE(EXCLUDED.duration_seconds, atlas.locations.duration_seconds),
 		    last_seen = now()
-		RETURNING id, object_id, host_id, url, COALESCE(media_url, ''), access_type, COALESCE(price, ''), COALESCE(market, ''), COALESCE(title, ''), COALESCE(source_type, ''), last_seen`,
-		l.ObjectID, l.HostID, l.URL, l.MediaURL, l.AccessType, l.Price, l.Market, l.Title, l.SourceType,
-	).Scan(&out.ID, &out.ObjectID, &out.HostID, &out.URL, &out.MediaURL, &out.AccessType, &out.Price, &out.Market, &out.Title, &out.SourceType, &out.LastSeen)
+		RETURNING id, object_id, host_id, url, COALESCE(media_url, ''), access_type, COALESCE(price, ''), COALESCE(market, ''), COALESCE(title, ''), COALESCE(source_type, ''), COALESCE(duration_seconds, 0), last_seen`,
+		l.ObjectID, l.HostID, l.URL, l.MediaURL, l.AccessType, l.Price, l.Market, l.Title, l.SourceType, l.DurationSeconds,
+	).Scan(&out.ID, &out.ObjectID, &out.HostID, &out.URL, &out.MediaURL, &out.AccessType, &out.Price, &out.Market, &out.Title, &out.SourceType, &out.DurationSeconds, &out.LastSeen)
 	if err != nil {
 		return Location{}, fmt.Errorf("atlas: upsert location: %w", err)
 	}
@@ -215,8 +229,8 @@ func (s *Store) Lookup(ctx context.Context, q lens.ObjectQuery, limit int) ([]Kn
 		limit = lens.DefaultLimit
 	}
 	const columns = `
-		o.id, o.type, o.title, o.title_key, COALESCE(o.year, 0), COALESCE(o.language, ''),
-		l.id, l.object_id, l.host_id, l.url, COALESCE(l.media_url, ''), l.access_type, COALESCE(l.price, ''), COALESCE(l.market, ''), COALESCE(l.title, ''), COALESCE(l.source_type, ''), l.last_seen,
+		o.id, o.type, o.title, o.title_key, COALESCE(o.creator, ''), o.creator_key, COALESCE(o.year, 0), COALESCE(o.language, ''),
+		l.id, l.object_id, l.host_id, l.url, COALESCE(l.media_url, ''), l.access_type, COALESCE(l.price, ''), COALESCE(l.market, ''), COALESCE(l.title, ''), COALESCE(l.source_type, ''), COALESCE(l.duration_seconds, 0), l.last_seen,
 		h.id, h.hostname, COALESCE(h.provider, ''),
 		e.level, e.method, e.status, e.detail, e.egress, e.observed_at`
 	// The latest evidence wins; two rows observed in the same instant resolve
@@ -240,12 +254,15 @@ func (s *Store) Lookup(ctx context.Context, q lens.ObjectQuery, limit int) ([]Kn
 			WHERE l.url = $1
 			LIMIT $2`, q.URL, limit)
 	case q.TitleKey != "":
+		// A performer in the query keeps recordings by other performers out;
+		// an object whose performer is unknown still matches.
 		rows, err = s.pool.Query(ctx, `
 			WITH matched AS (
 				SELECT DISTINCT o.id FROM atlas.objects o
 				LEFT JOIN atlas.aliases a ON a.object_id = o.id
 				WHERE o.type = $1
 				  AND ($3 = 0 OR o.year IS NULL OR o.year = $3)
+				  AND ($7 = '' OR o.creator_key = '' OR o.creator_key = $7)
 				  AND (o.title_key = $2 OR a.alias_key = $2 OR a.alias_key = $6
 				       OR o.search @@ plainto_tsquery('simple', $4) OR a.search @@ plainto_tsquery('simple', $4))
 			)
@@ -255,7 +272,7 @@ func (s *Store) Lookup(ctx context.Context, q lens.ObjectQuery, limit int) ([]Kn
 			JOIN atlas.locations l ON l.object_id = o.id
 			JOIN atlas.hosts h ON h.id = l.host_id`+latest+`
 			ORDER BY e.level DESC NULLS LAST, e.observed_at DESC NULLS LAST
-			LIMIT $5`, q.Type, q.TitleKey, q.Year, q.Title, limit*3, q.RawKey)
+			LIMIT $5`, q.Type, q.TitleKey, q.Year, q.Title, limit*3, q.RawKey, q.CreatorKey)
 	default:
 		return nil, nil
 	}
@@ -272,8 +289,8 @@ func (s *Store) Lookup(ctx context.Context, q lens.ObjectQuery, limit int) ([]Kn
 		var method, status, detail, egress *string
 		var observed *time.Time
 		if err := rows.Scan(
-			&k.Object.ID, &k.Object.Type, &k.Object.Title, &k.Object.TitleKey, &k.Object.Year, &k.Object.Language,
-			&k.Location.ID, &k.Location.ObjectID, &k.Location.HostID, &k.Location.URL, &k.Location.MediaURL, &k.Location.AccessType, &k.Location.Price, &k.Location.Market, &k.Location.Title, &k.Location.SourceType, &k.Location.LastSeen,
+			&k.Object.ID, &k.Object.Type, &k.Object.Title, &k.Object.TitleKey, &k.Object.Creator, &k.Object.CreatorKey, &k.Object.Year, &k.Object.Language,
+			&k.Location.ID, &k.Location.ObjectID, &k.Location.HostID, &k.Location.URL, &k.Location.MediaURL, &k.Location.AccessType, &k.Location.Price, &k.Location.Market, &k.Location.Title, &k.Location.SourceType, &k.Location.DurationSeconds, &k.Location.LastSeen,
 			&k.Host.ID, &k.Host.Hostname, &k.Host.Provider,
 			&level, &method, &status, &detail, &egress, &observed,
 		); err != nil {
@@ -290,6 +307,9 @@ func (s *Store) Lookup(ctx context.Context, q lens.ObjectQuery, limit int) ([]Kn
 		}
 		k.LevelName = lens.LevelName(k.EffectiveLevel)
 		k.Relevance = lens.TitleRelevance(q.TitleKey, k.Object.TitleKey)
+		if q.Type == lens.TypeAudio {
+			k.Relevance = lens.AudioRelevance(q, lens.AudioIdentity{TitleKey: k.Object.TitleKey, CreatorKey: k.Object.CreatorKey, Year: k.Object.Year})
+		}
 		if q.URL != "" {
 			k.Relevance = 1
 		}

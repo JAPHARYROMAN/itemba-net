@@ -40,7 +40,7 @@ func (s *Store) RecordObservations(ctx context.Context, q lens.ObjectQuery, obse
 	}
 	var queryObject *Object
 	if q.TitleKey != "" {
-		o, err := s.UpsertObject(ctx, Object{Type: q.Type, Title: q.Title, TitleKey: q.TitleKey, Year: q.Year})
+		o, err := s.UpsertObject(ctx, Object{Type: q.Type, Title: q.Title, TitleKey: q.TitleKey, Creator: q.Creator, CreatorKey: q.CreatorKey, Year: q.Year})
 		if err != nil {
 			return summary, err
 		}
@@ -55,7 +55,7 @@ func (s *Store) RecordObservations(ctx context.Context, q lens.ObjectQuery, obse
 			summary.Skipped++
 			continue
 		}
-		object, err := s.objectForTitle(ctx, q, queryObject, observation.Title, observation.Year, objects, &summary)
+		object, err := s.objectForTitle(ctx, q, queryObject, observation.Listing, objects, &summary)
 		if err != nil {
 			return summary, err
 		}
@@ -68,15 +68,16 @@ func (s *Store) RecordObservations(ctx context.Context, q lens.ObjectQuery, obse
 			hosts[hostname] = host
 		}
 		location, err := s.UpsertLocation(ctx, Location{
-			ObjectID:   object.ID,
-			HostID:     host.ID,
-			URL:        observation.URL,
-			MediaURL:   observation.MediaURL,
-			AccessType: accessType(observation.AccessType),
-			Price:      observation.Price,
-			Market:     observation.Market,
-			Title:      observation.Title,
-			SourceType: observation.SourceType,
+			ObjectID:        object.ID,
+			HostID:          host.ID,
+			URL:             observation.URL,
+			MediaURL:        observation.MediaURL,
+			AccessType:      accessType(observation.AccessType),
+			Price:           observation.Price,
+			Market:          observation.Market,
+			Title:           observation.Title,
+			SourceType:      observation.SourceType,
+			DurationSeconds: int(lens.DurationSeconds(observation.Duration)),
 		})
 		if err != nil {
 			return summary, err
@@ -97,24 +98,48 @@ func (s *Store) RecordObservations(ctx context.Context, q lens.ObjectQuery, obse
 	return summary, nil
 }
 
-// objectForTitle decides which object a listed title belongs to. The title
-// is read as a listing, so "Sintel (2010)" is the title Sintel with a year
-// and joins the Sintel object rather than becoming a second one, while a
-// title that merely ends in "film" keeps that word.
-func (s *Store) objectForTitle(ctx context.Context, q lens.ObjectQuery, queryObject *Object, title string, releaseYear int, cache map[string]Object, summary *RecordSummary) (Object, error) {
-	base, year := lens.ListedTitle(title, releaseYear)
-	key := lens.NormalizeTitle(base)
-	if queryObject != nil && (key == "" || key == q.TitleKey) {
-		return *queryObject, nil
+// objectForTitle decides which object a listing belongs to. A title is read
+// as a listing, so "Sintel (2010)" is the title Sintel with a year and joins
+// the Sintel object rather than becoming a second one, while a title that
+// merely ends in "film" keeps that word. An audio listing is read by its
+// tags: it joins the query's recording when the title matches and its
+// performer is unknown or agrees with the one the query names, and
+// otherwise becomes a recording of its own under its performer. So a search
+// that names no performer gathers only performer-less listings under its
+// own object, and every credited recording of that title stays apart. A
+// listing without a kind takes the query's.
+func (s *Store) objectForTitle(ctx context.Context, q lens.ObjectQuery, queryObject *Object, listing Listing, cache map[string]Object, summary *RecordSummary) (Object, error) {
+	kind := listing.Kind
+	if kind == "" {
+		kind = q.Type
 	}
-	if key == "" {
-		return Object{}, fmt.Errorf("atlas: a listing titled %q names no object and the query names none", title)
+	if kind == "" {
+		kind = lens.TypeVideo
 	}
-	cacheKey := fmt.Sprintf("%s|%d", key, year)
+	candidate := Object{Type: kind}
+	if kind == lens.TypeAudio {
+		id := lens.AudioListing(listing.Title, listing.Creator, listing.Duration, listing.Year)
+		candidate.Title, candidate.TitleKey, candidate.Year = id.Title, id.TitleKey, id.Year
+		candidate.Creator, candidate.CreatorKey = id.Creator, id.CreatorKey
+	} else {
+		base, year := lens.ListedTitle(listing.Title, listing.Year)
+		candidate.Title, candidate.TitleKey, candidate.Year = base, lens.NormalizeTitle(base), year
+	}
+	if queryObject != nil && queryObject.Type == kind {
+		sameTitle := candidate.TitleKey == q.TitleKey
+		performersAgree := candidate.CreatorKey == "" || lens.CreatorsAgree(candidate.CreatorKey, q.CreatorKey)
+		if candidate.TitleKey == "" || sameTitle && performersAgree {
+			return *queryObject, nil
+		}
+	}
+	if candidate.TitleKey == "" {
+		return Object{}, fmt.Errorf("atlas: a listing titled %q names no object and the query names none", listing.Title)
+	}
+	cacheKey := fmt.Sprintf("%s|%s|%s|%d", kind, candidate.TitleKey, candidate.CreatorKey, candidate.Year)
 	if o, ok := cache[cacheKey]; ok {
 		return o, nil
 	}
-	o, err := s.UpsertObject(ctx, Object{Type: lens.TypeVideo, Title: base, TitleKey: key, Year: year})
+	o, err := s.UpsertObject(ctx, candidate)
 	if err != nil {
 		return Object{}, err
 	}

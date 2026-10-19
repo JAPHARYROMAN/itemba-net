@@ -33,11 +33,15 @@ import (
 // and check access to one of its movie pages. Drivers are data files under
 // drivers/, loaded at startup.
 type Driver struct {
-	Name     string      `yaml:"name"`
-	Provider string      `yaml:"provider"`
-	Hosts    []string    `yaml:"hosts"`
-	Rate     Rate        `yaml:"rate"`
-	Spec     *SearchSpec `yaml:"search"`
+	Name     string `yaml:"name"`
+	Provider string `yaml:"provider"`
+	// Kind is the object type the driver lists, one of Lens's types. The
+	// search fans a query out to the drivers of its kind and the crawler
+	// seeds a driver only with objects of its kind. Default video.
+	Kind  string      `yaml:"kind"`
+	Hosts []string    `yaml:"hosts"`
+	Rate  Rate        `yaml:"rate"`
+	Spec  *SearchSpec `yaml:"search"`
 	// Feeds are the host's catalogs without a query, such as the shelves the
 	// console shows; they share the search's steps and item rules.
 	Feeds map[string]*FeedSpec `yaml:"feeds"`
@@ -245,7 +249,7 @@ var (
 	listingKeys     = map[string]bool{
 		"id": true, "title": true, "url": true, "media_url": true, "year": true, "duration": true, "description": true,
 		"thumbnail": true, "access_type": true, "price": true, "market": true, "source_type": true, "provider": true,
-		"access_note": true, "resolution": true, "tags": true, "catalog_date": true,
+		"access_note": true, "resolution": true, "tags": true, "catalog_date": true, "creator": true,
 	}
 	transforms = map[string]bool{
 		"": true, "scalar": true, "lower": true, "upper": true, "trim": true, "year_of_date": true, "year_in_text": true,
@@ -318,6 +322,13 @@ func (d *Driver) Validate() error {
 	}
 	if strings.TrimSpace(d.Provider) == "" {
 		return errors.New("provider is required")
+	}
+	d.Kind = strings.ToLower(strings.TrimSpace(d.Kind))
+	if d.Kind == "" {
+		d.Kind = lens.TypeVideo
+	}
+	if !lens.KnownType(d.Kind) {
+		return fmt.Errorf("kind %q is not an object type", d.Kind)
 	}
 	if len(d.Hosts) == 0 {
 		return errors.New("at least one host is required")
@@ -1005,7 +1016,9 @@ func (d *Driver) listingFrom(it item, market string, fields map[string]FieldSpec
 	}
 	listing := atlas.Listing{
 		ID:                values["id"],
+		Kind:              d.Kind,
 		Title:             strings.TrimSpace(values["title"]),
+		Creator:           strings.TrimSpace(values["creator"]),
 		URL:               values["url"],
 		MediaURL:          values["media_url"],
 		Provider:          firstNonEmpty(values["provider"], d.Provider),

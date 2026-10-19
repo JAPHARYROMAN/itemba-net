@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Play, Globe, Search, Shield, Clock, Sparkles } from 'lucide-react';
-import { ActiveRelayStream, FawesomeShelfPlaybackReport, MovieAvailabilityCheck, MovieDiscoveryItem, MovieDiscoveryMode, MovieDiscoveryReport, SearchKnownEvent, SearchMergedEvent, SearchReport, VerifiedSource } from '../types';
+import { Play, Globe, Search, Shield, Clock, Sparkles, Film, Music } from 'lucide-react';
+import { ActiveRelayStream, FawesomeShelfPlaybackReport, MovieAvailabilityCheck, MovieDiscoveryItem, MovieDiscoveryMode, MovieDiscoveryReport, SearchKind, SearchKnownEvent, SearchMergedEvent, SearchReport, VerifiedSource } from '../types';
 import { RankedLocations } from './RankedLocations';
 
 interface SearchScoutPanelProps {
@@ -11,7 +11,7 @@ interface SearchScoutPanelProps {
   searchError: string | null;
   launchError: string | null;
   launchingUrl: string | null;
-  onSearch: (query: string, region?: string, fullLengthOnly?: boolean) => void;
+  onSearch: (query: string, region?: string, fullLengthOnly?: boolean, kind?: SearchKind) => void;
   onRunBenchmark: () => void;
   onLaunchRbi: (url: string, theaterMode: boolean) => void;
   onPlayRelay: (stream: ActiveRelayStream) => void;
@@ -419,6 +419,124 @@ const MovieDiscoveryShelf: React.FC<{ region: string; onSelect: (query: string) 
   );
 };
 
+// A recording plays through the relay when its file is free and answered
+// the reach check as audio. Nothing else is offered for playback: the audio
+// probe that would prove decoding arrives with a later slice.
+const canPlayAudio = (source: VerifiedSource): boolean =>
+  source.accessType === 'free' && Boolean(source.directStreamUrl) && source.verificationStatus === 'media_reachable';
+
+interface AudioResultsProps {
+  report: SearchReport;
+  sources: VerifiedSource[];
+  filter: AccessFilter;
+  onFilter: (filter: AccessFilter) => void;
+  regionName: string;
+  checkLocation: string | null;
+  batchCheckedAt: string | null;
+  launchingUrl: string | null;
+  onLaunchRbi: (url: string, theaterMode: boolean) => void;
+  onPlayRelay: (stream: ActiveRelayStream) => void;
+}
+
+// The audio results: recordings with their performer, year, length and the
+// reach of their file or page. The movie cards' playback and offer rows do
+// not apply to a recording yet.
+const AudioResults: React.FC<AudioResultsProps> = ({ report, sources, filter, onFilter, regionName, checkLocation, batchCheckedAt, launchingUrl, onLaunchRbi, onPlayRelay }) => {
+  const visible = sources.filter((source) => filter === 'all' || accessGroup(source) === filter);
+  const coverageOpen = report.providers?.some((provider) => provider.status === 'error' || provider.status === 'not_configured') ?? false;
+  return (
+    <>
+      <div className="movie-results-summary" role="status">
+        <div><strong>{sources.length} {sources.length === 1 ? 'recording' : 'recordings'}</strong> for “{report.query}”<span className="scout-muted"> · {regionName}</span></div>
+        <span className="scout-muted scout-duration"><Clock size={12} aria-hidden="true" /> {(report.durationMs / 1000).toFixed(1)}s</span>
+      </div>
+      <p className="scout-muted">Audio search · Listings are matched by title and performer. Files are checked for reach from the server; no playback sample runs yet, so nothing is labelled playable.</p>
+      {report.providers && report.providers.length > 0 && (
+        <details className="scout-provider-details" open={coverageOpen}>
+          <summary>Search coverage{coverageOpen ? ' · some sources unavailable' : ''}</summary>
+          <ul>{report.providers.map((provider) => (
+            <li key={provider.name}>
+              <strong>{provider.name}</strong>: {provider.detail || (provider.status === 'ok' ? 'Search completed.' : provider.status === 'empty' ? 'No matching listings.' : provider.status === 'not_configured' ? 'Not configured.' : 'Could not search this source.')}
+            </li>
+          ))}</ul>
+        </details>
+      )}
+      {report.availabilityChecks && (
+        <div className="scout-link-check-summary">
+          <p><strong>Automatic link checks</strong> · {report.availabilityChecks.checkedCount} checked{checkLocation ? ` from ${checkLocation}` : ' · check location unconfirmed'}</p>
+          {batchCheckedAt && <p>Checked <time dateTime={report.availabilityChecks.checkedAt}>{batchCheckedAt}</time></p>}
+        </div>
+      )}
+      <div className="preset-chips" role="group" aria-label="Filter by access type">
+        {FILTERS.map(({ value, label }) => (
+          <button key={value} type="button" className={`chip${filter === value ? ' scout-filter-active' : ''}`}
+            aria-pressed={filter === value} onClick={() => onFilter(value)}>
+            {label} ({value === 'all' ? sources.length : sources.filter((source) => accessGroup(source) === value).length})
+          </button>
+        ))}
+      </div>
+      {visible.length === 0 ? (
+        <div className="scout-empty" role="status">
+          <strong>{sources.length === 0 ? 'No recordings found in the covered audio catalogs.' : `No listings marked ${filter} in these results.`}</strong>
+          <p>{sources.length === 0 ? 'Try the recording’s title with its performer, as in “Kind of Blue by Miles Davis”. Search coverage is shown above.' : 'Choose another filter. Access labels reflect the evidence available for each source.'}</p>
+        </div>
+      ) : (
+        <div className="sources-grid movie-sources-grid">
+          {visible.map((source) => {
+            const check = source.availabilityCheck;
+            const checkedAt = formatCheckedAt(check?.checkedAt);
+            const length = runtimeSeconds(source.duration);
+            const showYear = source.releaseYear && !source.title.includes(String(source.releaseYear));
+            const reach = source.verificationStatus === 'media_reachable' ? 'Audio file reachable' : source.verificationStatus === 'page_reachable' ? 'Page reachable' : 'Listing';
+            return (
+              <article key={source.id} className="source-card movie-source-card audio-source-card">
+                <div>
+                  <div className="movie-source-badges">
+                    <span className={`pill-badge${source.accessType === 'free' ? ' live' : ''}`}>{ACCESS_LABELS[source.accessType ?? 'unknown']}</span>
+                    <span className="scout-muted">{reach}</span>
+                  </div>
+                  <div className="movie-source-title">
+                    {source.thumbnail && <img src={source.thumbnail} alt="" loading="lazy" referrerPolicy="no-referrer"
+                      onError={(event) => { event.currentTarget.hidden = true; }} />}
+                    <div>
+                      <h3>{source.title}{showYear ? <span className="scout-muted"> ({source.releaseYear})</span> : null}</h3>
+                      <p className="movie-source-provider">{source.creator || <span className="scout-muted">Performer unconfirmed</span>}</p>
+                      <p className="scout-muted movie-source-host">{source.provider} · {sourceHost(source.url)}</p>
+                      <p className="scout-muted movie-source-runtime">{length === null ? 'Length unconfirmed' : `Listed length: ${formatRuntime(length)}`}{source.verificationStatus === 'media_reachable' && source.streamFormat ? ` · ${source.streamFormat}` : ''}</p>
+                    </div>
+                  </div>
+                  {source.description && <p className="scout-description movie-source-description">{source.description}</p>}
+                  <div className="movie-source-facts">
+                    {source.accessNote && <p className="scout-muted">{source.accessNote}</p>}
+                    <div className="movie-access-check">
+                      <p className={`movie-check-status check-${check?.status ?? 'unchecked'}`}>{accessCheckLabel(check)}</p>
+                      {check?.detail && <p className="scout-muted">{check.detail}</p>}
+                      <p className="scout-muted">A reachable file does not confirm playback; the audio probe arrives with a later slice.</p>
+                      {checkedAt && <p className="scout-muted">Link checked <time dateTime={check?.checkedAt}>{checkedAt}</time></p>}
+                    </div>
+                  </div>
+                </div>
+                <div className="movie-source-actions">
+                  <button type="button" className="btn btn-primary" disabled={launchingUrl !== null}
+                    onClick={() => onLaunchRbi(source.url, false)}>
+                    <Globe size={14} aria-hidden="true" /> {launchingUrl === source.url ? 'Opening protected browser…' : 'Open page with ad blocking'}
+                  </button>
+                  {canPlayAudio(source) && <button type="button" className="btn" onClick={() => onPlayRelay({
+                    title: source.creator ? `${source.title} · ${source.creator}` : source.title, streamUrl: source.directStreamUrl as string, pageUrl: source.url,
+                    provider: source.provider, format: source.streamFormat, useZeroTrustProxy: true, kind: 'audio', poster: source.thumbnail,
+                  })}>
+                    <Play size={13} aria-hidden="true" /> Play through the relay
+                  </button>}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </>
+  );
+};
+
 export const SearchScoutPanel: React.FC<SearchScoutPanelProps> = ({
   report, known, merged, searching, searchError, launchError, launchingUrl, onSearch,
   onRunBenchmark, onLaunchRbi, onPlayRelay,
@@ -426,6 +544,7 @@ export const SearchScoutPanel: React.FC<SearchScoutPanelProps> = ({
   const [query, setQuery] = useState('');
   const [region, setRegion] = useState('ALL');
   const [fullLengthOnly, setFullLengthOnly] = useState(true);
+  const [kind, setKind] = useState<SearchKind>('video');
   const [filter, setFilter] = useState<AccessFilter>('all');
   const [playbackOnly, setPlaybackOnly] = useState(false);
   const sources = (report?.sources ?? report?.verifiedSources ?? []).filter((source) => source.destinationType !== 'guide');
@@ -441,7 +560,7 @@ export const SearchScoutPanel: React.FC<SearchScoutPanelProps> = ({
   const search = (nextQuery: string) => {
     if (!nextQuery.trim()) return;
     setFilter('all');
-    onSearch(nextQuery.trim(), region, fullLengthOnly);
+    onSearch(nextQuery.trim(), region, fullLengthOnly, kind);
   };
 
   const handleSelectRelay = (source: VerifiedSource) => {
@@ -458,10 +577,12 @@ export const SearchScoutPanel: React.FC<SearchScoutPanelProps> = ({
     <section className="scout-panel" aria-labelledby="movie-search-heading" aria-busy={searching}>
       <div className="movie-search-heading">
         <div>
-          <h2 id="movie-search-heading">Find full-length movies across the web.</h2>
-          <p className="scout-description">{region === 'ALL'
-            ? 'Search recent releases, popular titles and independent cinema globally. Find free and paid options; playback samples show which supported free sources actually start.'
-            : `Search globally with a preference for ${selectedRegionName}. Playback badges show the actual test location; prices and full playback still need confirmation.`}</p>
+          <h2 id="movie-search-heading">{kind === 'audio' ? 'Find recordings across open audio catalogs.' : 'Find full-length movies across the web.'}</h2>
+          <p className="scout-description">{kind === 'audio'
+            ? 'Search the Internet Archive’s audio collections by title, with the performer if known. Each listing shows its performer, year and length; files are checked for reach, not yet sampled.'
+            : region === 'ALL'
+              ? 'Search recent releases, popular titles and independent cinema globally. Find free and paid options; playback samples show which supported free sources actually start.'
+              : `Search globally with a preference for ${selectedRegionName}. Playback badges show the actual test location; prices and full playback still need confirmation.`}</p>
         </div>
         <button type="button" className="btn btn-theater scout-benchmark" disabled={searching}
           onClick={onRunBenchmark} title="Check the ad-blocking engine against the local security benchmark">
@@ -469,11 +590,20 @@ export const SearchScoutPanel: React.FC<SearchScoutPanelProps> = ({
         </button>
       </div>
 
+      <div className="preset-chips movie-kind-toggle" role="group" aria-label="What to find">
+        <button type="button" className={`chip${kind === 'video' ? ' scout-filter-active' : ''}`} aria-pressed={kind === 'video'} onClick={() => setKind('video')}>
+          <Film size={12} aria-hidden="true" /> Movies
+        </button>
+        <button type="button" className={`chip${kind === 'audio' ? ' scout-filter-active' : ''}`} aria-pressed={kind === 'audio'} onClick={() => setKind('audio')}>
+          <Music size={12} aria-hidden="true" /> Audio
+        </button>
+      </div>
+
       <form className="search-row movie-search-form" onSubmit={(event) => { event.preventDefault(); search(query); }}>
         <label className="movie-query-field">
-          <span className="scout-field-label">Movie title or keywords</span>
+          <span className="scout-field-label">{kind === 'audio' ? 'Recording title, with the performer if known' : 'Movie title or keywords'}</span>
           <input className="search-input" value={query} onChange={(event) => setQuery(event.target.value)}
-            placeholder="Movie title and year, or a movie page URL" maxLength={500} required />
+            placeholder={kind === 'audio' ? 'Title by performer, e.g. Kind of Blue by Miles Davis' : 'Movie title and year, or a movie page URL'} maxLength={500} required />
         </label>
         <label className="movie-region-field">
           <span className="scout-field-label">Region preference (optional)</span>
@@ -482,33 +612,46 @@ export const SearchScoutPanel: React.FC<SearchScoutPanelProps> = ({
           </select>
         </label>
         <button type="submit" className="btn btn-primary movie-search-submit" disabled={!query.trim()}>
-          <Search size={14} aria-hidden="true" /> {searching ? 'Search again' : 'Find movie pages'}
+          <Search size={14} aria-hidden="true" /> {searching ? 'Search again' : kind === 'audio' ? 'Find recordings' : 'Find movie pages'}
         </button>
-        <label className="movie-length-preference">
-          <input type="checkbox" checked={fullLengthOnly} onChange={(event) => setFullLengthOnly(event.target.checked)}
-            aria-describedby="movie-length-help" />
-          <span><strong>Full-length movies</strong><span id="movie-length-help" className="scout-muted">Show listings of 40 minutes or longer. Missing runtimes stay marked length unconfirmed. Turn off to include shorts.</span></span>
-        </label>
+        {kind === 'video' && (
+          <label className="movie-length-preference">
+            <input type="checkbox" checked={fullLengthOnly} onChange={(event) => setFullLengthOnly(event.target.checked)}
+              aria-describedby="movie-length-help" />
+            <span><strong>Full-length movies</strong><span id="movie-length-help" className="scout-muted">Show listings of 40 minutes or longer. Missing runtimes stay marked length unconfirmed. Turn off to include shorts.</span></span>
+          </label>
+        )}
       </form>
 
-      <MovieDiscoveryShelf region={region} onSelect={(title) => { setQuery(title); search(title); }} />
-      <div>
-        <div className="preset-chips" role="group" aria-label="Try supported free catalogs">
-          <span className="scout-muted">Try supported free catalogs:</span>
-          {FREE_CATALOG_EXAMPLES.map((title) => <button key={title} type="button" className="chip" onClick={() => { setQuery(title); search(title); }}>{title}</button>)}
-        </div>
-        <p className="scout-muted">Film examples; search to see access checks and any confirmed playback sample.</p>
-      </div>
+      {kind === 'video' ? (
+        <>
+          <MovieDiscoveryShelf region={region} onSelect={(title) => { setQuery(title); search(title); }} />
+          <div>
+            <div className="preset-chips" role="group" aria-label="Try supported free catalogs">
+              <span className="scout-muted">Try supported free catalogs:</span>
+              {FREE_CATALOG_EXAMPLES.map((title) => <button key={title} type="button" className="chip" onClick={() => { setQuery(title); search(title); }}>{title}</button>)}
+            </div>
+            <p className="scout-muted">Film examples; search to see access checks and any confirmed playback sample.</p>
+          </div>
+        </>
+      ) : (
+        <p className="scout-muted">Audio results come from the Internet Archive’s audio collections, read through the same driver runtime as the movie catalogs. A recording is matched by its title, performer and length; the acoustic fingerprint, the queue player and the audio probe arrive with later slices.</p>
+      )}
       <p className="scout-protection-note"><Shield size={14} aria-hidden="true" /> Sites open in ITEMBA's browser with ad and tracker blocking enabled. Some ads may remain; subscriptions and regional restrictions still apply.</p>
-      <p className="scout-muted">Native samples cover supported free catalogs, including NASA+, NFB, creator-authorized Catsuka and matching Fawesome movie pages. Provider checks can report restrictions for Pluto TV and Filmzie. Playback badges require decoded movie content; pages, ads and trailers do not qualify.</p>
+      {kind === 'video' && <p className="scout-muted">Native samples cover supported free catalogs, including NASA+, NFB, creator-authorized Catsuka and matching Fawesome movie pages. Provider checks can report restrictions for Pluto TV and Filmzie. Playback badges require decoded movie content; pages, ads and trailers do not qualify.</p>}
 
       {searchError && <p className="scout-error" role="alert">{searchError}</p>}
       {launchError && <p className="scout-error" role="alert">{launchError}</p>}
-      {searching && <p className="scout-empty" role="status">Finding global movie sources and testing free playback…</p>}
+      {searching && <p className="scout-empty" role="status">{kind === 'audio' ? 'Finding recordings in open audio catalogs and checking their files…' : 'Finding global movie sources and testing free playback…'}</p>}
 
       <RankedLocations known={known} merged={merged} report={report} searching={searching} launchingUrl={launchingUrl} onLaunchRbi={onLaunchRbi} />
 
-      {report && !searching && !searchError && (
+      {report && !searching && !searchError && report.kind === 'audio' && (
+        <AudioResults report={report} sources={sources} filter={filter} onFilter={setFilter} regionName={regionName}
+          checkLocation={checkLocation} batchCheckedAt={batchCheckedAt} launchingUrl={launchingUrl} onLaunchRbi={onLaunchRbi} onPlayRelay={onPlayRelay} />
+      )}
+
+      {report && !searching && !searchError && report.kind !== 'audio' && (
         <>
           <div className="movie-results-summary" role="status">
             <div><strong>{sources.length} {sources.length === 1 ? 'movie page' : 'movie pages'}</strong> for “{report.query}”<span className="scout-muted"> · {regionName}</span></div>

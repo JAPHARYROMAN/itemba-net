@@ -1,4 +1,4 @@
-import { SearchKnownEvent, SearchMergedEvent, SearchReport } from './types';
+import { SearchKind, SearchKnownEvent, SearchMergedEvent, SearchReport } from './types';
 
 export interface SearchStreamHandlers {
   onKnown: (event: SearchKnownEvent) => void;
@@ -57,7 +57,7 @@ export async function readSearchStream(url: string, signal: AbortSignal, handler
   if (buffer.trim()) dispatch(buffer);
 }
 
-export function searchStreamUrl(query: string, region: string, fullLengthOnly: boolean): string {
-  const params = new URLSearchParams({ query, region, fullLengthOnly: String(fullLengthOnly) });
+export function searchStreamUrl(query: string, region: string, fullLengthOnly: boolean, kind: SearchKind = 'video'): string {
+  const params = new URLSearchParams({ query, region, fullLengthOnly: String(fullLengthOnly), kind });
   return `/api/scout/search/stream?${params.toString()}`;
 }

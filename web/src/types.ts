@@ -85,9 +85,17 @@ export interface MoviePlaybackCheck {
   playbackConfirmed: boolean;
 }
 
+// The object types the search form offers. Images and documents arrive with
+// their Phase 3 slices.
+export type SearchKind = 'video' | 'audio';
+
 export interface VerifiedSource {
   id: string;
   title: string;
+  // kind is the object type the source holds; creator the performer a
+  // recording is credited to. Both are absent on movie sources.
+  kind?: SearchKind;
+  creator?: string;
   url: string;
   directStreamUrl?: string;
   provider: string;
@@ -179,6 +187,7 @@ export interface MovieDiscoveryReport {
 
 export interface SearchReport {
   query: string;
+  kind?: SearchKind;
   totalCandidates: number;
   verifiedCount: number;
   prunedCount: number;
@@ -204,6 +213,8 @@ export interface ObjectQuery {
   title: string;
   titleKey: string;
   rawKey?: string;
+  creator?: string;
+  creatorKey?: string;
   year?: number;
   url?: string;
   hash?: string;
@@ -220,7 +231,7 @@ export interface AtlasEvidence {
 }
 
 export interface KnownLocation {
-  object: { id: number; type: string; title: string; titleKey: string; year?: number; language?: string };
+  object: { id: number; type: string; title: string; titleKey: string; creator?: string; year?: number; language?: string };
   host: { id: number; hostname: string; provider?: string };
   location: {
     id: number;
@@ -262,6 +273,7 @@ export interface MergedLocation {
   url: string;
   host: string;
   title: string;
+  creator?: string;
   level: number;
   levelName: string;
   observedAt?: string;

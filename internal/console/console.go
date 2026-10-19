@@ -249,6 +249,7 @@ func (s *Server) searchRoute(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Query          string `json:"query"`
 		Region         string `json:"region"`
+		Kind           string `json:"kind"`
 		FullLengthOnly *bool  `json:"fullLengthOnly"`
 	}
 	rejected, err := decodeJSONBody(w, r, SearchBodyLimit, &req)
@@ -256,10 +257,10 @@ func (s *Server) searchRoute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "A JSON movie search request is required."})
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "A JSON search request is required."})
 		return
 	}
-	query, region, errMsg := validateSearch(req.Query, req.Region)
+	query, region, kind, errMsg := validateSearch(req.Query, req.Region, req.Kind)
 	if errMsg != "" {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": errMsg})
 		return
@@ -270,12 +271,12 @@ func (s *Server) searchRoute(w http.ResponseWriter, r *http.Request) {
 
 	fullLengthOnly := req.FullLengthOnly == nil || *req.FullLengthOnly
 	started := time.Now()
-	report := s.search(ctx, query, region, scout.SearchOptions{FullLengthOnly: fullLengthOnly})
+	report := s.search(ctx, query, region, scout.SearchOptions{FullLengthOnly: fullLengthOnly, Kind: kind})
 	if s.metrics != nil {
 		s.metrics.ObserveSearch(report, time.Since(started))
 	}
 	event := reportEvent{SearchReport: report}
-	event.Atlas, event.AtlasError = s.record(r.Context(), lens.Parse(query), report)
+	event.Atlas, event.AtlasError = s.record(r.Context(), lens.ParseAs(query, kind), report)
 	writeJSON(w, http.StatusOK, event)
 }
 

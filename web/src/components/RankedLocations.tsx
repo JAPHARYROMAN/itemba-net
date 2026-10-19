@@ -54,6 +54,7 @@ interface Row {
   url: string;
   host: string;
   title: string;
+  creator?: string;
   level: number;
   levelName: string;
   ageSeconds: number | null;
@@ -69,6 +70,7 @@ const rowsFromKnown = (known: SearchKnownEvent): Row[] => known.locations.map((k
   url: k.location.url,
   host: k.host.hostname,
   title: k.location.title || k.object.title,
+  creator: k.object.creator,
   level: k.effectiveLevel,
   levelName: k.levelName,
   ageSeconds: k.evidence ? k.ageSeconds : null,
@@ -88,6 +90,7 @@ const rowsFromMerged = (merged: SearchMergedEvent, known: SearchKnownEvent | nul
     url: m.url,
     host: m.host,
     title: m.title,
+    creator: m.creator,
     level: m.level,
     levelName: m.levelName,
     ageSeconds: ageFromIso(m.observedAt),
@@ -111,7 +114,7 @@ const LocationCard: React.FC<{ row: Row; launchingUrl: string | null; onLaunchRb
       <div className="ladder-card-main">
         <span className={`ladder-badge ladder-level-${row.level}`} title={help}>{row.level} · {row.levelName}</span>
         <div className="ladder-card-title">
-          <strong>{row.title || row.url}</strong>
+          <strong>{row.title || row.url}{row.creator ? <span className="scout-muted"> · {row.creator}</span> : null}</strong>
           <span className="scout-muted">{row.host} · {ACCESS_LABELS[row.accessType] ?? ACCESS_LABELS.unknown}</span>
           <span className="scout-muted">
             {age ? `Checked ${age}` : 'Not yet checked'}{egress ? ` from ${egress}` : ''} · {ORIGIN_LABELS[row.origin]}

@@ -14,21 +14,33 @@ import (
 	"github.com/itemba-net/core/internal/scout"
 )
 
-// validateSearch normalises and checks the query and region shared by the
-// search routes. It returns a user-facing message when the request is bad.
-func validateSearch(query, region string) (string, string, string) {
+// validateSearch normalises and checks the query, region and kind shared by
+// the search routes. The kind is the object type searched for: video, the
+// default, or audio; the other types wait for their Phase 3 slices. It
+// returns a user-facing message when the request is bad.
+func validateSearch(query, region, kind string) (string, string, string, string) {
 	query = strings.TrimSpace(query)
 	region = strings.ToUpper(strings.TrimSpace(region))
 	if region == "" {
 		region = "ALL"
 	}
+	kind = strings.ToLower(strings.TrimSpace(kind))
+	if kind == "" {
+		kind = lens.TypeVideo
+	}
+	if kind != lens.TypeVideo && kind != lens.TypeAudio {
+		return "", "", "", "Choose movies or audio."
+	}
 	if query == "" || len([]rune(query)) > 500 {
-		return "", "", "Enter a movie title or URL using at most 500 characters."
+		if kind == lens.TypeAudio {
+			return "", "", "", "Enter a recording's title, with its performer if known, using at most 500 characters."
+		}
+		return "", "", "", "Enter a movie title or URL using at most 500 characters."
 	}
 	if region != "ALL" && (len(region) != 2 || region[0] < 'A' || region[0] > 'Z' || region[1] < 'A' || region[1] > 'Z') {
-		return "", "", "Choose Worldwide or a two-letter country code."
+		return "", "", "", "Choose Worldwide or a two-letter country code."
 	}
-	return query, region, ""
+	return query, region, kind, ""
 }
 
 // knownEvent is the first event of a streamed search: what Atlas already
@@ -50,9 +62,11 @@ type reportEvent struct {
 // mergedLocation is one entry of the ranked hundred after known and fresh
 // locations are combined.
 type mergedLocation struct {
-	URL        string     `json:"url"`
-	Host       string     `json:"host"`
-	Title      string     `json:"title"`
+	URL   string `json:"url"`
+	Host  string `json:"host"`
+	Title string `json:"title"`
+	// Creator is the performer a recording's location is credited to.
+	Creator    string     `json:"creator,omitempty"`
 	Level      int        `json:"level"`
 	LevelName  string     `json:"levelName"`
 	ObservedAt *time.Time `json:"observedAt,omitempty"`
@@ -78,7 +92,7 @@ func (s *Server) searchStream(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "Use GET to stream a search."})
 		return
 	}
-	query, region, errMsg := validateSearch(r.URL.Query().Get("query"), r.URL.Query().Get("region"))
+	query, region, kind, errMsg := validateSearch(r.URL.Query().Get("query"), r.URL.Query().Get("region"), r.URL.Query().Get("kind"))
 	if errMsg != "" {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": errMsg})
 		return
@@ -110,7 +124,7 @@ func (s *Server) searchStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	started := time.Now()
-	q := lens.Parse(query)
+	q := lens.ParseAs(query, kind)
 	known := knownEvent{Configured: s.atlas != nil, Query: q, Locations: []atlas.KnownLocation{}}
 	if s.atlas != nil {
 		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
@@ -129,7 +143,7 @@ func (s *Server) searchStream(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(r.Context(), 44*time.Second)
 	defer cancel()
-	report := s.search(ctx, query, region, scout.SearchOptions{FullLengthOnly: fullLengthOnly})
+	report := s.search(ctx, query, region, scout.SearchOptions{FullLengthOnly: fullLengthOnly, Kind: kind})
 	if s.metrics != nil {
 		s.metrics.ObserveSearch(report, time.Since(started))
 	}
@@ -171,6 +185,7 @@ func mergeLocations(q lens.ObjectQuery, known []atlas.KnownLocation, report scou
 			URL:        k.Location.URL,
 			Host:       k.Host.Hostname,
 			Title:      firstNonEmpty(k.Location.Title, k.Object.Title),
+			Creator:    k.Object.Creator,
 			Level:      k.EffectiveLevel,
 			LevelName:  k.LevelName,
 			AccessType: k.Location.AccessType,
@@ -220,6 +235,10 @@ func mergeLocations(q lens.ObjectQuery, known []atlas.KnownLocation, report scou
 		// A listed title is read as a listing, so "Sintel (2010)" is Sintel.
 		listed, _ := lens.ListedTitle(source.Title, source.ReleaseYear)
 		relevance := lens.TitleRelevance(q.TitleKey, lens.NormalizeTitle(listed))
+		if q.Type == lens.TypeAudio {
+			// A recording is matched by its tags, performer included.
+			relevance = lens.AudioRelevance(q, lens.AudioListing(source.Title, source.Creator, source.Duration, source.ReleaseYear))
+		}
 		if q.URL != "" {
 			relevance = 1
 		}
@@ -227,6 +246,7 @@ func mergeLocations(q lens.ObjectQuery, known []atlas.KnownLocation, report scou
 			URL:        source.URL,
 			Host:       host,
 			Title:      source.Title,
+			Creator:    source.Creator,
 			Level:      level,
 			LevelName:  lens.LevelName(level),
 			Egress:     egress,

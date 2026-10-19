@@ -25,7 +25,9 @@ func observationsFromReport(report scout.SearchReport) []atlas.Observation {
 	for _, source := range sources {
 		observations = append(observations, atlas.Observation{
 			Listing: atlas.Listing{
+				Kind:        source.Kind,
 				Title:       source.Title,
+				Creator:     source.Creator,
 				URL:         source.URL,
 				MediaURL:    source.DirectStreamURL,
 				Provider:    source.Provider,

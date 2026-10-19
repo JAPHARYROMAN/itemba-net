@@ -604,3 +604,7 @@ body {
   .movie-search-submit { flex: 1 1 145px; }
   .scout-benchmark { padding: 6px 9px; }
 }
+
+/* The search form offers movies or audio; the chips use the access filter look. */
+.movie-kind-toggle { margin-bottom: 10px; }
+.movie-kind-toggle .chip { display: inline-flex; align-items: center; gap: 5px; }

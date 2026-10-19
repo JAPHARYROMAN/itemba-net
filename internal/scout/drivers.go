@@ -64,23 +64,38 @@ type driverResult struct {
 	status     ProviderStatus
 }
 
-// queryDrivers runs every driver for the query, storefront drivers once per
-// market, and returns candidates with one provider status per search.
+// driverSearch runs one driver's search in one market for the fan-out and
+// returns its candidates with the provider status the console shows.
+type driverSearch func(ctx context.Context, fetcher *crawler.Fetcher, d *crawler.Driver, market string) ([]CandidateSource, ProviderStatus)
+
+// queryDrivers runs every video driver for the query, storefront drivers
+// once per market, and returns candidates with one provider status per
+// search.
 func (s *Scout) queryDrivers(ctx context.Context, query, region string) ([]CandidateSource, []ProviderStatus) {
-	if len(s.drivers) == 0 {
-		return nil, nil
-	}
 	title, _ := movieQuery(query)
 	if title == "" {
 		title = query
+	}
+	return s.runDriverSearches(ctx, lens.TypeVideo, region, func(ctx context.Context, fetcher *crawler.Fetcher, d *crawler.Driver, market string) ([]CandidateSource, ProviderStatus) {
+		return s.queryDriver(ctx, fetcher, d, query, title, market)
+	})
+}
+
+// runDriverSearches fans a search out to the drivers of one kind, storefront
+// drivers once per market, and collects one provider status per search.
+func (s *Scout) runDriverSearches(ctx context.Context, kind, region string, search driverSearch) ([]CandidateSource, []ProviderStatus) {
+	if len(s.drivers) == 0 {
+		return nil, nil
 	}
 	region = strings.ToUpper(strings.TrimSpace(region))
 	fetcher := s.driverFetcher()
 
 	var jobs []driverJob
 	for _, d := range s.drivers {
-		if d.Spec == nil {
-			continue // a driver that only checks pages has nothing to search
+		if d.Spec == nil || d.Kind != kind {
+			// A driver that only checks pages has nothing to search, and a
+			// driver of another kind lists other objects.
+			continue
 		}
 		if !d.HasMarkets() {
 			jobs = append(jobs, driverJob{d, ""})
@@ -117,7 +132,7 @@ func (s *Scout) queryDrivers(ctx context.Context, query, region string) ([]Candi
 					return
 				}
 			}
-			results[idx].candidates, results[idx].status = s.queryDriver(jobCtx, fetcher, j.driver, query, title, j.market)
+			results[idx].candidates, results[idx].status = search(jobCtx, fetcher, j.driver, j.market)
 		}(i, j)
 	}
 	wg.Wait()
@@ -207,7 +222,9 @@ func candidateFromListing(d *crawler.Driver, listing atlas.Listing) CandidateSou
 	}
 	candidate := CandidateSource{
 		ID:                id,
+		Kind:              listing.Kind,
 		Title:             listing.Title,
+		Creator:           listing.Creator,
 		URL:               listing.URL,
 		DirectStreamURL:   listing.MediaURL,
 		Provider:          listing.Provider,

@@ -12,12 +12,16 @@ import (
 
 	"github.com/itemba-net/core/internal/cdp"
 	"github.com/itemba-net/core/internal/crawler"
+	"github.com/itemba-net/core/internal/lens"
 	"github.com/itemba-net/core/internal/shield"
 )
 
 // SearchReport contains both the surviving verified sources and the pruned dead/fake links.
 type SearchReport struct {
-	Query              string                     `json:"query"`
+	Query string `json:"query"`
+	// Kind is the object type the search was for: video, or audio since
+	// Phase 3. Absent in reports recorded before kinds existed.
+	Kind               string                     `json:"kind,omitempty"`
 	TotalCandidates    int                        `json:"totalCandidates"`
 	VerifiedCount      int                        `json:"verifiedCount"`
 	PrunedCount        int                        `json:"prunedCount"`
@@ -123,6 +127,10 @@ func (s *Scout) SearchWithRegion(ctx context.Context, query, region string) Sear
 
 type SearchOptions struct {
 	FullLengthOnly bool
+	// Kind is the object type to search for: video, the default, or audio.
+	// An audio search runs the audio pipeline (see searchAudio); anything
+	// else runs the movie pipeline below.
+	Kind string
 }
 
 func (s *Scout) SearchWithOptions(ctx context.Context, query, region string, options SearchOptions) SearchReport {
@@ -132,9 +140,16 @@ func (s *Scout) SearchWithOptions(ctx context.Context, query, region string, opt
 	if region == "" {
 		region = "ALL"
 	}
-	empty := SearchReport{Query: query, Region: region, FullLengthOnly: options.FullLengthOnly, Sources: []VerifiedSource{}, VerifiedSources: []VerifiedSource{}, PrunedSources: []VerifiedSource{}, Providers: []ProviderStatus{}}
+	kind := strings.ToLower(strings.TrimSpace(options.Kind))
+	if kind != lens.TypeAudio {
+		kind = lens.TypeVideo
+	}
+	empty := SearchReport{Query: query, Kind: kind, Region: region, FullLengthOnly: options.FullLengthOnly, Sources: []VerifiedSource{}, VerifiedSources: []VerifiedSource{}, PrunedSources: []VerifiedSource{}, Providers: []ProviderStatus{}}
 	if query == "" {
 		return empty
+	}
+	if kind == lens.TypeAudio {
+		return s.searchAudio(ctx, query, region, start)
 	}
 
 	isDirectURL := strings.HasPrefix(query, "http://") || strings.HasPrefix(query, "https://")
@@ -344,6 +359,7 @@ func (s *Scout) SearchWithOptions(ctx context.Context, query, region string, opt
 
 	report := SearchReport{
 		Query:           query,
+		Kind:            lens.TypeVideo,
 		TotalCandidates: len(candidates),
 		VerifiedCount:   len(verified),
 		PrunedCount:     len(pruned),

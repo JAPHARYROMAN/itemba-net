@@ -240,12 +240,14 @@ func (c *Crawler) Seed(ctx context.Context) (int, error) {
 	}
 	var entries []atlas.FrontierEntry
 	for _, object := range objects {
-		if object.Type != lens.TypeVideo || object.Title == "" {
+		if object.Title == "" || !lens.KnownType(object.Type) {
 			continue
 		}
 		for _, d := range c.opts.Drivers {
-			if d.Spec == nil {
-				continue // a driver that only checks pages has no search to seed
+			if d.Spec == nil || d.Kind != object.Type {
+				// A driver that only checks pages has no search to seed, and
+				// a driver of another kind lists other objects.
+				continue
 			}
 			for _, market := range d.Markets() {
 				entries = append(entries, atlas.FrontierEntry{

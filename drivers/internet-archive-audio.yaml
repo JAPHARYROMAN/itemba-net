@@ -1,0 +1,46 @@
+# Internet Archive's Advanced Search over the audio media type: the first
+# audio driver of Phase 3. The search index names an item's creator, title,
+# year and collections but not its length, so the listing's duration and its
+# playable files come from the item metadata, which the search pipeline reads
+# for the kept listings (see scout's Archive audio resolver).
+# https://archive.org/developers/ (Item Search APIs), checked 2026-10-19.
+name: internet-archive-audio
+provider: Internet Archive
+kind: audio
+hosts: [archive.org]
+rate:
+  per_minute: 30
+  concurrency: 2
+search:
+  url: https://archive.org/advancedsearch.php
+  params:
+    # The title is a literal phrase, never Lucene operators.
+    q: 'title:("{query_phrase}") AND mediatype:audio'
+    fl[]: identifier,title,creator,year,date,collection
+    rows: "30"
+    page: "1"
+    output: json
+    sort[]: downloads desc
+  status_name: Internet Archive audio
+  timeout_seconds: 8
+  response: json
+  items: response.docs
+  limit: 30
+  fields:
+    id: { template: "ia-audio-{identifier}" }
+    title: { path: title, transform: scalar }
+    # The credited performer, uploader or label. An item may list several,
+    # in which case the first is the primary credit; a lone credit is a
+    # plain string, which the second path reads.
+    creator: { paths: ["creator[0]", creator] }
+    # Identifiers are letters, digits, dots, dashes and underscores; anything
+    # that needed escaping is not an Archive item.
+    url: { template: "https://archive.org/details/{identifier|path}", match: '^https://archive\.org/details/[A-Za-z0-9][A-Za-z0-9_.-]{0,199}$' }
+    year: { paths: [year, date], transform: year_in_text }
+    thumbnail: { template: "https://archive.org/services/img/{identifier|path}" }
+    description: { default: Audio listing from Internet Archive. Access and rights depend on the item. }
+    tags: { path: collection }
+  constants:
+    source_type: Archive audio
+    access_type: unknown
+    access_note: Archive listing; its audio files and their length are read from the item metadata when the listing is kept.

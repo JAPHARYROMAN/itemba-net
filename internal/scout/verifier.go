@@ -19,8 +19,13 @@ import (
 
 // CandidateSource represents a seed media source discovered by federated search or direct URL input.
 type CandidateSource struct {
-	ID                      string   `json:"id"`
-	Title                   string   `json:"title"`
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	// Kind is the object type the source holds, video unless a driver of
+	// another kind listed it; Creator is the performer, author or maker the
+	// host credits, part of a recording's identity.
+	Kind                    string   `json:"kind,omitempty"`
+	Creator                 string   `json:"creator,omitempty"`
 	URL                     string   `json:"url"`             // Target web page or embed URL for RBI Vault
 	DirectStreamURL         string   `json:"directStreamUrl"` // Direct .m3u8 / .mp4 / .webm stream URL for 60fps Native Relay Player
 	Provider                string   `json:"provider"`
@@ -426,7 +431,7 @@ func probeMedia(ctx context.Context, client *http.Client, sh *shield.Shield, tar
 	}
 	text := strings.TrimSpace(strings.TrimPrefix(string(body), "\ufeff"))
 	sniffed := http.DetectContentType(body)
-	isMedia := strings.HasPrefix(sniffed, "video/") || strings.HasPrefix(text, "#EXTM3U") || len(body) > 8 && string(body[4:8]) == "ftyp" || len(body) > 4 && string(body[:4]) == "OggS"
+	isMedia := strings.HasPrefix(sniffed, "video/") || strings.HasPrefix(text, "#EXTM3U") || len(body) > 8 && string(body[4:8]) == "ftyp" || len(body) > 4 && string(body[:4]) == "OggS" || audioBytes(body, sniffed)
 	// DASH is XML; accept only an MPD root, including documents with an XML declaration.
 	if !isMedia && strings.HasPrefix(text, "<") {
 		decoder := xml.NewDecoder(bytes.NewReader(body))
@@ -445,6 +450,20 @@ func probeMedia(ctx context.Context, client *http.Client, sh *shield.Shield, tar
 		return false, "Response did not contain recognizable media"
 	}
 	return true, ""
+}
+
+// audioBytes recognises the audio containers the console can play: what
+// Go's sniffer names audio (ID3-tagged MP3, WAVE, AIFF), FLAC by its marker,
+// and a bare MP3 frame, whose eleven-bit sync word no text or HTML starts
+// with. Ogg and MP4 audio are recognised with video by their shared markers.
+func audioBytes(body []byte, sniffed string) bool {
+	if strings.HasPrefix(sniffed, "audio/") {
+		return true
+	}
+	if len(body) >= 4 && string(body[:4]) == "fLaC" {
+		return true
+	}
+	return len(body) >= 2 && body[0] == 0xFF && body[1]&0xE0 == 0xE0 && body[1]&0x18 != 0x08 && body[1]&0x06 != 0
 }
 
 func classifyStreamFormat(directURL string, manifests []string, hasVideo, hasIframe bool) string {

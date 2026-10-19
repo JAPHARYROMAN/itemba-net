@@ -38,9 +38,13 @@ type ObjectQuery struct {
 	// RawKey is the whole query normalised, before any year or type word is
 	// taken out, so an alias that happens to end in a type word still matches.
 	RawKey string `json:"rawKey,omitempty"`
-	Year   int    `json:"year,omitempty"`
-	URL    string `json:"url,omitempty"`
-	Hash   string `json:"hash,omitempty"`
+	// Creator and CreatorKey name the performer an audio query asks for, read
+	// by ParseAs; they are empty for every other type so far.
+	Creator    string `json:"creator,omitempty"`
+	CreatorKey string `json:"creatorKey,omitempty"`
+	Year       int    `json:"year,omitempty"`
+	URL        string `json:"url,omitempty"`
+	Hash       string `json:"hash,omitempty"`
 }
 
 // typeHints are words that name an object type when they trail a title.
@@ -100,6 +104,37 @@ func Parse(raw string) ObjectQuery {
 	return q
 }
 
+// ParseAs interprets a raw query as the object type the search form chose,
+// which wins over a type word in the query. A URL or hash is identified as
+// it is, and an unknown or empty kind leaves Parse's own reading. An audio
+// query may name its performer, "Kind of Blue by Miles Davis" or "Miles
+// Davis - Kind of Blue", which is read into Creator and CreatorKey; the title
+// key then carries the title alone.
+func ParseAs(raw, kind string) ObjectQuery {
+	q := Parse(raw)
+	kind = strings.ToLower(strings.TrimSpace(kind))
+	if q.URL != "" || q.Hash != "" || !KnownType(kind) {
+		return q
+	}
+	q.Type = kind
+	if kind == TypeAudio {
+		if title, performer := SplitPerformer(q.Title); performer != "" {
+			q.Title, q.TitleKey = title, NormalizeTitle(title)
+			q.Creator, q.CreatorKey = performer, NormalizeTitle(performer)
+		}
+	}
+	return q
+}
+
+// KnownType reports whether kind is one of the object types Atlas stores.
+func KnownType(kind string) bool {
+	switch kind {
+	case TypeVideo, TypeAudio, TypeImage, TypeDocument, TypeGame, TypeSoftware, TypeLive:
+		return true
+	}
+	return false
+}
+
 func onlyArticles(tokens []string) bool {
 	for _, token := range tokens {
 		switch strings.ToLower(token) {
@@ -111,13 +146,19 @@ func onlyArticles(tokens []string) bool {
 	return true
 }
 
-var stripMarks = transform.Chain(norm.NFD, runes.Remove(runes.In(unicode.Mn)), norm.NFC)
+// stripMarks builds the transformer that removes diacritics. A chained
+// transformer carries buffers of its own and is not safe for concurrent use,
+// so every call gets a fresh one; the search pipeline normalises titles from
+// several goroutines at once.
+func stripMarks() transform.Transformer {
+	return transform.Chain(norm.NFD, runes.Remove(runes.In(unicode.Mn)), norm.NFC)
+}
 
 // NormalizeTitle reduces a title to a comparison key: diacritics removed,
 // lower case, "&" as "and", punctuation as spaces, single spaces. Articles
 // are kept so that different titles do not collide.
 func NormalizeTitle(title string) string {
-	plain, _, err := transform.String(stripMarks, title)
+	plain, _, err := transform.String(stripMarks(), title)
 	if err != nil {
 		plain = title
 	}
