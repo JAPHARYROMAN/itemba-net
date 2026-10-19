@@ -95,7 +95,9 @@ func main() {
 			Crawler:   crawl,
 			StaticDir: *staticFlag,
 		})
-		server = &http.Server{Addr: ":" + cfg.Port, Handler: srv.Handler()}
+		// The console sets the connection bounds: a client that never
+		// finishes its request, or holds an idle connection, is closed.
+		server = srv.HTTPServer(":" + cfg.Port)
 	}
 
 	go func() {

@@ -7,6 +7,9 @@ package console
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"log"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -24,9 +27,48 @@ import (
 	"github.com/itemba-net/core/internal/vault"
 )
 
+// Connection bounds for the console's listener. A client that opens a
+// connection and never finishes its request headers is closed after
+// ReadHeaderTimeout; one that finishes the headers but not the body it
+// announced is closed after ReadTimeout, counted from the request's first
+// byte; a kept-alive connection that sends no further request is closed after
+// IdleTimeout. The dashboard polls /api/status every 2.2 seconds, so a live
+// connection stays reused. Before these bounds such a connection was held,
+// and its goroutine with it, until the client went away.
+//
+// ReadTimeout never reaches a running handler: net/http clears the request's
+// read deadline when the body has been consumed (or at once for a request
+// without one) and before it starts the background read that cancels the
+// request context on a lost client. The search's 44-second burst and the
+// vault's 18-second launch therefore run to their own deadlines.
+//
+// WriteTimeout stays unset on purpose. It would start when the headers are
+// read and cut every response slower than it: the search routes run for up to
+// 44 seconds plus the Atlas write, the media relay copies a stream for as
+// long as the player reads it, and the search stream flushes events for the
+// whole burst. Each handler bounds its own work with a context instead. The
+// websocket is hijacked out of the server's deadlines entirely and keeps its
+// own: see Server.websocket.
+const (
+	ReadHeaderTimeout = 5 * time.Second
+	ReadTimeout       = 5 * time.Second
+	IdleTimeout       = 5 * time.Second
+)
+
+// Websocket liveness. The server pings every third of wsPongWait and drops a
+// peer that sends nothing, not even a pong, for wsPongWait. Browsers answer
+// pings on their own, so a live dashboard is never cut, while a peer whose
+// machine vanished is closed within wsPongWait instead of being held until
+// TCP gives up. Every write, the handshake included, has wsWriteWait.
+const (
+	defaultWSPongWait = 30 * time.Second
+	wsWriteWait       = 3 * time.Second
+)
+
 var wsUpgrader = websocket.Upgrader{
-	ReadBufferSize:  65536,
-	WriteBufferSize: 1048576,
+	HandshakeTimeout: wsWriteWait,
+	ReadBufferSize:   65536,
+	WriteBufferSize:  1048576,
 	CheckOrigin: func(r *http.Request) bool {
 		return true
 	},
@@ -68,6 +110,9 @@ type Server struct {
 	crawler   *crawler.Crawler
 	search    SearchFunc
 	staticDir string
+	// wsPongWait is how long the websocket waits for a frame from the
+	// operator before treating the peer as gone. Tests shorten it.
+	wsPongWait time.Duration
 }
 
 // New creates a console over the given subsystems.
@@ -77,15 +122,28 @@ func New(deps Dependencies) *Server {
 		search = deps.Scout.SearchWithOptions
 	}
 	return &Server{
-		shield:    deps.Shield,
-		scout:     deps.Scout,
-		vault:     deps.Vault,
-		relay:     deps.Relay,
-		atlas:     deps.Atlas,
-		metrics:   deps.Metrics,
-		crawler:   deps.Crawler,
-		search:    search,
-		staticDir: deps.StaticDir,
+		shield:     deps.Shield,
+		scout:      deps.Scout,
+		vault:      deps.Vault,
+		relay:      deps.Relay,
+		atlas:      deps.Atlas,
+		metrics:    deps.Metrics,
+		crawler:    deps.Crawler,
+		search:     search,
+		staticDir:  deps.StaticDir,
+		wsPongWait: defaultWSPongWait,
+	}
+}
+
+// HTTPServer returns the server that listens on addr with the console's
+// connection bounds. The handler is Handler.
+func (s *Server) HTTPServer(addr string) *http.Server {
+	return &http.Server{
+		Addr:              addr,
+		Handler:           s.Handler(),
+		ReadHeaderTimeout: ReadHeaderTimeout,
+		ReadTimeout:       ReadTimeout,
+		IdleTimeout:       IdleTimeout,
 	}
 }
 
@@ -373,6 +431,12 @@ func (s *Server) shieldBenchmark(w http.ResponseWriter, r *http.Request) {
 
 // websocket multiplexes shield telemetry and sandbox viewport frames to the
 // operator, and forwards the operator's input events to the active session.
+//
+// The connection is hijacked from the HTTP server, so the server's deadlines
+// no longer apply and the handler keeps its own: every write has wsWriteWait,
+// and the read side expects a frame (an input event or the pong to the
+// server's ping) within wsPongWait, else the peer is gone and the connection
+// is closed.
 func (s *Server) websocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := wsUpgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -381,12 +445,23 @@ func (s *Server) websocket(w http.ResponseWriter, r *http.Request) {
 	defer conn.Close()
 
 	var writeMu sync.Mutex
-	sendRaw := func(payload []byte) error {
+	write := func(messageType int, payload []byte) error {
 		writeMu.Lock()
 		defer writeMu.Unlock()
-		_ = conn.SetWriteDeadline(time.Now().Add(3 * time.Second))
-		return conn.WriteMessage(websocket.TextMessage, payload)
+		_ = conn.SetWriteDeadline(time.Now().Add(wsWriteWait))
+		return conn.WriteMessage(messageType, payload)
 	}
+	sendRaw := func(payload []byte) error {
+		return write(websocket.TextMessage, payload)
+	}
+
+	pongWait := s.wsPongWait
+	if pongWait <= 0 {
+		pongWait = defaultWSPongWait
+	}
+	alive := func() error { return conn.SetReadDeadline(time.Now().Add(pongWait)) }
+	_ = alive()
+	conn.SetPongHandler(func(string) error { return alive() })
 
 	threatCh, unsubThreat := s.shield.Subscribe()
 	defer unsubThreat()
@@ -398,8 +473,13 @@ func (s *Server) websocket(w http.ResponseWriter, r *http.Request) {
 		for {
 			_, msg, err := conn.ReadMessage()
 			if err != nil {
+				var netErr net.Error
+				if errors.As(err, &netErr) && netErr.Timeout() {
+					log.Printf("[console] websocket %s sent nothing for %s; closing", r.RemoteAddr, pongWait)
+				}
 				return
 			}
+			_ = alive()
 			var ev vault.InputEvent
 			if json.Unmarshal(msg, &ev) == nil && ev.Type != "" {
 				if sess := s.vault.ActiveSession(); sess != nil {
@@ -422,6 +502,8 @@ func (s *Server) websocket(w http.ResponseWriter, r *http.Request) {
 
 	ticker := time.NewTicker(300 * time.Millisecond)
 	defer ticker.Stop()
+	pings := time.NewTicker(pongWait / 3)
+	defer pings.Stop()
 
 	for {
 		curSess := s.vault.ActiveSession()
@@ -454,6 +536,10 @@ func (s *Server) websocket(w http.ResponseWriter, r *http.Request) {
 				if sendRaw(frameBytes) != nil {
 					return
 				}
+			}
+		case <-pings.C:
+			if write(websocket.PingMessage, nil) != nil {
+				return
 			}
 		case <-ticker.C:
 		}
