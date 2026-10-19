@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -63,6 +64,30 @@ const (
 const (
 	defaultWSPongWait = 30 * time.Second
 	wsWriteWait       = 3 * time.Second
+)
+
+// Request body caps, in bytes. ReadTimeout bounds how long a body may take to
+// arrive; these bound how large it may be, so a client cannot push an
+// unbounded body into the JSON decoder. Every JSON route reads its body
+// through http.MaxBytesReader (see decodeJSONBody), answers 413 when the cap
+// is hit and then closes the connection, since the rest of the body is never
+// read.
+//
+// The search, launch, control, rules and test bodies carry a short query, a
+// URL, an action word or one filter rule, for which 8 KB is generous. The
+// WebRTC offer carries an SDP. The dashboard's offer (two data channels, no
+// media, sent before ICE gathering: web/src/components/VaultViewport.tsx)
+// measured 502 bytes of JSON in Chrome 152 and 632 bytes once gathered; the
+// same connection with a recvonly video and audio pair measured 9.0 KB and
+// nine m-lines 34.5 KB. 64 KB therefore leaves room for media the vault does
+// not stream today while staying far below anything a browser emits.
+const (
+	SearchBodyLimit           = 8 << 10
+	VaultLaunchBodyLimit      = 8 << 10
+	VaultControlBodyLimit     = 8 << 10
+	VaultWebRTCOfferBodyLimit = 64 << 10
+	ShieldRulesBodyLimit      = 8 << 10
+	ShieldTestBodyLimit       = 8 << 10
 )
 
 var wsUpgrader = websocket.Upgrader{
@@ -226,7 +251,11 @@ func (s *Server) searchRoute(w http.ResponseWriter, r *http.Request) {
 		Region         string `json:"region"`
 		FullLengthOnly *bool  `json:"fullLengthOnly"`
 	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8192)).Decode(&req); err != nil {
+	rejected, err := decodeJSONBody(w, r, SearchBodyLimit, &req)
+	if rejected {
+		return
+	}
+	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "A JSON movie search request is required."})
 		return
 	}
@@ -260,7 +289,11 @@ func (s *Server) vaultLaunch(w http.ResponseWriter, r *http.Request) {
 		TheaterMode  bool   `json:"theaterMode"`
 		PreferDocker bool   `json:"preferDocker"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.URL) == "" {
+	rejected, err := decodeJSONBody(w, r, VaultLaunchBodyLimit, &req)
+	if rejected {
+		return
+	}
+	if err != nil || strings.TrimSpace(req.URL) == "" {
 		http.Error(w, "valid target url required", http.StatusBadRequest)
 		return
 	}
@@ -282,10 +315,18 @@ func (s *Server) vaultLaunch(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// vaultControl handles browser navigation: back, forward and reload.
+// vaultControl handles browser navigation: back, forward and reload. The body
+// is read, within its cap, before the session is looked up, so an oversized
+// body is refused whether or not a sandbox is running.
 func (s *Server) vaultControl(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		Action string `json:"action"` // "back", "forward", "reload"
+	}
+	if rejected, _ := decodeJSONBody(w, r, VaultControlBodyLimit, &req); rejected {
 		return
 	}
 	sess := s.vault.ActiveSession()
@@ -293,10 +334,6 @@ func (s *Server) vaultControl(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "no active vault session"})
 		return
 	}
-	var req struct {
-		Action string `json:"action"` // "back", "forward", "reload"
-	}
-	_ = json.NewDecoder(r.Body).Decode(&req)
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
@@ -341,22 +378,28 @@ func (s *Server) vaultDestroy(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// vaultWebRTCOffer answers a Pion WebRTC SDP offer for the active session.
+// vaultWebRTCOffer answers a Pion WebRTC SDP offer for the active session. As
+// in vaultControl, the body is read within its cap before the session is
+// looked up.
 func (s *Server) vaultWebRTCOffer(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	sess := s.vault.ActiveSession()
-	if sess == nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "no active vault session"})
-		return
-	}
 	var req struct {
 		SDP string `json:"sdp"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.SDP == "" {
+	rejected, err := decodeJSONBody(w, r, VaultWebRTCOfferBodyLimit, &req)
+	if rejected {
+		return
+	}
+	if err != nil || req.SDP == "" {
 		http.Error(w, "sdp offer required", http.StatusBadRequest)
+		return
+	}
+	sess := s.vault.ActiveSession()
+	if sess == nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "no active vault session"})
 		return
 	}
 	answerSDP, err := sess.NegotiateWebRTC(req.SDP)
@@ -378,7 +421,9 @@ func (s *Server) shieldRules(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Pattern string `json:"pattern"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&req)
+	if rejected, _ := decodeJSONBody(w, r, ShieldRulesBodyLimit, &req); rejected {
+		return
+	}
 	s.shield.Engine().AddCustomRule(req.Pattern)
 	writeJSON(w, http.StatusOK, s.shield.Snapshot())
 }
@@ -392,7 +437,9 @@ func (s *Server) shieldTest(w http.ResponseWriter, r *http.Request) {
 		URL          string `json:"url"`
 		ResourceType string `json:"resourceType"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&req)
+	if rejected, _ := decodeJSONBody(w, r, ShieldTestBodyLimit, &req); rejected {
+		return
+	}
 	match := s.shield.Engine().Inspect(req.URL, req.ResourceType)
 	writeJSON(w, http.StatusOK, match)
 }
@@ -550,6 +597,45 @@ func writeJSON(w http.ResponseWriter, status int, data any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(data)
+}
+
+// decodeJSONBody decodes one JSON value from a request body of at most limit
+// bytes into v. A larger body is answered here with 413 in the console's
+// error shape, and rejected tells the caller to return; the server then
+// closes the connection, since the rest of the body is never read. Any other
+// decode error is returned for the caller to judge, because some routes
+// accept an empty body.
+func decodeJSONBody(w http.ResponseWriter, r *http.Request, limit int64, v any) (rejected bool, err error) {
+	err = json.NewDecoder(http.MaxBytesReader(rootResponseWriter(w), r.Body, limit)).Decode(v)
+	var tooLarge *http.MaxBytesError
+	if errors.As(err, &tooLarge) {
+		writeJSON(w, http.StatusRequestEntityTooLarge, map[string]any{
+			"error": fmt.Sprintf("The request body may be at most %d KB.", limit>>10),
+		})
+		return true, err
+	}
+	return false, err
+}
+
+// rootResponseWriter follows Unwrap through middleware wrappers, such as the
+// metrics recorder, to net/http's own writer. MaxBytesReader tells only that
+// writer when a cap is hit, with no unwrapping of its own; told, the server
+// sends Connection: close with the 413 and stops reading the body, where
+// otherwise it would reuse the connection after draining up to 256 KB of the
+// rest. MaxBytesReader never writes through the writer it is given, so the
+// response itself still goes through the wrappers.
+func rootResponseWriter(w http.ResponseWriter) http.ResponseWriter {
+	for {
+		wrapper, ok := w.(interface{ Unwrap() http.ResponseWriter })
+		if !ok {
+			return w
+		}
+		inner := wrapper.Unwrap()
+		if inner == nil {
+			return w
+		}
+		w = inner
+	}
 }
 
 func corsMiddleware(next http.Handler) http.Handler {

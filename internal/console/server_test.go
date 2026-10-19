@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -314,5 +315,97 @@ func TestWebSocketDropsAPeerThatStopsAnsweringAndKeepsOneThatDoes(t *testing.T) 
 	}
 	if err := waitForThreat(sh, messages, readErr); err != nil {
 		t.Fatalf("answering websocket peer: %v", err)
+	}
+}
+
+// TestJSONRoutesRejectOversizedBodiesAndDecodeNormalOnes posts a body one
+// byte over each JSON route's cap, which only its size can fault, and expects
+// 413 in the console's error shape with the connection closed behind it.
+// A normal body to each route must then get past the cap, and the rule
+// posted to the shield must be reported by a test body of exactly the cap,
+// which proves both were decoded and that the cap is inclusive. The launch
+// route is given a blank URL on purpose: a real one would start a browser.
+func TestJSONRoutesRejectOversizedBodiesAndDecodeNormalOnes(t *testing.T) {
+	t.Parallel()
+	search := func(_ context.Context, query, region string, _ scout.SearchOptions) scout.SearchReport {
+		return scout.SearchReport{Query: query, Region: region}
+	}
+	srv, _ := newTestConsole(t, search)
+	addr, _ := serveTestConsole(t, srv)
+	client := &http.Client{Timeout: slack}
+
+	post := func(path, body string) (*http.Response, []byte, error) {
+		response, err := client.Post("http://"+addr+path, "application/json", strings.NewReader(body))
+		if err != nil {
+			return nil, nil, err
+		}
+		defer response.Body.Close()
+		data, err := io.ReadAll(response.Body)
+		return response, data, err
+	}
+	// padded builds a JSON object whose string field is padded so the body
+	// is exactly size bytes.
+	padded := func(field, value string, size int) string {
+		frame := `{"` + field + `":"` + value + `"}`
+		return `{"` + field + `":"` + value + strings.Repeat("x", size-len(frame)) + `"}`
+	}
+
+	routes := []struct {
+		path       string
+		field      string
+		limit      int
+		normal     string
+		normalCode int
+	}{
+		{"/api/scout/search", "query", SearchBodyLimit, `{"query":"Sintel","region":"ALL"}`, http.StatusOK},
+		{"/api/vault/launch", "url", VaultLaunchBodyLimit, `{"url":" "}`, http.StatusBadRequest},
+		{"/api/vault/control", "action", VaultControlBodyLimit, `{"action":"reload"}`, http.StatusBadRequest},
+		{"/api/vault/webrtc/offer", "sdp", VaultWebRTCOfferBodyLimit, `{"sdp":"v=0\r\n"}`, http.StatusBadRequest},
+		{"/api/shield/rules", "pattern", ShieldRulesBodyLimit, `{"pattern":"||ads.example^"}`, http.StatusOK},
+		{"/api/shield/test", "url", ShieldTestBodyLimit, `{"url":"https://ads.example/pixel","resourceType":"image"}`, http.StatusOK},
+	}
+	for _, route := range routes {
+		body := padded(route.field, "", route.limit+1)
+		response, data, err := post(route.path, body)
+		if err != nil {
+			t.Fatalf("%s oversized body: %v", route.path, err)
+		}
+		if response.StatusCode != http.StatusRequestEntityTooLarge {
+			t.Errorf("%s accepted a %d-byte body with %d: %s", route.path, len(body), response.StatusCode, data)
+			continue
+		}
+		var reply struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(data, &reply); err != nil || reply.Error == "" {
+			t.Errorf("%s must refuse an oversized body in the JSON error shape, got %s", route.path, data)
+		}
+		if !response.Close {
+			t.Errorf("%s must close the connection after a 413, since the rest of the body is never read", route.path)
+		}
+
+		response, data, err = post(route.path, route.normal)
+		if err != nil {
+			t.Fatalf("%s normal body: %v", route.path, err)
+		}
+		if response.StatusCode != route.normalCode {
+			t.Errorf("%s answered a normal body with %d, want %d: %s", route.path, response.StatusCode, route.normalCode, data)
+		}
+	}
+
+	atCap := padded("url", "https://ads.example/pixel", ShieldTestBodyLimit)
+	response, data, err := post("/api/shield/test", atCap)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("a %d-byte test body, exactly the cap, was answered with %d: %s", len(atCap), response.StatusCode, data)
+	}
+	var match struct {
+		Blocked bool   `json:"blocked"`
+		Rule    string `json:"rule"`
+	}
+	if err := json.Unmarshal(data, &match); err != nil || !match.Blocked || !strings.Contains(match.Rule, "ads.example") {
+		t.Fatalf("the rule and test bodies were not decoded: %s", data)
 	}
 }
