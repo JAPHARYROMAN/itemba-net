@@ -8,6 +8,11 @@ import { SearchScoutPanel } from './components/SearchScoutPanel';
 import { ShieldTelemetry } from './components/ShieldTelemetry';
 import { SystemTopologyModal } from './components/SystemTopologyModal';
 
+// Backoff for reopening the console socket: it starts at the minimum, doubles
+// after each failed attempt up to the cap, and resets once a connection opens.
+const WS_RECONNECT_MIN_MS = 1000;
+const WS_RECONNECT_MAX_MS = 15000;
+
 export const App: React.FC = () => {
   const [vault, setVault] = useState<VaultStatus>({
     active: false,
@@ -82,25 +87,72 @@ export const App: React.FC = () => {
 
     const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${proto}//${window.location.host}/api/ws`;
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
 
-    ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        if (msg.type === 'frame' && msg.data) {
-          setLatestFrame({ data: msg.data, ts: msg.ts || Date.now(), url: msg.url });
-        } else if (msg.type === 'threat' && msg.shield) {
-          setShield(msg.shield);
-        }
-      } catch {
-        // ignore malformed packets
-      }
+    // The console drops a peer that goes quiet and every peer when it restarts,
+    // so the socket is reopened after a backoff. The reconnect state lives in
+    // this closure so the cleanup below can stop it completely.
+    let disposed = false;
+    let backoffMs = WS_RECONNECT_MIN_MS;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const scheduleReconnect = () => {
+      if (disposed || reconnectTimer !== null) return;
+      const delay = backoffMs;
+      backoffMs = Math.min(backoffMs * 2, WS_RECONNECT_MAX_MS);
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        connect();
+      }, delay);
     };
 
+    const connect = () => {
+      if (disposed) return;
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        backoffMs = WS_RECONNECT_MIN_MS;
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === 'frame' && msg.data) {
+            setLatestFrame({ data: msg.data, ts: msg.ts || Date.now(), url: msg.url });
+          } else if (msg.type === 'threat' && msg.shield) {
+            setShield(msg.shield);
+          }
+        } catch {
+          // ignore malformed packets
+        }
+      };
+
+      ws.onerror = () => {
+        // A failed connection attempt is always followed by close; closing an
+        // open socket here sends a mid-stream error down the same path.
+        ws.close();
+      };
+
+      ws.onclose = () => {
+        if (wsRef.current === ws) wsRef.current = null;
+        scheduleReconnect();
+      };
+    };
+
+    connect();
+
     return () => {
+      disposed = true;
       clearInterval(interval);
-      ws.close();
+      if (reconnectTimer !== null) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
+      const ws = wsRef.current;
+      if (ws) {
+        wsRef.current = null;
+        ws.close();
+      }
       searchAbortRef.current?.abort();
     };
   }, [fetchStatus]);
