@@ -450,6 +450,7 @@ export const SearchScoutPanel: React.FC<SearchScoutPanelProps> = ({
     onPlayRelay({
       title: source.title, streamUrl, pageUrl: source.url, provider: source.provider,
       format: source.streamFormat, resolution: source.resolution, useZeroTrustProxy: true,
+      kind: 'video', poster: source.thumbnail,
     });
   };
 

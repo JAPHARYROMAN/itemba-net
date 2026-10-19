@@ -1,0 +1,238 @@
+import React from 'react';
+import {
+  Activity,
+  AudioLines,
+  Captions,
+  Gauge,
+  Keyboard,
+  Layers,
+  Maximize,
+  Minimize,
+  Pause,
+  PictureInPicture2,
+  Play,
+  RectangleHorizontal,
+  Rewind,
+  FastForward,
+  RotateCcw,
+  SkipBack,
+  SkipForward,
+  Volume1,
+  Volume2,
+  VolumeX,
+} from 'lucide-react';
+import { EngineActions, EngineState } from '../../media/useMediaEngine';
+import { formatTime } from '../../media/media';
+import { Menu } from './Menu';
+import { SeekBar } from './SeekBar';
+
+// Where the current item sits in the session queue and how to move along it.
+export interface QueueControls {
+  position: number;
+  length: number;
+  hasPrevious: boolean;
+  hasNext: boolean;
+  onPrevious: () => void;
+  onNext: () => void;
+}
+
+export interface ControlBarFeatures {
+  quality?: boolean;
+  captions?: boolean;
+  audioTracks?: boolean;
+  pictureInPicture?: boolean;
+  theater?: boolean;
+  fullscreen?: boolean;
+  stats?: boolean;
+  help?: boolean;
+}
+
+interface ControlBarProps {
+  state: EngineState;
+  actions: EngineActions;
+  features: ControlBarFeatures;
+  queue?: QueueControls;
+  theater?: boolean;
+  onToggleTheater?: () => void;
+  fullscreen?: boolean;
+  onToggleFullscreen?: () => void;
+  pictureInPicture?: boolean;
+  onTogglePictureInPicture?: () => void;
+  statsOpen?: boolean;
+  onToggleStats?: () => void;
+  helpOpen?: boolean;
+  onToggleHelp?: () => void;
+}
+
+const RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
+const SKIP_SECONDS = 10;
+
+// The transport and settings row shared by the video and audio players.
+// Every control reads from the engine state and writes through its actions,
+// so what the bar shows is what the element is doing.
+export const ControlBar: React.FC<ControlBarProps> = ({
+  state,
+  actions,
+  features,
+  queue,
+  theater,
+  onToggleTheater,
+  fullscreen,
+  onToggleFullscreen,
+  pictureInPicture,
+  onTogglePictureInPicture,
+  statsOpen,
+  onToggleStats,
+  helpOpen,
+  onToggleHelp,
+}) => {
+  const playing = state.status === 'playing';
+  const ended = state.status === 'ended';
+  const inert = state.status === 'idle' || state.status === 'error';
+  const VolumeIcon = state.muted || state.volume === 0 ? VolumeX : state.volume < 0.5 ? Volume1 : Volume2;
+  const activeLevel = state.levels.find((level) => level.id === state.activeLevel);
+
+  return (
+    <div className="mp-controls" onPointerDown={(event) => event.stopPropagation()} onDoubleClick={(event) => event.stopPropagation()}>
+      <SeekBar
+        currentTime={state.currentTime}
+        duration={state.duration}
+        buffered={state.buffered}
+        live={state.live}
+        disabled={inert}
+        onSeek={actions.seek}
+      />
+      <div className="mp-controls-row">
+        {queue && (
+          <button type="button" className="mp-btn" aria-label="Previous in queue" title="Previous in queue" disabled={!queue.hasPrevious} onClick={queue.onPrevious}>
+            <SkipBack size={17} />
+          </button>
+        )}
+        <button
+          type="button"
+          className="mp-btn mp-btn--play"
+          aria-label={playing ? 'Pause' : ended ? 'Replay' : 'Play'}
+          title={playing ? 'Pause (k)' : ended ? 'Replay (k)' : 'Play (k)'}
+          disabled={inert}
+          onClick={actions.toggle}
+        >
+          {playing ? <Pause size={20} /> : ended ? <RotateCcw size={19} /> : <Play size={20} />}
+        </button>
+        {queue && (
+          <button type="button" className="mp-btn" aria-label="Next in queue" title="Next in queue" disabled={!queue.hasNext} onClick={queue.onNext}>
+            <SkipForward size={17} />
+          </button>
+        )}
+        <button type="button" className="mp-btn" aria-label={`Back ${SKIP_SECONDS} seconds`} title={`Back ${SKIP_SECONDS}s (j)`} disabled={inert || state.live} onClick={() => actions.seekBy(-SKIP_SECONDS)}>
+          <Rewind size={17} />
+        </button>
+        <button type="button" className="mp-btn" aria-label={`Forward ${SKIP_SECONDS} seconds`} title={`Forward ${SKIP_SECONDS}s (l)`} disabled={inert || state.live} onClick={() => actions.seekBy(SKIP_SECONDS)}>
+          <FastForward size={17} />
+        </button>
+
+        <div className="mp-volume">
+          <button type="button" className="mp-btn" aria-label={state.muted ? 'Unmute' : 'Mute'} title={state.muted ? 'Unmute (m)' : 'Mute (m)'} onClick={actions.toggleMute}>
+            <VolumeIcon size={17} />
+          </button>
+          <input
+            className="mp-volume-slider"
+            type="range"
+            min={0}
+            max={1}
+            step={0.02}
+            value={state.muted ? 0 : state.volume}
+            aria-label="Volume"
+            onChange={(event) => actions.setVolume(Number(event.target.value))}
+          />
+        </div>
+
+        <span className="mp-time" aria-live="off">
+          {state.live ? 'Live' : `${formatTime(state.currentTime)} / ${formatTime(state.duration)}`}
+          {queue && queue.length > 1 && <span className="mp-time-queue"> · {queue.position + 1} of {queue.length}</span>}
+        </span>
+
+        <span className="mp-controls-spacer" />
+
+        {features.captions && (
+          <Menu
+            label="Captions"
+            title={state.subtitleTracks.length === 0 ? 'No subtitle tracks are published for this source' : 'Captions (c)'}
+            icon={<Captions size={17} />}
+            active={state.subtitleTrack >= 0}
+            items={[
+              { id: 'off', label: 'Off', selected: state.subtitleTrack < 0, onSelect: () => actions.setSubtitleTrack(-1) },
+              ...state.subtitleTracks.map((track) => ({ id: track.id, label: track.label, hint: track.lang, selected: state.subtitleTrack === track.id, onSelect: () => actions.setSubtitleTrack(track.id) })),
+            ]}
+            disabled={state.subtitleTracks.length === 0}
+          />
+        )}
+
+        {features.audioTracks && state.audioTracks.length > 1 && (
+          <Menu
+            label="Audio track"
+            icon={<AudioLines size={17} />}
+            items={state.audioTracks.map((track) => ({ id: track.id, label: track.label, hint: track.lang, selected: state.audioTrack === track.id, onSelect: () => actions.setAudioTrack(track.id) }))}
+          />
+        )}
+
+        {features.quality && state.levels.length > 0 && (
+          <Menu
+            label="Quality"
+            title="Quality"
+            icon={<Layers size={17} />}
+            caption={activeLevel && activeLevel.height > 0 ? `${activeLevel.height}p` : undefined}
+            items={[
+              {
+                id: 'auto',
+                label: 'Auto',
+                hint: activeLevel && state.levelChoice === -1 ? (activeLevel.height > 0 ? `now ${activeLevel.height}p` : undefined) : undefined,
+                selected: state.levelChoice === -1,
+                onSelect: () => actions.setLevel(-1),
+              },
+              ...[...state.levels].sort((a, b) => b.height - a.height || b.bitrateKbps - a.bitrateKbps).map((level) => ({
+                id: level.id,
+                label: level.label,
+                selected: state.levelChoice === level.id,
+                onSelect: () => actions.setLevel(level.id),
+              })),
+            ]}
+          />
+        )}
+
+        <Menu
+          label="Playback speed"
+          title="Playback speed (< and >)"
+          icon={<Gauge size={17} />}
+          caption={state.rate !== 1 ? `${state.rate}×` : undefined}
+          items={RATES.map((rate) => ({ id: rate, label: rate === 1 ? 'Normal' : `${rate}×`, selected: Math.abs(state.rate - rate) < 0.001, onSelect: () => actions.setRate(rate) }))}
+        />
+
+        {features.stats && onToggleStats && (
+          <button type="button" className={`mp-btn ${statsOpen ? 'mp-btn--active' : ''}`} aria-pressed={statsOpen} aria-label="Playback statistics" title="Playback statistics (s)" onClick={onToggleStats}>
+            <Activity size={17} />
+          </button>
+        )}
+        {features.help && onToggleHelp && (
+          <button type="button" className={`mp-btn ${helpOpen ? 'mp-btn--active' : ''}`} aria-pressed={helpOpen} aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" onClick={onToggleHelp}>
+            <Keyboard size={17} />
+          </button>
+        )}
+        {features.pictureInPicture && onTogglePictureInPicture && (
+          <button type="button" className={`mp-btn ${pictureInPicture ? 'mp-btn--active' : ''}`} aria-pressed={pictureInPicture} aria-label="Picture in picture" title="Picture in picture (p)" disabled={inert} onClick={onTogglePictureInPicture}>
+            <PictureInPicture2 size={17} />
+          </button>
+        )}
+        {features.theater && onToggleTheater && (
+          <button type="button" className={`mp-btn mp-btn--theater ${theater ? 'mp-btn--active' : ''}`} aria-pressed={theater} aria-label="Theater size" title="Theater size (t)" onClick={onToggleTheater}>
+            <RectangleHorizontal size={17} />
+          </button>
+        )}
+        {features.fullscreen && onToggleFullscreen && (
+          <button type="button" className="mp-btn" aria-label={fullscreen ? 'Exit full screen' : 'Full screen'} title={fullscreen ? 'Exit full screen (f)' : 'Full screen (f)'} onClick={onToggleFullscreen}>
+            {fullscreen ? <Minimize size={17} /> : <Maximize size={17} />}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};

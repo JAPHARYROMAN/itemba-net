@@ -326,6 +326,19 @@ body {
   border-radius: 5px;
 }
 
+/* Observed media requests from the sandbox, offered to the player. */
+.vault-observed {
+  background: rgba(16, 185, 129, 0.08);
+  border-bottom: 1px solid rgba(16, 185, 129, 0.3);
+  padding: 8px 14px;
+  font-size: 12px;
+}
+.vault-observed-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.vault-observed-head strong { color: #34d399; }
+.vault-observed-list { list-style: none; margin-top: 6px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
+.vault-observed-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+.vault-observed-url { font-family: 'JetBrains Mono', Consolas, monospace; font-size: 11px; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+
 /* Search & Scout Section */
 .scout-panel {
   background: var(--bg-panel);

@@ -293,6 +293,17 @@ export interface VaultStatus {
   adBlockingEnabled?: boolean;
 }
 
+// What the console presents a relayed location as. Video and audio go to
+// the playback engine, images to the zoomable viewer and documents to the
+// reader; 'video' is the default when a URL gives nothing away.
+export type MediaKind = 'video' | 'audio' | 'image' | 'document';
+
+export interface SubtitleTrack {
+  label: string;
+  lang?: string;
+  url: string;
+}
+
 export interface ActiveRelayStream {
   title: string;
   streamUrl: string;
@@ -301,4 +312,10 @@ export interface ActiveRelayStream {
   format: string;
   resolution?: string;
   useZeroTrustProxy: boolean;
+  // Optional presentation hints. kind is detected from the URL and format
+  // when absent; subtitles are side-loaded WebVTT files the source publishes.
+  kind?: MediaKind;
+  poster?: string;
+  subtitles?: SubtitleTrack[];
+  durationSeconds?: number;
 }

@@ -80,8 +80,21 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Headers", "Range, Content-Type")
 	w.Header().Set("Access-Control-Expose-Headers", "Content-Length, Content-Range, Accept-Ranges")
-
+	// The relay serves media, never a page. Whatever the upstream answers with
+	// (a provider's HTML error page, a login wall, a script) is served from the
+	// console's origin, and the document reader frames relay responses
+	// directly; so every response carries nosniff, which stops the browser
+	// upgrading an unknown body to HTML, and every response but a PDF carries
+	// a CSP sandbox, which makes any HTML in it an opaque-origin document with
+	// no script. A PDF is exempt because Chrome's viewer refuses to render a
+	// sandboxed response; it is an isolated viewer that cannot script the
+	// console, and nosniff keeps an HTML body from being treated as one.
 	contentType := resp.Header.Get("Content-Type")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	if !strings.HasPrefix(strings.ToLower(contentType), "application/pdf") {
+		w.Header().Set("Content-Security-Policy", "sandbox")
+	}
+
 	lowerURL := strings.ToLower(parsedTarget.Path)
 	isM3U8 := strings.HasSuffix(lowerURL, ".m3u8") ||
 		strings.Contains(strings.ToLower(contentType), "mpegurl") ||
