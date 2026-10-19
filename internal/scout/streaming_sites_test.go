@@ -3,7 +3,6 @@ package scout
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -27,32 +26,6 @@ func arcoirisFeatureFixture() string {
 
 func additionalFeatureResponse(request *http.Request, html string) *http.Response {
 	return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"text/html"}}, Body: io.NopCloser(strings.NewReader(html)), Request: request}
-}
-
-func TestAdditionalFeatureSiteSearchUsesObservedFormsAndRejectsRelatedTitles(t *testing.T) {
-	client := &http.Client{Transport: freeSourceTransport(func(request *http.Request) (*http.Response, error) {
-		if request.Header.Get("Cookie") != "" || request.Header.Get("Authorization") != "" || request.Method != "GET" {
-			t.Fatal("public catalog search must not send account state")
-		}
-		switch request.URL.String() {
-		case "https://www.arcoiris.tv/search/s/Night%20of%20the%20Living%20Dead/type/all/":
-			return additionalFeatureResponse(request, `<h2><a href="/scheda/en/766/">Night of the Living Dead</a></h2><h2><a href="/scheda/en/999/">Night of the Living Dead Trailer</a></h2><div hidden><h2><a href="/scheda/en/123/">Night of the Living Dead</a></h2></div>`), nil
-		case "https://publicdomainmovie.org/?s=Night+of+the+Living+Dead":
-			return additionalFeatureResponse(request, `<h3><a href="/night-of-the-living-dead-1968/">Night of the Living Dead (1968) – Watch free</a></h3><h3><a href="/night-of-the-living-dead-1990/">Night of the Living Dead (1990)</a></h3><h3><a href="https://publicdomainmovie.org.evil.net/night-of-the-living-dead-1968/">Night of the Living Dead (1968)</a></h3><footer><h3><a href="/night-of-the-living-dead-1968-hidden/">Night of the Living Dead (1968)</a></h3></footer>`), nil
-		}
-		t.Fatalf("unexpected discovery URL: %s", request.URL)
-		return nil, fmt.Errorf("unexpected request")
-	})}
-	scout := &Scout{availabilityHTTPClient: client}
-	items, statuses := scout.queryAdditionalFeatureSites(context.Background(), "Night of the Living Dead 1968")
-	if len(items) != 2 || len(statuses) != 2 {
-		t.Fatalf("expected one exact listing from each catalog: %#v %#v", items, statuses)
-	}
-	for _, item := range items {
-		if item.DirectStreamURL != "" || item.AccessType != "unknown" || !item.ListingOnly || item.ReleaseYear != 1968 {
-			t.Fatalf("catalog results must await media verification: %#v", item)
-		}
-	}
 }
 
 func TestAdditionalFeatureTargetsRejectPaidAndUnsafeRoutes(t *testing.T) {

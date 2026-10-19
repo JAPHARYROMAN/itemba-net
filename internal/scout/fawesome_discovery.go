@@ -15,8 +15,6 @@ import (
 	"golang.org/x/net/html"
 )
 
-const fawesomeDiscoveryDeadline = 8 * time.Second
-
 var fawesomePublicBundlePath = regexp.MustCompile(`^/home/new/(v[1-9][0-9]{0,5})/assets/js/iptv-main\.js$`)
 var fawesomePublicAppID = regexp.MustCompile(`\bappConfig\.appId=([1-9][0-9]{0,5})(?:[,;])`)
 var fawesomePublicSiteID = regexp.MustCompile(`\bappConfig\.siteId=([1-9][0-9]{0,5})(?:[,;])`)
@@ -38,40 +36,6 @@ type fawesomeGuestClient struct {
 	client *http.Client
 	config fawesomePublicConfig
 	token  string
-}
-
-// The normal public search UI's getSearchURL/getPopularSearchURL and fetchData
-// contracts were checked 2026-10-18 in the bundle linked by https://fawesome.tv/.
-// It obtains getSecurityToken.php anonymously, then sends that token in a
-// same-origin XMLHttpRequest header. No account, cookie, alternate country or
-// private API is used. Cold configuration: shell + current bundle; each search:
-// anonymous bootstrap + one first-page recipe search, with one shared deadline.
-func (s *Scout) queryFawesomeMovieSites(ctx context.Context, query string) ([]CandidateSource, error) {
-	ctx, cancel := context.WithTimeout(ctx, fawesomeDiscoveryDeadline)
-	defer cancel()
-	title, _ := movieQuery(query)
-	if strings.TrimSpace(title) == "" || len(title) > 240 {
-		return nil, errors.New("Fawesome requires a bounded movie title")
-	}
-	guest, err := s.newFawesomeGuest(ctx)
-	if err != nil {
-		return nil, err
-	}
-	// The provider searches common words broadly. Removing only a leading
-	// article keeps a typed title useful without filling its first page with
-	// unrelated episodes; the original query still constrains every result.
-	term := strings.ToLower(strings.TrimSpace(title))
-	for _, article := range []string{"the ", "an ", "a "} {
-		if strings.HasPrefix(term, article) && len(term) > len(article) {
-			term = strings.TrimPrefix(term, article)
-			break
-		}
-	}
-	data, err := guest.fetch(ctx, "recipes.php", url.Values{"searchType": {"search"}, "keys": {term}, "platform_id": {guest.config.platformID}})
-	if err != nil {
-		return nil, err
-	}
-	return fawesomeDiscoveryCandidates(data, query)
 }
 
 func (s *Scout) newFawesomeGuest(ctx context.Context) (*fawesomeGuestClient, error) {

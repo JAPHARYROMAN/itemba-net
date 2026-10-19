@@ -196,53 +196,19 @@ func (s *Scout) discoverSources(ctx context.Context, query, region string, direc
 	if direct {
 		return s.discoverSeeds(ctx, query, true), []ProviderStatus{{Name: "Direct URL", Status: "ok", Detail: "Inspecting the supplied source."}}
 	}
-	searchTitle, _ := movieQuery(query)
 	candidates := matchReferenceCatalog(query)
 	statuses := []ProviderStatus{{Name: "Open movie catalog", Status: "ok", Detail: fmt.Sprintf("%d matching reference films", len(candidates))}}
 	candidates = append(candidates, creatorMovieCandidates(query)...)
 	var mu sync.Mutex
 	var wg sync.WaitGroup
-	// The JSON catalogs (Apple's storefronts, Internet Archive, PeerTube,
-	// Wikimedia Commons, NASA+, the NFB) are drivers now; the HTML catalogs and
-	// Fawesome's guest search remain hand-written until HTML drivers exist.
-	_ = searchTitle
-	catalogs := []struct {
-		name   string
-		search func(context.Context, string) ([]CandidateSource, error)
-		term   string
-	}{
-		{"Public Domain Movies browse", s.queryPublicDomainFeatureCatalog, query},
-		{"Fawesome live movie search", s.queryFawesomeMovieSites, query},
-	}
+	// Every catalog is a host driver now: the storefronts, the open archives,
+	// the public-domain feature catalogs and Fawesome's guest search. The
+	// built-in reference catalog, the Apple chart cache, the recently browsed
+	// Fawesome shelf and the configured web provider remain beside them.
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		items, providers := s.queryDrivers(ctx, query, region)
-		mu.Lock()
-		candidates = append(candidates, items...)
-		statuses = append(statuses, providers...)
-		mu.Unlock()
-	}()
-	for _, catalog := range catalogs {
-		wg.Add(1)
-		go func(name string, search func(context.Context, string) ([]CandidateSource, error), term string) {
-			defer wg.Done()
-			items, err := search(ctx, term)
-			status := ProviderStatus{Name: name, Status: "ok", Detail: fmt.Sprintf("%d catalog entries returned; regional access may vary", len(items))}
-			if err != nil {
-				status.Status = "error"
-				status.Detail = "Provider unavailable; results may be incomplete."
-			}
-			mu.Lock()
-			candidates = append(candidates, items...)
-			statuses = append(statuses, status)
-			mu.Unlock()
-		}(catalog.name, catalog.search, catalog.term)
-	}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		items, providers := s.queryAdditionalFeatureSites(ctx, query)
 		mu.Lock()
 		candidates = append(candidates, items...)
 		statuses = append(statuses, providers...)

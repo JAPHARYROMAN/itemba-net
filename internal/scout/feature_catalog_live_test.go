@@ -34,9 +34,9 @@ func TestLiveFeatureMovieDiscovery(t *testing.T) {
 	if full == 0 {
 		t.Fatalf("no public full feature edition resolved from %d catalog matches", len(archive))
 	}
-	catalog, err := s.queryPublicDomainFeatureCatalog(ctx, "His Girl Friday 1940")
-	if err != nil || len(catalog) == 0 {
-		t.Fatalf("observed PDM browse did not discover feature: %v", err)
+	catalog, catalogStatus := s.queryDriver(ctx, s.driverFetcher(), testDriver(t, "public-domain-movies"), "His Girl Friday 1940", "His Girl Friday", "")
+	if catalogStatus.Status == "error" || len(catalog) == 0 {
+		t.Fatalf("observed PDM browse did not discover feature: %+v", catalogStatus)
 	}
 	for _, source := range catalog {
 		t.Logf("public feature browse: %s (%d) %s", source.Title, source.ReleaseYear, source.URL)

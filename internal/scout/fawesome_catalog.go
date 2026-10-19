@@ -19,6 +19,9 @@ import (
 // no category identifier, private endpoint or alternate location is invented.
 // Cold requests: popular four, new arrivals five; warm configuration saves two.
 // All requests share one eight-second deadline and the guarded guest client.
+// fawesomeDiscoveryDeadline bounds one shelf feed fetch through the public guest client.
+const fawesomeDiscoveryDeadline = 8 * time.Second
+
 func (s *Scout) DiscoverFawesomeMovies(ctx context.Context, mode, region string) MovieDiscoveryReport {
 	mode = strings.ToLower(strings.TrimSpace(mode))
 	if mode != "recent" {

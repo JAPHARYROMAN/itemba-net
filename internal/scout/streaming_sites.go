@@ -3,15 +3,12 @@ package scout
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/url"
 	"path"
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
-	"time"
 
 	"golang.org/x/net/html"
 
@@ -24,55 +21,6 @@ var arcoirisRuntimePattern = regexp.MustCompile(`(?i)\bDurata:\s*([0-9]+(?:[.,][
 var arcoirisMediaPath = regexp.MustCompile(`^/store_[0-9]+/(?:lowres|hires)/(?:[a-z]{2})/.+\.(?:mp4|webm|ogv)$`)
 var arcoirisLanguage = regexp.MustCompile(`^[a-z]{2}$`)
 var leadingFeatureYear = regexp.MustCompile(`^(18[0-9]{2}|19[0-9]{2}|20[0-9]{2})(?:\s|\s*[-–])`)
-
-// These adapters use the sites' observed public search forms, not a guessed
-// private player API. Contracts checked 2026-10-18: Arcoiris' search form
-// redirects to /search/s/<title>/type/all/ and PublicDomainMovie.org submits s
-// with GET. Search results remain listings until their own media metadata and
-// a separate native-video sample have been checked.
-func (s *Scout) queryAdditionalFeatureSites(ctx context.Context, query string) ([]CandidateSource, []ProviderStatus) {
-	searchCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	client := s.availabilityHTTPClient
-	if client == nil {
-		client = newMovieAvailabilityClient()
-	}
-	title, _ := movieQuery(query)
-	type catalog struct{ name, raw string }
-	catalogs := []catalog{
-		{"ArcoirisTV", "https://www.arcoiris.tv/search/s/" + url.PathEscape(title) + "/type/all/"},
-		{"PublicDomainMovie.org", "https://publicdomainmovie.org/?s=" + url.QueryEscape(title)},
-	}
-	var mu sync.Mutex
-	var wg sync.WaitGroup
-	var candidates []CandidateSource
-	statuses := make([]ProviderStatus, len(catalogs))
-	for index, catalog := range catalogs {
-		wg.Add(1)
-		go func(index int, name, raw string) {
-			defer wg.Done()
-			status := ProviderStatus{Name: name + " feature catalog", Status: "empty"}
-			data, final, err := fetchFreeSourceDocument(searchCtx, client, raw)
-			var found []CandidateSource
-			requested, _ := url.Parse(raw)
-			if err != nil || final == nil || final.Hostname() != requested.Hostname() {
-				status.Status, status.Detail = "error", "The public feature catalog could not be checked."
-			} else {
-				found = additionalFeatureSearchResults(data, final, query)
-				status.Detail = fmt.Sprintf("%d matching movie pages; full-length media and playback are checked separately.", len(found))
-				if len(found) > 0 {
-					status.Status = "ok"
-				}
-			}
-			mu.Lock()
-			candidates = append(candidates, found...)
-			statuses[index] = status
-			mu.Unlock()
-		}(index, catalog.name, catalog.raw)
-	}
-	wg.Wait()
-	return candidates, statuses
-}
 
 func additionalFreeResolutionTarget(page *url.URL) (string, bool) {
 	if page == nil || page.RawQuery != "" || page.Fragment != "" || page.Scheme != "https" {
@@ -89,47 +37,6 @@ func additionalFreeResolutionTarget(page *url.URL) (string, bool) {
 		return "public_domain_movie_org", true
 	}
 	return "", false
-}
-
-func additionalFeatureSearchResults(data []byte, page *url.URL, query string) []CandidateSource {
-	doc, err := html.Parse(strings.NewReader(string(data)))
-	if err != nil || page == nil {
-		return nil
-	}
-	_, requestedYear := movieQuery(query)
-	seen := map[string]bool{}
-	var found []CandidateSource
-	var walk func(*html.Node)
-	walk = func(node *html.Node) {
-		if availabilityIgnoredNode(node) || len(found) >= 6 {
-			return
-		}
-		if node.Type == html.ElementNode && node.Data == "a" && node.Parent != nil && (node.Parent.Data == "h2" || node.Parent.Data == "h3") {
-			label := availabilityNodeText(node)
-			ref, err := url.Parse(streamingSiteAttribute(node, "href"))
-			if err == nil {
-				u := page.ResolveReference(ref)
-				kind, target := additionalFreeResolutionTarget(u)
-				canonical, year := movieTitleDetails(CandidateSource{Title: label})
-				if target && u.Hostname() == page.Hostname() && !seen[u.String()] && sameAdditionalFeatureTitle(query, label) && (requestedYear == 0 || year == 0 || requestedYear == year) {
-					provider := "ArcoirisTV"
-					if kind == "public_domain_movie_org" {
-						provider = "PublicDomainMovie.org"
-					}
-					if year == 0 {
-						year = requestedYear // A requested year remains a constraint on the resolver.
-					}
-					found = append(found, CandidateSource{ID: resolvedFreeMovieID("catalog", u.String()), Title: canonical, ReleaseYear: year, URL: u.String(), Provider: provider, SourceType: "Feature film catalog", AccessType: "unknown", ListingOnly: true, DestinationType: "watch", Description: "A public feature-film catalog listing. Runtime, access and short playback observations are shown separately."})
-					seen[u.String()] = true
-				}
-			}
-		}
-		for child := node.FirstChild; child != nil; child = child.NextSibling {
-			walk(child)
-		}
-	}
-	walk(doc)
-	return found
 }
 
 // A movie article can add "Full Movie Review" after its release-year label

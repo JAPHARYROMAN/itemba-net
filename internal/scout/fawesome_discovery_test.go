@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"net/http/cookiejar"
 	"net/url"
 	"os"
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/itemba-net/core/internal/shield"
 )
@@ -72,27 +72,6 @@ func fawesomeDiscoveryFixtureTransport(t *testing.T, calls *atomic.Int32, items 
 		r.Request = req
 		return r, nil
 	})
-}
-
-func TestFawesomeDiscoveryDynamicallyLoadsPublicConfigAndKeepsGuestTokenRequestScoped(t *testing.T) {
-	var calls atomic.Int32
-	jar, _ := cookiejar.New(nil)
-	u, _ := url.Parse("https://fawesome.tv/")
-	jar.SetCookies(u, []*http.Cookie{{Name: "existing-account", Value: "fixture"}})
-	s := &Scout{availabilityHTTPClient: &http.Client{Transport: fawesomeDiscoveryFixtureTransport(t, &calls, fawesomeDiscoveryFixtureItem()), Jar: jar}}
-	for pass, want := range []int32{4, 6} {
-		matches, err := s.queryFawesomeMovieSites(context.Background(), "Beyond Known Examples")
-		if err != nil || len(matches) != 1 || calls.Load() != want {
-			t.Fatalf("pass%d dynamic public guest flow failed: matches=%d calls=%d err=%v", pass, len(matches), calls.Load(), err)
-		}
-		if matches[0].ReleaseYear != 0 || !matches[0].ListingOnly || matches[0].providerContentBound || matches[0].providerStreamURL != "" || matches[0].DirectStreamURL != "" {
-			t.Fatal("discovery invented release year, media binding or playback")
-		}
-		encoded, _ := json.Marshal(matches)
-		if strings.Contains(string(encoded), fawesomeDiscoveryGuestFixture) || strings.Contains(string(encoded), "12345") || strings.Contains(string(encoded), "auth-token") {
-			t.Fatal("guest/public configuration escaped into candidate output")
-		}
-	}
 }
 
 func TestFawesomeDiscoveryRejectsEpisodesShortsMismatchesAndUntrustedRoutes(t *testing.T) {
@@ -176,6 +155,7 @@ func TestFawesomeDynamicDiscoveryFlowsThroughGlobalSearchAndNativeProof(t *testi
 	t.Setenv("TAVILY_API_KEY", "fixture-key")
 	t.Setenv("BRAVE_SEARCH_API_KEY", "")
 	s := New(shield.New(), "http://127.0.0.1:8080")
+	s.UseDrivers(testDrivers(t))
 	var tavily, samples, guestCalls atomic.Int32
 	item := fawesomeDiscoveryFixtureItem()
 	guestTransport := fawesomeDiscoveryFixtureTransport(t, &guestCalls, item)
@@ -249,15 +229,16 @@ func TestLiveFawesomeDynamicPublicSearch(t *testing.T) {
 		t.Skip("set ITEMBA_LIVE_FAWESOME_DISCOVERY=1 for bounded current public guest search")
 	}
 	s := &Scout{availabilityHTTPClient: newMovieAvailabilityClient()}
-	ctx, cancel := context.WithTimeout(context.Background(), fawesomeDiscoveryDeadline)
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
 	query := os.Getenv("ITEMBA_LIVE_FAWESOME_QUERY")
 	if query == "" {
 		query = "The Shape of Shadows"
 	}
-	matches, err := s.queryFawesomeMovieSites(ctx, query)
-	if err != nil {
-		t.Fatal(err)
+	title, _ := movieQuery(query)
+	matches, status := s.queryDriver(ctx, s.driverFetcher(), testDriver(t, "fawesome"), query, title, "")
+	if status.Status == "error" {
+		t.Fatal(status.Detail)
 	}
 	var safe []struct {
 		Title    string `json:"title"`
