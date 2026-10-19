@@ -114,6 +114,38 @@ body {
   background: rgba(56, 189, 248, 0.1);
 }
 
+.pill-badge.amber {
+  border-color: rgba(245, 158, 11, 0.5);
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.1);
+}
+
+/* Console WebSocket badge: grey spinner before the first open, green while
+   the socket is live, amber with a blinking icon while a reconnect is pending. */
+.ws-badge {
+  white-space: nowrap;
+}
+
+.ws-badge.ws-connecting svg {
+  animation: ws-spin 1.4s linear infinite;
+}
+
+.ws-badge.ws-reconnecting svg {
+  animation: ws-blink 1s steps(2, start) infinite;
+}
+
+@keyframes ws-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes ws-blink {
+  to { visibility: hidden; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ws-badge svg { animation: none; }
+}
+
 .dot {
   width: 7px;
   height: 7px;

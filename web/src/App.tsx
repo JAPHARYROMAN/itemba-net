@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Shield, Cpu, Network } from 'lucide-react';
+import { Shield, Cpu, Network, Wifi, WifiOff, Loader } from 'lucide-react';
 import { ActiveRelayStream, SearchKnownEvent, SearchMergedEvent, SearchReport, TelemetrySnapshot, VaultStatus } from './types';
 import { readSearchStream, searchStreamUrl } from './searchStream';
 import { VaultViewport } from './components/VaultViewport';
@@ -12,6 +12,30 @@ import { SystemTopologyModal } from './components/SystemTopologyModal';
 // after each failed attempt up to the cap, and resets once a connection opens.
 const WS_RECONNECT_MIN_MS = 1000;
 const WS_RECONNECT_MAX_MS = 15000;
+
+// What the navbar badge shows about the console socket. 'connecting' covers
+// page load until the first open; 'reconnecting' carries the backoff delay
+// while a retry is scheduled and drops it once that retry is in flight.
+type WsConnection =
+  | { phase: 'connecting' }
+  | { phase: 'live' }
+  | { phase: 'reconnecting'; retryInMs?: number };
+
+const describeWsConnection = (conn: WsConnection): { label: string; title: string } => {
+  switch (conn.phase) {
+    case 'live':
+      return { label: 'Live', title: 'Console WebSocket open: frames and shield events are streaming.' };
+    case 'reconnecting': {
+      if (conn.retryInMs === undefined) {
+        return { label: 'Reconnecting…', title: 'Console WebSocket closed; a reconnect attempt is in flight.' };
+      }
+      const secs = `${Math.round(conn.retryInMs / 1000)}s`;
+      return { label: `Reconnecting in ${secs}`, title: `Console WebSocket closed; retrying in ${secs}.` };
+    }
+    default:
+      return { label: 'Connecting', title: 'Opening the console WebSocket (/api/ws).' };
+  }
+};
 
 export const App: React.FC = () => {
   const [vault, setVault] = useState<VaultStatus>({
@@ -64,6 +88,7 @@ export const App: React.FC = () => {
   const [latestFrame, setLatestFrame] = useState<{ data: string; ts: number; url?: string } | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
+  const [wsConnection, setWsConnection] = useState<WsConnection>({ phase: 'connecting' });
   const searchAbortRef = useRef<AbortController | null>(null);
   const searchSequenceRef = useRef(0);
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -95,23 +120,31 @@ export const App: React.FC = () => {
     let backoffMs = WS_RECONNECT_MIN_MS;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const scheduleReconnect = () => {
-      if (disposed || reconnectTimer !== null) return;
+    // Returns the delay it scheduled so the close handler can show it.
+    const scheduleReconnect = (): number | null => {
+      if (disposed || reconnectTimer !== null) return null;
       const delay = backoffMs;
       backoffMs = Math.min(backoffMs * 2, WS_RECONNECT_MAX_MS);
       reconnectTimer = setTimeout(() => {
         reconnectTimer = null;
         connect();
       }, delay);
+      return delay;
     };
 
     const connect = () => {
       if (disposed) return;
+      // A scheduled retry is now in flight: stay on 'reconnecting' but drop the
+      // countdown it was showing. The first connect leaves 'connecting' as is.
+      setWsConnection((prev) =>
+        prev.phase === 'reconnecting' && prev.retryInMs !== undefined ? { phase: 'reconnecting' } : prev,
+      );
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
         backoffMs = WS_RECONNECT_MIN_MS;
+        setWsConnection({ phase: 'live' });
       };
 
       ws.onmessage = (event) => {
@@ -135,7 +168,10 @@ export const App: React.FC = () => {
 
       ws.onclose = () => {
         if (wsRef.current === ws) wsRef.current = null;
-        scheduleReconnect();
+        const retryInMs = scheduleReconnect();
+        // After cleanup the close belongs to a socket this effect no longer owns
+        // (StrictMode's first mount), so it must not touch the badge.
+        if (!disposed) setWsConnection({ phase: 'reconnecting', retryInMs: retryInMs ?? undefined });
       };
     };
 
@@ -307,6 +343,9 @@ export const App: React.FC = () => {
     return null;
   };
 
+  const wsBadge = describeWsConnection(wsConnection);
+  const wsBadgeTone = { connecting: '', live: 'live', reconnecting: 'amber' }[wsConnection.phase];
+
   return (
     <div className="app-shell">
       <header className="top-navbar">
@@ -334,6 +373,22 @@ export const App: React.FC = () => {
 
           <span className="pill-badge cyan">
             <Shield size={12} /> Threats Blocked: <strong>{shield.totalBlocked}</strong>
+          </span>
+
+          <span
+            className={`pill-badge ws-badge ws-${wsConnection.phase} ${wsBadgeTone}`}
+            role="status"
+            aria-live="polite"
+            title={wsBadge.title}
+          >
+            {wsConnection.phase === 'live' ? (
+              <Wifi size={12} />
+            ) : wsConnection.phase === 'reconnecting' ? (
+              <WifiOff size={12} />
+            ) : (
+              <Loader size={12} />
+            )}
+            Console: <strong>{wsBadge.label}</strong>
           </span>
 
           <button type="button" className="btn" onClick={() => setShowTopology(true)}>
