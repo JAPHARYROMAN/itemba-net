@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Play, Globe, Search, Shield, Clock, Sparkles, Film, Music, Fingerprint, Image as ImageIcon, Scan } from 'lucide-react';
-import { ActiveRelayStream, AudioTrack, FawesomeShelfPlaybackReport, ImageCheck, MovieAvailabilityCheck, MovieDiscoveryItem, MovieDiscoveryMode, MovieDiscoveryReport, SearchKind, SearchKnownEvent, SearchMergedEvent, SearchReport, VerifiedSource } from '../types';
+import { Play, Globe, Search, Shield, Clock, Sparkles, Film, Music, Fingerprint, Image as ImageIcon, Scan, FileText, BookOpen } from 'lucide-react';
+import { ActiveRelayStream, AudioTrack, DocumentCheck, FawesomeShelfPlaybackReport, ImageCheck, MovieAvailabilityCheck, MovieDiscoveryItem, MovieDiscoveryMode, MovieDiscoveryReport, SearchKind, SearchKnownEvent, SearchMergedEvent, SearchReport, VerifiedSource } from '../types';
 import { RankedLocations } from './RankedLocations';
 import { fingerprintLabel, identityLabel } from '../identity';
+import { isPdfUrl } from '../media/media';
 
 interface SearchScoutPanelProps {
   report: SearchReport | null;
@@ -766,6 +767,164 @@ const ImageResults: React.FC<ImageResultsProps> = ({ report, sources, filter, on
   );
 };
 
+// A document opens in the reader through the relay when its file is a PDF
+// that answered, or one the search did not get to probe: the reader checks
+// the relay's answer again before framing it. Plain text and the formats
+// the probe cannot read yet open in the protected browser.
+const canReadDocument = (source: VerifiedSource): boolean =>
+  Boolean(source.directStreamUrl) && isPdfUrl(source.directStreamUrl as string)
+  && (source.documentCheck?.status === 'parsed' || source.documentCheck?.status === 'not_checked');
+
+const documentStream = (source: VerifiedSource): ActiveRelayStream => ({
+  title: source.creator ? `${source.title} · ${source.creator}` : source.title,
+  streamUrl: source.directStreamUrl as string, pageUrl: source.url, provider: source.provider,
+  format: source.streamFormat || (source.documentCheck?.format ? `${source.documentCheck.format.toUpperCase()} document` : 'Document'),
+  useZeroTrustProxy: true, kind: 'document', poster: source.thumbnail,
+});
+
+const documentProbeLabel = (check?: DocumentCheck): string => {
+  switch (check?.status) {
+    case 'parsed': {
+      const format = (check.format ?? '').toUpperCase();
+      if (check.pages) return `Parsed ${format} · ${check.pages} ${check.pages === 1 ? 'page' : 'pages'}${check.pagesConfirmed ? '' : ' by the host’s count'}`;
+      return `Parsed ${format}`.trim();
+    }
+    case 'unsupported': return `File reachable · ${(check.format ?? 'this').toUpperCase()} not read yet`;
+    case 'undecodable': return 'File answered but is not a document';
+    case 'unreachable': return check.httpStatus ? `File answered HTTP ${check.httpStatus}` : 'File unreachable';
+    default: return 'File not probed';
+  }
+};
+
+const documentFingerprintLabel = (check?: DocumentCheck): string | null => {
+  switch (check?.fingerprintStatus) {
+    case 'computed': {
+      const from = check.textSource === 'ocr_text' ? 'the OCR text beside the file' : check.textSource === 'text_file' ? 'the text file' : 'the PDF’s own text';
+      return `Text fingerprint taken from ${from}; the index compares it with every document it has read.`;
+    }
+    case 'too_short': return 'No text fingerprint: too little text was read, as with a scan that carries no text layer and no OCR text beside it.';
+    default: return null;
+  }
+};
+
+interface DocumentResultsProps {
+  report: SearchReport;
+  sources: VerifiedSource[];
+  filter: AccessFilter;
+  onFilter: (filter: AccessFilter) => void;
+  regionName: string;
+  checkLocation: string | null;
+  batchCheckedAt: string | null;
+  launchingUrl: string | null;
+  onLaunchRbi: (url: string, theaterMode: boolean) => void;
+  onPlayRelay: (stream: ActiveRelayStream) => void;
+}
+
+// The document results: each document with its author, year, page count
+// and collection, what the probe read of its file, and what its text
+// fingerprint said beside the other documents of the search and the index.
+const DocumentResults: React.FC<DocumentResultsProps> = ({ report, sources, filter, onFilter, regionName, checkLocation, batchCheckedAt, launchingUrl, onLaunchRbi, onPlayRelay }) => {
+  const visible = sources.filter((source) => filter === 'all' || accessGroup(source) === filter);
+  const coverageOpen = report.providers?.some((provider) => provider.status === 'error' || provider.status === 'not_configured') ?? false;
+  return (
+    <>
+      <div className="movie-results-summary" role="status">
+        <div><strong>{sources.length} {sources.length === 1 ? 'document' : 'documents'}</strong> for “{report.query}”<span className="scout-muted"> · {regionName}</span></div>
+        <span className="scout-muted scout-duration"><Clock size={12} aria-hidden="true" /> {(report.durationMs / 1000).toFixed(1)}s</span>
+      </div>
+      <p className="scout-muted">Document search · The host matched these by its own catalog. Each PDF is fetched at both ends for its format and its own page count, and its text, from the OCR text beside it or from the PDF itself, is fingerprinted; documents that read the same are matched by it whatever their titles say. No sandbox render runs yet.</p>
+      {report.providers && report.providers.length > 0 && (
+        <details className="scout-provider-details" open={coverageOpen}>
+          <summary>Search coverage{coverageOpen ? ' · some sources unavailable' : ''}</summary>
+          <ul>{report.providers.map((provider) => (
+            <li key={provider.name}>
+              <strong>{provider.name}</strong>: {provider.detail || (provider.status === 'ok' ? 'Search completed.' : provider.status === 'empty' ? 'No matching listings.' : provider.status === 'not_configured' ? 'Not configured.' : 'Could not search this source.')}
+            </li>
+          ))}</ul>
+        </details>
+      )}
+      {report.availabilityChecks && (
+        <div className="scout-link-check-summary">
+          <p><strong>File probes</strong> · {report.availabilityChecks.checkedCount} checked{checkLocation ? ` from ${checkLocation}` : ' · check location unconfirmed'}{report.availabilityChecks.fingerprintCount ? ` · ${report.availabilityChecks.fingerprintCount} text ${report.availabilityChecks.fingerprintCount === 1 ? 'fingerprint' : 'fingerprints'} taken` : ''}</p>
+          {report.atlas?.fingerprints ? <p><strong>Fingerprint library</strong> · {report.atlas.fingerprints} stored in the index and compared with every document read before.</p> : null}
+          {batchCheckedAt && <p>Checked <time dateTime={report.availabilityChecks.checkedAt}>{batchCheckedAt}</time></p>}
+        </div>
+      )}
+      <div className="preset-chips" role="group" aria-label="Filter by access type">
+        {FILTERS.map(({ value, label }) => (
+          <button key={value} type="button" className={`chip${filter === value ? ' scout-filter-active' : ''}`}
+            aria-pressed={filter === value} onClick={() => onFilter(value)}>
+            {label} ({value === 'all' ? sources.length : sources.filter((source) => accessGroup(source) === value).length})
+          </button>
+        ))}
+      </div>
+      {visible.length === 0 ? (
+        <div className="scout-empty" role="status">
+          <strong>{sources.length === 0 ? 'No documents found in the covered collections.' : `No listings marked ${filter} in these results.`}</strong>
+          <p>{sources.length === 0 ? 'Try the title in other words, or add the author, as in “Alice in Wonderland by Lewis Carroll”. Search coverage is shown above.' : 'Choose another filter. Access labels reflect the evidence available for each source.'}</p>
+        </div>
+      ) : (
+        <div className="sources-grid movie-sources-grid">
+          {visible.map((source) => {
+            const check = source.availabilityCheck;
+            const probe = source.documentCheck;
+            const checkedAt = formatCheckedAt(probe?.checkedAt ?? check?.checkedAt);
+            const showYear = source.releaseYear && !source.title.includes(String(source.releaseYear));
+            const identity = report.atlas?.identities?.[source.url] ?? source.identity;
+            const fingerprintNote = documentFingerprintLabel(probe);
+            const pages = probe?.pages || source.pages;
+            return (
+              <article key={source.id} className="source-card movie-source-card image-source-card document-source-card">
+                <div>
+                  {source.thumbnail && <img className="image-thumb" src={source.thumbnail} alt="" loading="lazy" referrerPolicy="no-referrer"
+                    onError={(event) => { event.currentTarget.hidden = true; }} />}
+                  <div className="movie-source-badges">
+                    <span className={`pill-badge${source.accessType === 'free' ? ' live' : ''}`}>{ACCESS_LABELS[source.accessType ?? 'unknown']}</span>
+                    <span className={`scout-muted${probe?.status === 'parsed' ? ' scout-media-status' : ''}`}>{probe ? documentProbeLabel(probe) : source.verificationStatus === 'page_reachable' ? 'Page reachable' : 'Listing'}</span>
+                  </div>
+                  <div className="movie-source-title">
+                    <div>
+                      <h3>{source.title}{showYear ? <span className="scout-muted"> ({source.releaseYear})</span> : null}</h3>
+                      <p className="movie-source-provider">{source.creator || <span className="scout-muted">Author unconfirmed</span>}</p>
+                      <p className="scout-muted movie-source-host">{source.provider} · {sourceHost(source.url)}{pages ? ` · ${pages} ${pages === 1 ? 'page' : 'pages'}` : ''}{source.license ? ` · ${source.license}` : ''}</p>
+                    </div>
+                  </div>
+                  {source.description && <p className="scout-description movie-source-description">{source.description}</p>}
+                  <div className="movie-source-facts">
+                    {source.accessNote && <p className="scout-muted">{source.accessNote}</p>}
+                    <div className="movie-access-check">
+                      <p className={`movie-check-status check-${check?.status ?? 'unchecked'}`}>{probe ? documentProbeLabel(probe) : accessCheckLabel(check)}</p>
+                      {(probe?.detail || check?.detail) && <p className="scout-muted">{probe?.detail || check?.detail}</p>}
+                      {fingerprintNote && <p className="scout-muted">{fingerprintNote}</p>}
+                      {identity && (
+                        <p className={`audio-identity identity-${identity.effect ?? identity.verdict ?? 'none'}`}>
+                          <span className="ladder-identity"><Fingerprint size={11} aria-hidden="true" /> {identityLabel(identity)}</span>
+                          {identity.detail && <span className="scout-muted">{identity.detail}</span>}
+                        </p>
+                      )}
+                      <p className="scout-muted">A parsed file confirms the document is a PDF of these pages; no sandbox has rendered it yet.</p>
+                      {checkedAt && <p className="scout-muted">File checked <time dateTime={probe?.checkedAt ?? check?.checkedAt}>{checkedAt}</time></p>}
+                    </div>
+                  </div>
+                </div>
+                <div className="movie-source-actions">
+                  {canReadDocument(source) && <button type="button" className="btn btn-primary" onClick={() => onPlayRelay(documentStream(source))}>
+                    <BookOpen size={13} aria-hidden="true" /> Open in the reader
+                  </button>}
+                  <button type="button" className={`btn${canReadDocument(source) ? '' : ' btn-primary'}`} disabled={launchingUrl !== null}
+                    onClick={() => onLaunchRbi(source.url, false)}>
+                    <Globe size={14} aria-hidden="true" /> {launchingUrl === source.url ? 'Opening protected browser…' : 'Open page with ad blocking'}
+                  </button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </>
+  );
+};
+
 export const SearchScoutPanel: React.FC<SearchScoutPanelProps> = ({
   report, known, merged, searching, searchError, launchError, launchingUrl, onSearch,
   onRunBenchmark, onLaunchRbi, onPlayRelay,
@@ -806,12 +965,14 @@ export const SearchScoutPanel: React.FC<SearchScoutPanelProps> = ({
     <section className="scout-panel" aria-labelledby="movie-search-heading" aria-busy={searching}>
       <div className="movie-search-heading">
         <div>
-          <h2 id="movie-search-heading">{kind === 'audio' ? 'Find recordings across open audio catalogs.' : kind === 'image' ? 'Find pictures across open media catalogs.' : 'Find full-length movies across the web.'}</h2>
+          <h2 id="movie-search-heading">{kind === 'audio' ? 'Find recordings across open audio catalogs.' : kind === 'image' ? 'Find pictures across open media catalogs.' : kind === 'document' ? 'Find documents across open text collections.' : 'Find full-length movies across the web.'}</h2>
           <p className="scout-description">{kind === 'audio'
             ? 'Search the Internet Archive’s audio collections by title, with the performer if known. Each listing shows its performer, year and length; files are checked for reach, and up to two get a short muted sample.'
             : kind === 'image'
               ? 'Search Wikimedia Commons by what the picture shows, with the artist if known. Each file is fetched for its dimensions and hashed, so the same picture is recognised under any name.'
-              : region === 'ALL'
+              : kind === 'document'
+                ? 'Search the Internet Archive’s texts by title, with the author if known. Each PDF is fetched at both ends for its format and page count, and its text is fingerprinted, so the same text is recognised under any title.'
+                : region === 'ALL'
               ? 'Search recent releases, popular titles and independent cinema globally. Find free and paid options; playback samples show which supported free sources actually start.'
               : `Search globally with a preference for ${selectedRegionName}. Playback badges show the actual test location; prices and full playback still need confirmation.`}</p>
         </div>
@@ -831,13 +992,16 @@ export const SearchScoutPanel: React.FC<SearchScoutPanelProps> = ({
         <button type="button" className={`chip${kind === 'image' ? ' scout-filter-active' : ''}`} aria-pressed={kind === 'image'} onClick={() => setKind('image')}>
           <ImageIcon size={12} aria-hidden="true" /> Pictures
         </button>
+        <button type="button" className={`chip${kind === 'document' ? ' scout-filter-active' : ''}`} aria-pressed={kind === 'document'} onClick={() => setKind('document')}>
+          <FileText size={12} aria-hidden="true" /> Documents
+        </button>
       </div>
 
       <form className="search-row movie-search-form" onSubmit={(event) => { event.preventDefault(); search(query); }}>
         <label className="movie-query-field">
-          <span className="scout-field-label">{kind === 'audio' ? 'Recording title, with the performer if known' : kind === 'image' ? 'What the picture shows, with the artist if known' : 'Movie title or keywords'}</span>
+          <span className="scout-field-label">{kind === 'audio' ? 'Recording title, with the performer if known' : kind === 'image' ? 'What the picture shows, with the artist if known' : kind === 'document' ? 'Document title, with the author if known' : 'Movie title or keywords'}</span>
           <input className="search-input" value={query} onChange={(event) => setQuery(event.target.value)}
-            placeholder={kind === 'audio' ? 'Title by performer, e.g. Kind of Blue by Miles Davis' : kind === 'image' ? 'Subject by artist, e.g. Starry Night by Van Gogh' : 'Movie title and year, or a movie page URL'} maxLength={500} required />
+            placeholder={kind === 'audio' ? 'Title by performer, e.g. Kind of Blue by Miles Davis' : kind === 'image' ? 'Subject by artist, e.g. Starry Night by Van Gogh' : kind === 'document' ? 'Title by author, e.g. Alice in Wonderland by Lewis Carroll' : 'Movie title and year, or a movie page URL'} maxLength={500} required />
         </label>
         <label className="movie-region-field">
           <span className="scout-field-label">Region preference (optional)</span>
@@ -846,7 +1010,7 @@ export const SearchScoutPanel: React.FC<SearchScoutPanelProps> = ({
           </select>
         </label>
         <button type="submit" className="btn btn-primary movie-search-submit" disabled={!query.trim()}>
-          <Search size={14} aria-hidden="true" /> {searching ? 'Search again' : kind === 'audio' ? 'Find recordings' : kind === 'image' ? 'Find pictures' : 'Find movie pages'}
+          <Search size={14} aria-hidden="true" /> {searching ? 'Search again' : kind === 'audio' ? 'Find recordings' : kind === 'image' ? 'Find pictures' : kind === 'document' ? 'Find documents' : 'Find movie pages'}
         </button>
         {kind === 'video' && (
           <label className="movie-length-preference">
@@ -870,15 +1034,17 @@ export const SearchScoutPanel: React.FC<SearchScoutPanelProps> = ({
         </>
       ) : kind === 'audio' ? (
         <p className="scout-muted">Audio results come from the Internet Archive’s audio collections, read through the same driver runtime as the movie catalogs. A recording is matched by its title, performer and length, its files are checked for reach and sampled, and a multi-track item plays in order through the relay. The sample takes an acoustic fingerprint of the file’s beginning; the index compares it with every fingerprint it holds, so two listings of the same recording are matched by what they sound like, and a different recording under the same tags is kept apart.</p>
-      ) : (
+      ) : kind === 'image' ? (
         <p className="scout-muted">Picture results come from Wikimedia Commons, read through the same driver runtime as the other catalogs. Each file is fetched for its header, which gives the dimensions and format, and its thumbnail is decoded for a perceptual hash; the index compares the hash with every picture it has seen, so the same picture is matched under any file name and a different picture under the same name is kept apart. A picture opens in the zoomable viewer through the relay.</p>
+      ) : (
+        <p className="scout-muted">Document results come from the Internet Archive’s texts, read through the same driver runtime as the other catalogs. Each item’s metadata names its PDF and the OCR text beside it; the PDF is fetched at both ends for its format and its own page count, and the text is fingerprinted, so the index matches the same text under any title and keeps a different text under the same title apart. A PDF opens in the reader through the relay; other formats open in the protected browser.</p>
       )}
       <p className="scout-protection-note"><Shield size={14} aria-hidden="true" /> Sites open in ITEMBA's browser with ad and tracker blocking enabled. Some ads may remain; subscriptions and regional restrictions still apply.</p>
       {kind === 'video' && <p className="scout-muted">Native samples cover supported free catalogs, including NASA+, NFB, creator-authorized Catsuka and matching Fawesome movie pages. Provider checks can report restrictions for Pluto TV and Filmzie. Playback badges require decoded movie content; pages, ads and trailers do not qualify.</p>}
 
       {searchError && <p className="scout-error" role="alert">{searchError}</p>}
       {launchError && <p className="scout-error" role="alert">{launchError}</p>}
-      {searching && <p className="scout-empty" role="status">{kind === 'audio' ? 'Finding recordings in open audio catalogs and checking their files…' : kind === 'image' ? 'Finding pictures in open media catalogs and decoding their files…' : 'Finding global movie sources and testing free playback…'}</p>}
+      {searching && <p className="scout-empty" role="status">{kind === 'audio' ? 'Finding recordings in open audio catalogs and checking their files…' : kind === 'image' ? 'Finding pictures in open media catalogs and decoding their files…' : kind === 'document' ? 'Finding documents in open text collections and reading their files…' : 'Finding global movie sources and testing free playback…'}</p>}
 
       <RankedLocations known={known} merged={merged} report={report} searching={searching} launchingUrl={launchingUrl} onLaunchRbi={onLaunchRbi} />
 
@@ -892,7 +1058,12 @@ export const SearchScoutPanel: React.FC<SearchScoutPanelProps> = ({
           checkLocation={checkLocation} batchCheckedAt={batchCheckedAt} launchingUrl={launchingUrl} onLaunchRbi={onLaunchRbi} onPlayRelay={onPlayRelay} />
       )}
 
-      {report && !searching && !searchError && report.kind !== 'audio' && report.kind !== 'image' && (
+      {report && !searching && !searchError && report.kind === 'document' && (
+        <DocumentResults report={report} sources={sources} filter={filter} onFilter={setFilter} regionName={regionName}
+          checkLocation={checkLocation} batchCheckedAt={batchCheckedAt} launchingUrl={launchingUrl} onLaunchRbi={onLaunchRbi} onPlayRelay={onPlayRelay} />
+      )}
+
+      {report && !searching && !searchError && report.kind !== 'audio' && report.kind !== 'image' && report.kind !== 'document' && (
         <>
           <div className="movie-results-summary" role="status">
             <div><strong>{sources.length} {sources.length === 1 ? 'movie page' : 'movie pages'}</strong> for “{report.query}”<span className="scout-muted"> · {regionName}</span></div>

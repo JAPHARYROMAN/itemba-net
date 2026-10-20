@@ -28,6 +28,8 @@ type CandidateSource struct {
 	Kind                    string   `json:"kind,omitempty"`
 	Creator                 string   `json:"creator,omitempty"`
 	License                 string   `json:"license,omitempty"` // The licence the host states, as it names it
+	Pages                   int      `json:"pages,omitempty"`   // The page count the host states for a document
+	TextURL                 string   `json:"textUrl,omitempty"` // A document's text beside its file, such as the Archive's OCR text
 	URL                     string   `json:"url"`               // Target web page or embed URL for RBI Vault
 	DirectStreamURL         string   `json:"directStreamUrl"`   // Direct .m3u8 / .mp4 / .webm stream URL for 60fps Native Relay Player
 	Provider                string   `json:"provider"`
@@ -77,6 +79,9 @@ type VerifiedSource struct {
 	// ImageCheck is what a bounded fetch and decode proved of a picture's
 	// file: its dimensions and format, and the perceptual hash of it.
 	ImageCheck *ImageCheck `json:"imageCheck,omitempty"`
+	// DocumentCheck is what a bounded fetch and parse proved of a document's
+	// file: its format, its page count and the fingerprint of its text.
+	DocumentCheck *DocumentCheck `json:"documentCheck,omitempty"`
 	// Identity is what the recording's fingerprint said beside the other
 	// fingerprint this search computed: the same sound or a different one,
 	// and what that meant for the tags. The index adds its own against

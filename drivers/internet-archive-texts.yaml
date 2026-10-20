@@ -1,0 +1,48 @@
+# Internet Archive's Advanced Search over the texts media type: the first
+# document driver of Phase 3. The search index names an item's author,
+# title, year, collections and, for a scanned book, its page count
+# (imagecount); the files themselves, a Text PDF and the OCR text beside it,
+# or a plain text file for a Gutenberg transcription, come from the item
+# metadata, which the search pipeline reads for the kept listings (see the
+# scout's Archive texts resolver).
+# https://archive.org/developers/ (Item Search APIs), checked 2026-10-20.
+name: internet-archive-texts
+provider: Internet Archive
+kind: document
+hosts: [archive.org]
+rate:
+  per_minute: 30
+  concurrency: 2
+search:
+  url: https://archive.org/advancedsearch.php
+  params:
+    # The title is a literal phrase, never Lucene operators.
+    q: 'title:("{query_phrase}") AND mediatype:texts'
+    fl[]: identifier,title,creator,year,date,collection,imagecount,publisher
+    rows: "30"
+    page: "1"
+    output: json
+    sort[]: downloads desc
+  status_name: Internet Archive texts
+  timeout_seconds: 8
+  response: json
+  items: response.docs
+  limit: 30
+  fields:
+    id: { template: "ia-text-{identifier}" }
+    title: { path: title, transform: scalar }
+    # The credited author, as a catalogue writes it ("Carroll, Lewis,
+    # 1832-1898"); an item may list several, the first is the primary.
+    creator: { paths: ["creator[0]", creator] }
+    # Identifiers are letters, digits, dots, dashes and underscores; anything
+    # that needed escaping is not an Archive item.
+    url: { template: "https://archive.org/details/{identifier|path}", match: '^https://archive\.org/details/[A-Za-z0-9][A-Za-z0-9_.-]{0,199}$' }
+    year: { paths: [year, date], transform: year_in_text }
+    pages: { path: imagecount }
+    thumbnail: { template: "https://archive.org/services/img/{identifier|path}" }
+    description: { default: Text listing from Internet Archive. Access and rights depend on the item. }
+    tags: { path: collection }
+  constants:
+    source_type: Archive text
+    access_type: unknown
+    access_note: Archive listing; its PDF and OCR text are read from the item metadata when the listing is kept.

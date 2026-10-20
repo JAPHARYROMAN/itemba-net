@@ -68,7 +68,7 @@ func (s *Store) RecordObservations(ctx context.Context, q lens.ObjectQuery, obse
 		var object Object
 		var match *lens.IdentityMatch
 		var peer int64
-		heard := (candidate.Type == lens.TypeAudio || candidate.Type == lens.TypeImage) && observation.Fingerprint != nil && observation.Fingerprint.Fingerprint.Valid()
+		heard := (candidate.Type == lens.TypeAudio || candidate.Type == lens.TypeImage || candidate.Type == lens.TypeDocument) && observation.Fingerprint != nil && observation.Fingerprint.Fingerprint.Valid()
 		if heard {
 			object, match, peer, err = s.objectBySound(ctx, observation.Listing, candidate, objects, &summary)
 		} else {
@@ -163,6 +163,10 @@ func tagCandidate(q lens.ObjectQuery, queryObject *Object, listing Listing) (Obj
 		candidate.Creator, candidate.CreatorKey = id.Creator, id.CreatorKey
 	} else if kind == lens.TypeImage {
 		id := lens.ImageListing(listing.Title, listing.Creator, listing.Year, 0, 0)
+		candidate.Title, candidate.TitleKey, candidate.Year = id.Title, id.TitleKey, id.Year
+		candidate.Creator, candidate.CreatorKey = id.Creator, id.CreatorKey
+	} else if kind == lens.TypeDocument {
+		id := lens.DocumentListing(listing.Title, listing.Creator, listing.Year, listing.Pages)
 		candidate.Title, candidate.TitleKey, candidate.Year = id.Title, id.TitleKey, id.Year
 		candidate.Creator, candidate.CreatorKey = id.Creator, id.CreatorKey
 	} else {

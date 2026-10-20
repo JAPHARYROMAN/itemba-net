@@ -276,6 +276,9 @@ type Listing struct {
 	// License is the licence the host states for the media, as it names it
 	// ("CC BY-SA 4.0", "Public domain"); empty when the host says none.
 	License string `json:"license,omitempty"`
+	// Pages is the page count the host states for a document; zero when it
+	// states none.
+	Pages int `json:"pages,omitempty"`
 	// CatalogDate is the day a host's own catalog lists the item under, as a
 	// feed reports it; it is not a release date.
 	CatalogDate string `json:"catalogDate,omitempty"`

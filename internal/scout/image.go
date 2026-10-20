@@ -56,15 +56,16 @@ const (
 // shorten it.
 var imageRequestGap = 250 * time.Millisecond
 
-// imagePacer spaces the probe's requests across a process.
+// imagePacer spaces the file probes' requests, pictures' and documents',
+// across a process.
 var imagePacer struct {
 	mu   sync.Mutex
 	last time.Time
 }
 
-// paceImageRequest waits until imageRequestGap has passed since the last
-// request the probe sent, or the context ends.
-func paceImageRequest(ctx context.Context) {
+// paceProbeRequest waits until imageRequestGap has passed since the last
+// request a file probe sent, or the context ends.
+func paceProbeRequest(ctx context.Context) {
 	imagePacer.mu.Lock()
 	wait := time.Until(imagePacer.last.Add(imageRequestGap))
 	if wait < 0 {
@@ -372,7 +373,7 @@ func fetchImageBytes(ctx context.Context, client *http.Client, raw string, limit
 		}
 		return nil
 	}
-	paceImageRequest(ctx)
+	paceProbeRequest(ctx)
 	fetchCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
 	defer cancel()
 	request, err := http.NewRequestWithContext(fetchCtx, http.MethodGet, target.String(), nil)

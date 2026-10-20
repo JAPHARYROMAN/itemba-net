@@ -117,9 +117,9 @@ func ParseAs(raw, kind string) ObjectQuery {
 		return q
 	}
 	q.Type = kind
-	// A recording names its performer and a picture its maker the same way:
-	// "Starry Night by Van Gogh".
-	if kind == TypeAudio || kind == TypeImage {
+	// A recording names its performer, a picture its maker and a document
+	// its author the same way: "Starry Night by Van Gogh".
+	if kind == TypeAudio || kind == TypeImage || kind == TypeDocument {
 		if title, performer := SplitPerformer(q.Title); performer != "" {
 			q.Title, q.TitleKey = title, NormalizeTitle(title)
 			q.Creator, q.CreatorKey = performer, NormalizeTitle(performer)

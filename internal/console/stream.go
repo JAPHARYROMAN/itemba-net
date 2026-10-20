@@ -28,8 +28,8 @@ func validateSearch(query, region, kind string) (string, string, string, string)
 	if kind == "" {
 		kind = lens.TypeVideo
 	}
-	if kind != lens.TypeVideo && kind != lens.TypeAudio && kind != lens.TypeImage {
-		return "", "", "", "Choose movies, audio or pictures."
+	if kind != lens.TypeVideo && kind != lens.TypeAudio && kind != lens.TypeImage && kind != lens.TypeDocument {
+		return "", "", "", "Choose movies, audio, pictures or documents."
 	}
 	if query == "" || len([]rune(query)) > 500 {
 		switch kind {
@@ -37,6 +37,8 @@ func validateSearch(query, region, kind string) (string, string, string, string)
 			return "", "", "", "Enter a recording's title, with its performer if known, using at most 500 characters."
 		case lens.TypeImage:
 			return "", "", "", "Enter what the picture shows, with the artist if known, using at most 500 characters."
+		case lens.TypeDocument:
+			return "", "", "", "Enter a document's title, with its author if known, using at most 500 characters."
 		}
 		return "", "", "", "Enter a movie title or URL using at most 500 characters."
 	}
@@ -253,6 +255,10 @@ func mergeLocations(q lens.ObjectQuery, known []atlas.KnownLocation, report scou
 		case lens.TypeImage:
 			// A picture the host matched keeps at least the host's own match.
 			relevance = lens.ImageRelevance(q, lens.ImageListing(source.Title, source.Creator, source.ReleaseYear, 0, 0))
+		case lens.TypeDocument:
+			// A document is matched by its title and author, with the host's
+			// own match as the floor.
+			relevance = lens.DocumentRelevance(q, lens.DocumentListing(source.Title, source.Creator, source.ReleaseYear, source.Pages))
 		}
 		if q.URL != "" {
 			relevance = 1

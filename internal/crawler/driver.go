@@ -249,7 +249,7 @@ var (
 	listingKeys     = map[string]bool{
 		"id": true, "title": true, "url": true, "media_url": true, "year": true, "duration": true, "description": true,
 		"thumbnail": true, "access_type": true, "price": true, "market": true, "source_type": true, "provider": true,
-		"access_note": true, "resolution": true, "tags": true, "catalog_date": true, "creator": true, "license": true,
+		"access_note": true, "resolution": true, "tags": true, "catalog_date": true, "creator": true, "license": true, "pages": true,
 	}
 	transforms = map[string]bool{
 		"": true, "scalar": true, "lower": true, "upper": true, "trim": true, "year_of_date": true, "year_in_text": true,
@@ -1040,6 +1040,9 @@ func (d *Driver) listingFrom(it item, market string, fields map[string]FieldSpec
 	}
 	if year, err := strconv.Atoi(values["year"]); err == nil {
 		listing.Year = year
+	}
+	if pages, err := strconv.Atoi(strings.TrimSpace(values["pages"])); err == nil && pages > 0 {
+		listing.Pages = pages
 	}
 	if d.Spec.Offers != nil && it.json != nil {
 		listing.Price, listing.AccessType = d.Spec.Offers.read(it.json)

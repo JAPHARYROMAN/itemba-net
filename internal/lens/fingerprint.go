@@ -116,15 +116,26 @@ func (f *Fingerprint) Valid() bool {
 		return true
 	case FingerprintImageDHash:
 		return f.Frames == ImageHashWords && f.Seconds == 0 && len(f.Variants) == 0
+	case FingerprintTextSimhash:
+		return f.Frames == TextHashWords && f.Seconds == 0 && len(f.Variants) == 0
 	}
 	return false
+}
+
+// hashed reports a fingerprint type compared bit for bit with no time to
+// align: the picture hash and the text fingerprint.
+func hashed(fingerprintType string) bool {
+	return fingerprintType == FingerprintImageDHash || fingerprintType == FingerprintTextSimhash
 }
 
 // FingerprintMethod names the identity method a fingerprint type stands
 // for, as an IdentityMatch carries it.
 func FingerprintMethod(fingerprintType string) string {
-	if fingerprintType == FingerprintImageDHash {
+	switch fingerprintType {
+	case FingerprintImageDHash:
 		return MethodPerceptualHash
+	case FingerprintTextSimhash:
+		return MethodTextFingerprint
 	}
 	return MethodFingerprint
 }
@@ -173,8 +184,11 @@ type FingerprintComparison struct {
 // type's threshold.
 func (c FingerprintComparison) Same() bool {
 	threshold := SameSoundThreshold
-	if c.Type == FingerprintImageDHash {
+	switch c.Type {
+	case FingerprintImageDHash:
 		threshold = SameSightThreshold
+	case FingerprintTextSimhash:
+		threshold = SameTextThreshold
 	}
 	return c.Known && c.Distance <= threshold
 }
@@ -196,7 +210,7 @@ func CompareFingerprints(a, b Fingerprint) FingerprintComparison {
 		return FingerprintComparison{}
 	}
 	wa, wb := a.Words(), b.Words()
-	if a.Type == FingerprintImageDHash {
+	if hashed(a.Type) {
 		// A hash has no time to align: every bit is compared with its own.
 		errors := 0
 		for i := range wa {
@@ -391,13 +405,14 @@ type IdentityMatch struct {
 
 // The verdicts and effects an IdentityMatch carries.
 const (
-	VerdictSame          = "same"
-	VerdictDifferent     = "different"
-	EffectConfirmed      = "confirmed"
-	EffectJoined         = "joined"
-	EffectKeptApart      = "kept_apart"
-	MethodFingerprint    = "acoustic_fingerprint"
-	MethodPerceptualHash = "perceptual_hash"
+	VerdictSame           = "same"
+	VerdictDifferent      = "different"
+	EffectConfirmed       = "confirmed"
+	EffectJoined          = "joined"
+	EffectKeptApart       = "kept_apart"
+	MethodFingerprint     = "acoustic_fingerprint"
+	MethodPerceptualHash  = "perceptual_hash"
+	MethodTextFingerprint = "text_fingerprint"
 )
 
 // IdentityDetail says a match in words, the same words wherever it is
@@ -407,8 +422,11 @@ func IdentityDetail(m IdentityMatch) string {
 	if peer == "" {
 		peer = m.PeerURL
 	}
-	if m.Method == MethodPerceptualHash {
+	switch m.Method {
+	case MethodPerceptualHash:
 		return imageIdentityDetail(m, peer)
+	case MethodTextFingerprint:
+		return textIdentityDetail(m, peer)
 	}
 	if peer == "" {
 		return "Fingerprinted; nothing else of its kind has been heard yet, so there is nothing to compare it with."
@@ -427,6 +445,27 @@ func IdentityDetail(m IdentityMatch) string {
 		return fmt.Sprintf("Sounds different from %s (%s) although the tags agree: a different recording, kept apart.", peer, measure)
 	case m.Verdict == VerdictDifferent:
 		return fmt.Sprintf("Sounds different from %s (%s), the nearest fingerprint compared: a different recording, as the tags say.", peer, measure)
+	}
+	return ""
+}
+
+// textIdentityDetail is IdentityDetail for a text fingerprint.
+func textIdentityDetail(m IdentityMatch, peer string) string {
+	if peer == "" {
+		return "Fingerprinted; nothing else of its kind has been read yet, so there is nothing to compare it with."
+	}
+	measure := fmt.Sprintf("text distance %.2f", m.Distance)
+	switch {
+	case m.Verdict == VerdictSame && m.Effect == EffectJoined:
+		return fmt.Sprintf("Reads the same as %s (%s): the same text under different tags.", peer, measure)
+	case m.Verdict == VerdictSame && m.Effect == EffectConfirmed:
+		return fmt.Sprintf("Reads the same as %s (%s): the same text, as the tags say.", peer, measure)
+	case m.Verdict == VerdictSame:
+		return fmt.Sprintf("Reads the same as %s (%s).", peer, measure)
+	case m.Verdict == VerdictDifferent && m.Effect == EffectKeptApart:
+		return fmt.Sprintf("Reads differently from %s (%s) although the tags agree: a different text, kept apart.", peer, measure)
+	case m.Verdict == VerdictDifferent:
+		return fmt.Sprintf("Reads differently from %s (%s), the nearest text compared: a different text, as the tags say.", peer, measure)
 	}
 	return ""
 }

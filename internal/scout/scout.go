@@ -146,7 +146,7 @@ func (s *Scout) SearchWithOptions(ctx context.Context, query, region string, opt
 		region = "ALL"
 	}
 	kind := strings.ToLower(strings.TrimSpace(options.Kind))
-	if kind != lens.TypeAudio && kind != lens.TypeImage {
+	if kind != lens.TypeAudio && kind != lens.TypeImage && kind != lens.TypeDocument {
 		kind = lens.TypeVideo
 	}
 	empty := SearchReport{Query: query, Kind: kind, Region: region, FullLengthOnly: options.FullLengthOnly, Sources: []VerifiedSource{}, VerifiedSources: []VerifiedSource{}, PrunedSources: []VerifiedSource{}, Providers: []ProviderStatus{}}
@@ -158,6 +158,8 @@ func (s *Scout) SearchWithOptions(ctx context.Context, query, region string, opt
 		return s.searchAudio(ctx, query, region, start)
 	case lens.TypeImage:
 		return s.searchImage(ctx, query, region, start)
+	case lens.TypeDocument:
+		return s.searchDocument(ctx, query, region, start)
 	}
 
 	isDirectURL := strings.HasPrefix(query, "http://") || strings.HasPrefix(query, "https://")

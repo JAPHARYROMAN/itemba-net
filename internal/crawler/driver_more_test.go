@@ -19,6 +19,7 @@ func TestAllShippedDriversHaveTheirIdentity(t *testing.T) {
 		"public-domain-movies": "Public Domain Movies browse", "arcoiris-tv": "ArcoirisTV feature catalog", "publicdomainmovie-org": "PublicDomainMovie.org feature catalog", "fawesome": "Fawesome live movie search",
 		// The first audio and image drivers of Phase 3.
 		"internet-archive-audio": "Internet Archive audio", "wikimedia-commons-images": "Wikimedia Commons pictures",
+		"internet-archive-texts": "Internet Archive texts",
 		// Drivers that only check a provider's pages have no search status.
 		"pluto-tv": "", "filmzie": "",
 	}

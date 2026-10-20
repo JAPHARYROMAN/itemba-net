@@ -35,6 +35,7 @@ func observationsFromReport(report scout.SearchReport) []atlas.Observation {
 			Price:       source.Price,
 			Market:      source.Region,
 			Year:        source.ReleaseYear,
+			Pages:       source.Pages,
 			Duration:    source.Duration,
 			Description: source.Description,
 			Thumbnail:   source.Thumbnail,
@@ -42,10 +43,13 @@ func observationsFromReport(report scout.SearchReport) []atlas.Observation {
 		}
 		// What the sample heard goes to the fingerprint library with the
 		// length of the file it heard it from, as the browser read it; what
-		// the picture probe saw goes there too.
+		// the picture probe saw and what the document probe read go there
+		// too.
 		if check := source.PlaybackCheck; check != nil && check.Fingerprint.Valid() {
 			listing.Fingerprint = &atlas.FingerprintObservation{Fingerprint: *check.Fingerprint, MediaSeconds: check.DurationSeconds, ObservedAt: observedOrNow(check.CheckedAt)}
 		} else if check := source.ImageCheck; check != nil && check.Fingerprint.Valid() {
+			listing.Fingerprint = &atlas.FingerprintObservation{Fingerprint: *check.Fingerprint, ObservedAt: observedOrNow(check.CheckedAt)}
+		} else if check := source.DocumentCheck; check != nil && check.Fingerprint.Valid() {
 			listing.Fingerprint = &atlas.FingerprintObservation{Fingerprint: *check.Fingerprint, ObservedAt: observedOrNow(check.CheckedAt)}
 		}
 		observations = append(observations, atlas.Observation{Listing: listing, Evidence: evidenceFor(source, egress)})
@@ -74,6 +78,30 @@ func evidenceFor(source scout.VerifiedSource, defaultEgress string) []atlas.Evid
 		out = append(out, atlas.Evidence{
 			Level:      level,
 			Method:     firstNonEmpty(check.Method, "image_decode"),
+			Status:     check.Status,
+			Detail:     check.Detail,
+			Egress:     defaultEgress,
+			ObservedAt: observedOrNow(check.CheckedAt),
+			Artefacts:  artefacts,
+		})
+	}
+	// A document's file that parsed is identified; one that answered but
+	// did not parse is reachable; one that did not answer stays listed.
+	if check := source.DocumentCheck; check != nil && check.Status != "" && check.Status != "not_checked" {
+		level := lens.LevelListed
+		switch {
+		case check.Status == "parsed":
+			level = lens.LevelIdentified
+		case check.HTTPStatus >= 200 && check.HTTPStatus < 300:
+			level = lens.LevelReachable
+		}
+		artefacts := map[string]any{"format": check.Format, "pages": check.Pages, "pagesConfirmed": check.PagesConfirmed, "bytes": check.Bytes, "httpStatus": check.HTTPStatus, "evidenceUrl": check.EvidenceURL, "textChars": check.TextChars, "textSource": check.TextSource}
+		if check.FingerprintStatus != "" {
+			artefacts["fingerprintStatus"] = check.FingerprintStatus
+		}
+		out = append(out, atlas.Evidence{
+			Level:      level,
+			Method:     firstNonEmpty(check.Method, "document_parse"),
 			Status:     check.Status,
 			Detail:     check.Detail,
 			Egress:     defaultEgress,

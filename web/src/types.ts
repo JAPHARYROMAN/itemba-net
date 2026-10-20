@@ -115,9 +115,8 @@ export interface IdentityMatch {
   detail?: string;
 }
 
-// The object types the search form offers. Documents arrive with their
-// Phase 3 slice.
-export type SearchKind = 'video' | 'audio' | 'image';
+// The object types the search form offers.
+export type SearchKind = 'video' | 'audio' | 'image' | 'document';
 
 // What a bounded fetch and decode of a picture's file proved: its
 // dimensions and format from the header, and the perceptual hash of it.
@@ -134,6 +133,27 @@ export interface ImageCheck {
   evidenceUrl?: string;
   fingerprint?: AudioFingerprint;
   fingerprintStatus?: 'computed' | 'too_large' | 'undecodable' | 'unavailable';
+}
+
+// What a bounded fetch and parse of a document's file proved: its format,
+// its page count from the file's own page tree when that was within the
+// bytes read, and the fingerprint of its text.
+export interface DocumentCheck {
+  status: 'parsed' | 'undecodable' | 'unsupported' | 'unreachable' | 'not_checked';
+  method: string;
+  checkedAt: string;
+  detail: string;
+  format?: string;
+  pages?: number;
+  pagesConfirmed?: boolean;
+  linearized?: boolean;
+  bytes?: number;
+  httpStatus?: number;
+  evidenceUrl?: string;
+  textChars?: number;
+  textSource?: 'pdf' | 'ocr_text' | 'text_file';
+  fingerprint?: AudioFingerprint;
+  fingerprintStatus?: 'computed' | 'too_short';
 }
 
 // One file of a recording with several, in the host's order.
@@ -157,6 +177,12 @@ export interface VerifiedSource {
   license?: string;
   // imageCheck is what the picture probe proved of a picture's file.
   imageCheck?: ImageCheck;
+  // documentCheck is what the document probe proved of a document's file;
+  // pages is the count the host states and textUrl the text beside the
+  // file, such as the Archive's OCR text.
+  documentCheck?: DocumentCheck;
+  pages?: number;
+  textUrl?: string;
   // identity is the search's own fingerprint comparison between its
   // samples; the index's verdict arrives in the report's atlas summary.
   identity?: IdentityMatch;
