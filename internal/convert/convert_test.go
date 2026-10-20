@@ -75,6 +75,13 @@ func TestConverterRunsTheToolOnceAndCachesThePDF(t *testing.T) {
 	if entries, _ := os.ReadDir(c.CacheDir); len(entries) != 2 {
 		t.Fatalf("the scratch directories are gone and two PDFs remain: %d entries", len(entries))
 	}
+	// The same bytes through another tool, or the tool installed elsewhere,
+	// are converted again: the cache is keyed by the tool as well.
+	c.Commands[0].Path = "/elsewhere/ebook-convert"
+	moved, err := c.Convert(context.Background(), "epub", input)
+	if err != nil || moved.Cached || moved.Key == result.Key || runs != 3 {
+		t.Fatalf("a tool installed elsewhere converts afresh: %+v %v runs=%d", moved, err, runs)
+	}
 }
 
 func TestConverterRefusesWhatItCannotDoAndSaysWhy(t *testing.T) {

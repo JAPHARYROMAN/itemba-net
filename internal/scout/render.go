@@ -24,8 +24,13 @@ import (
 // converter of their own in its place.
 var hostConverter = sync.OnceValue(func() *convert.Converter { return convert.Detect("") })
 
-// convertInputLimit bounds the bytes fetched for a conversion.
-const convertInputLimit = 48 << 20
+// convertInputLimit bounds the bytes fetched for a conversion, and
+// convertFetchTimeout the time that fetch gets: a whole e-book from a slow
+// host, not a probe of its beginning.
+const (
+	convertInputLimit   = 48 << 20
+	convertFetchTimeout = 90 * time.Second
+)
 
 // The sandbox render: the rendered level of the ladder for pictures and
 // documents, which only video and audio samples reached before. The same
@@ -698,7 +703,7 @@ func convertForRender(ctx context.Context, client *http.Client, converter *conve
 		}
 		return convert.Result{}, "No converter on this host takes " + upper + "; the file is not rendered."
 	}
-	data, status, _, err := fetchImageBytes(ctx, client, raw, convertInputLimit, true)
+	data, status, _, err := fetchBytesWithin(ctx, client, raw, convertInputLimit, true, convertFetchTimeout)
 	if err != nil {
 		if status == http.StatusTooManyRequests {
 			return convert.Result{}, "The host rate-limited the fetch (HTTP 429), so the " + upper + " was not converted this time."

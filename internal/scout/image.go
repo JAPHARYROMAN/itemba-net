@@ -354,6 +354,12 @@ var errImageTooLarge = errors.New("the picture exceeds the probe's byte budget")
 // up to limit bytes and an error beyond it. It reports the HTTP status and
 // the file's full length when the server states it.
 func fetchImageBytes(ctx context.Context, client *http.Client, raw string, limit int64, whole bool) ([]byte, int, int64, error) {
+	return fetchBytesWithin(ctx, client, raw, limit, whole, 8*time.Second)
+}
+
+// fetchBytesWithin is fetchImageBytes with its own time budget: a probe
+// gives a file eight seconds, a conversion gives a whole e-book longer.
+func fetchBytesWithin(ctx context.Context, client *http.Client, raw string, limit int64, whole bool, timeout time.Duration) ([]byte, int, int64, error) {
 	target, ok := safeAvailabilityURL(raw)
 	if !ok {
 		return nil, 0, 0, errors.New("the file is not on a public web host")
@@ -366,7 +372,7 @@ func fetchImageBytes(ctx context.Context, client *http.Client, raw string, limit
 		guarded.Transport = newMovieAvailabilityClient().Transport
 	}
 	guarded.Jar = nil
-	guarded.Timeout = 8 * time.Second
+	guarded.Timeout = timeout
 	priorRedirect := guarded.CheckRedirect
 	guarded.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		if len(via) >= 5 {
@@ -381,7 +387,7 @@ func fetchImageBytes(ctx context.Context, client *http.Client, raw string, limit
 		return nil
 	}
 	paceProbeRequest(ctx)
-	fetchCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	fetchCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	request, err := http.NewRequestWithContext(fetchCtx, http.MethodGet, target.String(), nil)
 	if err != nil {

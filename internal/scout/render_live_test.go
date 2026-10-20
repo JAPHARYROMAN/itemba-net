@@ -64,3 +64,30 @@ func TestLiveDocumentRenderInTheSandbox(t *testing.T) {
 	result := runRenderSample(ctx, &loggingBrowser{playbackBrowser: browser, t: t}, source, origin, "document", &RenderCheck{Method: MethodDocumentRender})
 	t.Logf("result %+v", result)
 }
+
+// TestLiveEPUBRenderInTheSandbox converts an Archive EPUB with the
+// converter this host has and renders the converted PDF in the sandbox:
+// the whole document render path for an e-book. Set ITEMBA_RENDER_LIVE to
+// run it; it skips on a host without a converter.
+func TestLiveEPUBRenderInTheSandbox(t *testing.T) {
+	if os.Getenv("ITEMBA_RENDER_LIVE") == "" {
+		t.Skip("set ITEMBA_RENDER_LIVE")
+	}
+	if _, ok := hostConverter().Supports("epub"); !ok {
+		t.Skip("no converter for EPUB on this host")
+	}
+	s := New(nil, "http://127.0.0.1:0")
+	defer s.Close()
+	source := VerifiedSource{CandidateSource: CandidateSource{Kind: lens.TypeDocument, URL: "https://archive.org/details/alicesadventur00carr", DirectStreamURL: "https://archive.org/download/alicesadventur00carr/alicesadventur00carr.epub", AccessType: "free"}, DocumentCheck: &DocumentCheck{Status: "unsupported", Format: "epub"}}
+	if _, ok := renderableDocument(source); !ok {
+		t.Fatal("an EPUB is renderable on a host with a converter")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+	started := time.Now()
+	result := s.renderInSandbox(ctx, source, "document", "ALL", "TZ")
+	t.Logf("result in %s: %+v", time.Since(started), result)
+	if result.Status != "rendered" || result.Converted == "" {
+		t.Fatalf("the converted EPUB renders in the sandbox: %+v", result)
+	}
+}

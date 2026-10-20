@@ -250,8 +250,10 @@ func (c *Converter) Formats() []string {
 }
 
 // Convert turns input, a file of the format, into a PDF. The result is
-// cached by the input's digest; a second call with the same bytes returns
-// the cached PDF without running anything.
+// cached by the digest of the input and of the tool that converted it, so
+// a second call with the same bytes returns the cached PDF without running
+// anything, and another tool, or the same tool installed elsewhere,
+// converts afresh.
 func (c *Converter) Convert(ctx context.Context, format string, input []byte) (Result, error) {
 	format = NormalizeFormat(format)
 	if !Convertible(format) {
@@ -272,6 +274,8 @@ func (c *Converter) Convert(ctx context.Context, format string, input []byte) (R
 	}
 	digest := sha256.New()
 	digest.Write([]byte(format))
+	digest.Write([]byte{0})
+	digest.Write([]byte(cmd.Name + "\n" + cmd.Path))
 	digest.Write([]byte{0})
 	digest.Write(input)
 	key := hex.EncodeToString(digest.Sum(nil)[:16])
