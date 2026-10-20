@@ -1,6 +1,7 @@
 import React from 'react';
-import { Database, Globe } from 'lucide-react';
-import { AtlasEvidence, LocationOrigin, SearchKnownEvent, SearchMergedEvent, SearchReport, VerifiedSource } from '../types';
+import { Database, Fingerprint, Globe } from 'lucide-react';
+import { AtlasEvidence, IdentityMatch, LocationOrigin, SearchKnownEvent, SearchMergedEvent, SearchReport, VerifiedSource } from '../types';
+import { identityLabel } from '../identity';
 
 interface RankedLocationsProps {
   known: SearchKnownEvent | null;
@@ -64,6 +65,9 @@ interface Row {
   origin: LocationOrigin;
   evidence?: AtlasEvidence;
   source?: VerifiedSource;
+  // What the acoustic fingerprint said about the location, when one was
+  // taken: the index's verdict, or the search's own.
+  identity?: IdentityMatch;
 }
 
 const rowsFromKnown = (known: SearchKnownEvent): Row[] => known.locations.map((k) => ({
@@ -79,6 +83,7 @@ const rowsFromKnown = (known: SearchKnownEvent): Row[] => known.locations.map((k
   accessType: k.location.accessType,
   origin: 'index',
   evidence: k.evidence,
+  identity: k.identity,
 }));
 
 const rowsFromMerged = (merged: SearchMergedEvent, known: SearchKnownEvent | null, report: SearchReport | null): Row[] => {
@@ -100,6 +105,7 @@ const rowsFromMerged = (merged: SearchMergedEvent, known: SearchKnownEvent | nul
     origin: m.origin,
     evidence: evidenceByUrl.get(m.url),
     source: sourceByUrl.get(m.url),
+    identity: m.identity,
   }));
 };
 
@@ -119,6 +125,11 @@ const LocationCard: React.FC<{ row: Row; launchingUrl: string | null; onLaunchRb
           <span className="scout-muted">
             {age ? `Checked ${age}` : 'Not yet checked'}{egress ? ` from ${egress}` : ''} · {ORIGIN_LABELS[row.origin]}
           </span>
+          {row.identity && (
+            <span className={`ladder-identity identity-${row.identity.effect ?? row.identity.verdict ?? 'none'}`} title={row.identity.detail}>
+              <Fingerprint size={11} aria-hidden="true" /> {identityLabel(row.identity)}{row.identity.peerTitle ? ` · ${row.identity.peerTitle}` : ''}
+            </span>
+          )}
         </div>
         <button type="button" className="btn btn-primary" disabled={launchingUrl !== null} onClick={() => onLaunchRbi(row.url, false)}>
           <Globe size={14} aria-hidden="true" /> {launchingUrl === row.url ? 'Opening protected browser…' : 'Open with ad blocking'}
@@ -140,6 +151,9 @@ const LocationCard: React.FC<{ row: Row; launchingUrl: string | null; onLaunchRb
           </>)}
           {!row.evidence && !check && !playback && (<>
             <dt>Checks</dt><dd>None recorded. The location is listed by its provider only.</dd>
+          </>)}
+          {row.identity && (<>
+            <dt>Fingerprint</dt><dd>{identityLabel(row.identity)}. {row.identity.detail}</dd>
           </>)}
           <dt>Egress</dt><dd>{egress ?? 'unknown'}</dd>
           <dt>Observed</dt><dd>{row.observedAt ? new Date(row.observedAt).toLocaleString() : 'not recorded'}</dd>

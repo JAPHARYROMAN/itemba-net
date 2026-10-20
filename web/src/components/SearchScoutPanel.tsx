@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Play, Globe, Search, Shield, Clock, Sparkles, Film, Music } from 'lucide-react';
+import { Play, Globe, Search, Shield, Clock, Sparkles, Film, Music, Fingerprint } from 'lucide-react';
 import { ActiveRelayStream, AudioTrack, FawesomeShelfPlaybackReport, MovieAvailabilityCheck, MovieDiscoveryItem, MovieDiscoveryMode, MovieDiscoveryReport, SearchKind, SearchKnownEvent, SearchMergedEvent, SearchReport, VerifiedSource } from '../types';
 import { RankedLocations } from './RankedLocations';
+import { fingerprintLabel, identityLabel } from '../identity';
 
 interface SearchScoutPanelProps {
   report: SearchReport | null;
@@ -488,7 +489,7 @@ const AudioResults: React.FC<AudioResultsProps> = ({ report, sources, filter, on
         <div><strong>{sources.length} {sources.length === 1 ? 'recording' : 'recordings'}</strong> for “{report.query}”<span className="scout-muted"> · {regionName}</span></div>
         <span className="scout-muted scout-duration"><Clock size={12} aria-hidden="true" /> {(report.durationMs / 1000).toFixed(1)}s</span>
       </div>
-      <p className="scout-muted">Audio search · Listings are matched by title and performer. Files are checked for reach from the server, and up to two free recordings get a short muted sample in the isolated browser; a started sample confirms the first file decodes, not the whole recording.</p>
+      <p className="scout-muted">Audio search · Listings are matched by title and performer. Files are checked for reach from the server, and up to two free recordings get a short muted sample in the isolated browser; a started sample confirms the first file decodes, not the whole recording. The sample also takes an acoustic fingerprint of the file’s beginning, and recordings that sound the same are matched by it whatever their tags say.</p>
       {report.providers && report.providers.length > 0 && (
         <details className="scout-provider-details" open={coverageOpen}>
           <summary>Search coverage{coverageOpen ? ' · some sources unavailable' : ''}</summary>
@@ -502,7 +503,8 @@ const AudioResults: React.FC<AudioResultsProps> = ({ report, sources, filter, on
       {report.availabilityChecks && (
         <div className="scout-link-check-summary">
           <p><strong>Automatic link checks</strong> · {report.availabilityChecks.checkedCount} checked{checkLocation ? ` from ${checkLocation}` : ' · check location unconfirmed'}</p>
-          {report.availabilityChecks.playbackCheckedCount !== undefined && <p><strong>Muted playback samples</strong> · {report.availabilityChecks.playbackCheckedCount} attempted{report.availabilityChecks.playbackStartedCount !== undefined ? ` · ${report.availabilityChecks.playbackStartedCount} started` : ''}. A started sample confirms the first file decodes, not the whole recording.</p>}
+          {report.availabilityChecks.playbackCheckedCount !== undefined && <p><strong>Muted playback samples</strong> · {report.availabilityChecks.playbackCheckedCount} attempted{report.availabilityChecks.playbackStartedCount !== undefined ? ` · ${report.availabilityChecks.playbackStartedCount} started` : ''}{report.availabilityChecks.fingerprintCount ? ` · ${report.availabilityChecks.fingerprintCount} acoustic ${report.availabilityChecks.fingerprintCount === 1 ? 'fingerprint' : 'fingerprints'} taken` : ''}. A started sample confirms the first file decodes, not the whole recording.</p>}
+          {report.atlas?.fingerprints ? <p><strong>Fingerprint library</strong> · {report.atlas.fingerprints} stored in the index and compared with everything heard before.</p> : null}
           {batchCheckedAt && <p>Checked <time dateTime={report.availabilityChecks.checkedAt}>{batchCheckedAt}</time></p>}
         </div>
       )}
@@ -531,6 +533,10 @@ const AudioResults: React.FC<AudioResultsProps> = ({ report, sources, filter, on
             const sampleCheckedAt = formatCheckedAt(sample?.checkedAt);
             const reach = sampleStarted ? 'Playback sample passed' : source.verificationStatus === 'media_reachable' ? 'Audio file reachable' : source.verificationStatus === 'page_reachable' ? 'Page reachable' : 'Listing';
             const tracks = source.tracks ?? [];
+            // The index's verdict, compared with everything it has heard,
+            // over the search's own between its two samples.
+            const identity = report.atlas?.identities?.[source.url] ?? source.identity;
+            const fingerprintNote = sample ? fingerprintLabel(sample) : null;
             return (
               <article key={source.id} className="source-card movie-source-card audio-source-card">
                 <div>
@@ -554,6 +560,13 @@ const AudioResults: React.FC<AudioResultsProps> = ({ report, sources, filter, on
                       {sampleStarted
                         ? <p className="scout-muted">{(sample?.secondsAdvanced ?? 0).toFixed(1)}s of audio decoded in the isolated browser; the rest of the recording is not verified.</p>
                         : <p className="scout-muted">{sample?.detail || 'No playback sample was tested for this recording.'}</p>}
+                      {fingerprintNote && <p className="scout-muted">{fingerprintNote}</p>}
+                      {identity && (
+                        <p className={`audio-identity identity-${identity.effect ?? identity.verdict ?? 'none'}`}>
+                          <span className="ladder-identity"><Fingerprint size={11} aria-hidden="true" /> {identityLabel(identity)}</span>
+                          {identity.detail && <span className="scout-muted">{identity.detail}</span>}
+                        </p>
+                      )}
                       {sampleCheckedAt && <p className="scout-muted">Sample checked <time dateTime={sample?.checkedAt}>{sampleCheckedAt}</time></p>}
                     </div>
                   )}
@@ -699,7 +712,7 @@ export const SearchScoutPanel: React.FC<SearchScoutPanelProps> = ({
           </div>
         </>
       ) : (
-        <p className="scout-muted">Audio results come from the Internet Archive’s audio collections, read through the same driver runtime as the movie catalogs. A recording is matched by its title, performer and length, its files are checked for reach and sampled, and a multi-track item plays in order through the relay; the acoustic fingerprint arrives with a later slice.</p>
+        <p className="scout-muted">Audio results come from the Internet Archive’s audio collections, read through the same driver runtime as the movie catalogs. A recording is matched by its title, performer and length, its files are checked for reach and sampled, and a multi-track item plays in order through the relay. The sample takes an acoustic fingerprint of the file’s beginning; the index compares it with every fingerprint it holds, so two listings of the same recording are matched by what they sound like, and a different recording under the same tags is kept apart.</p>
       )}
       <p className="scout-protection-note"><Shield size={14} aria-hidden="true" /> Sites open in ITEMBA's browser with ad and tracker blocking enabled. Some ads may remain; subscriptions and regional restrictions still apply.</p>
       {kind === 'video' && <p className="scout-muted">Native samples cover supported free catalogs, including NASA+, NFB, creator-authorized Catsuka and matching Fawesome movie pages. Provider checks can report restrictions for Pluto TV and Filmzie. Playback badges require decoded movie content; pages, ads and trailers do not qualify.</p>}

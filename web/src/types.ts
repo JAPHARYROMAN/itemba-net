@@ -66,6 +66,7 @@ export interface SearchAvailabilityChecks {
   playbackCheckedCount?: number;
   playbackStartedCount?: number;
   providerCheckedCount?: number;
+  fingerprintCount?: number;
 }
 
 export interface MoviePlaybackCheck {
@@ -83,6 +84,35 @@ export interface MoviePlaybackCheck {
   durationSeconds?: number;
   method: string;
   playbackConfirmed: boolean;
+  // What an audio sample heard of the file's beginning, and how that went:
+  // computed, pending, timeout, invalid, failed or the page's own cause.
+  fingerprint?: AudioFingerprint;
+  fingerprintStatus?: string;
+}
+
+// The acoustic fingerprint: band-energy words of the first seconds, four
+// bytes a frame, base64.
+export interface AudioFingerprint {
+  type: string;
+  frames: number;
+  seconds?: number;
+  data: string;
+}
+
+// What a fingerprint comparison said about a location: the same sound or
+// a different one, the nearest fingerprint it was compared with, and the
+// effect on identity: confirmed (same object), joined (another object,
+// under different tags), kept_apart (a different sound under the same
+// tags). No verdict means nothing to compare with yet.
+export interface IdentityMatch {
+  method: string;
+  verdict: 'same' | 'different' | '';
+  effect?: 'confirmed' | 'joined' | 'kept_apart';
+  peerUrl?: string;
+  peerTitle?: string;
+  distance: number;
+  seconds?: number;
+  detail?: string;
 }
 
 // The object types the search form offers. Images and documents arrive with
@@ -106,6 +136,9 @@ export interface VerifiedSource {
   kind?: SearchKind;
   creator?: string;
   tracks?: AudioTrack[];
+  // identity is the search's own fingerprint comparison between its
+  // samples; the index's verdict arrives in the report's atlas summary.
+  identity?: IdentityMatch;
   url: string;
   directStreamUrl?: string;
   provider: string;
@@ -241,7 +274,7 @@ export interface AtlasEvidence {
 }
 
 export interface KnownLocation {
-  object: { id: number; type: string; title: string; titleKey: string; creator?: string; year?: number; language?: string };
+  object: { id: number; type: string; title: string; titleKey: string; creator?: string; year?: number; language?: string; contentKey?: string };
   host: { id: number; hostname: string; provider?: string };
   location: {
     id: number;
@@ -261,6 +294,7 @@ export interface KnownLocation {
   levelName: string;
   ageSeconds: number;
   relevance: number;
+  identity?: IdentityMatch;
 }
 
 export interface SearchKnownEvent {
@@ -275,6 +309,9 @@ export interface AtlasRecordSummary {
   locations: number;
   evidence: number;
   skipped?: number;
+  fingerprints?: number;
+  // The fingerprint library's verdict on each fingerprinted source, by URL.
+  identities?: Record<string, IdentityMatch>;
 }
 
 export type LocationOrigin = 'index' | 'fresh' | 'both';
@@ -291,6 +328,7 @@ export interface MergedLocation {
   accessType: string;
   origin: LocationOrigin;
   relevance: number;
+  identity?: IdentityMatch;
 }
 
 export interface SearchMergedEvent {
