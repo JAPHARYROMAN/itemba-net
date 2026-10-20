@@ -293,11 +293,14 @@ func TestAudioSamplerCarriesTheFingerprintThePageComputed(t *testing.T) {
 	// A video sample never carries one, whatever the page reports.
 	video := audioPlaybackFixture()
 	video.Kind = lens.TypeVideo
+	// A video sample ignores the audio page's fingerprint fields: its own
+	// fingerprint comes from the frames the video page captures, and only
+	// once the sample is confirmed.
 	videoState := playbackSnapshot{CurrentTime: .2, ReadyState: 4, PlaybackRate: 1, Duration: 562.4, Source: origin + "/media", Protocol: "native", Width: 640, Height: 360, DecodedFrames: 10, Fingerprint: sampleFingerprint(), FingerprintState: "ready"}
 	browser = &fakePlaybackBrowser{origin: origin, mediaResponse: true, state: videoState}
 	ctx, cancel = context.WithTimeout(context.Background(), 2500*time.Millisecond)
 	defer cancel()
 	if result := runFreePlaybackSample(ctx, browser, video, origin, &PlaybackCheck{}); result.Fingerprint != nil || result.FingerprintStatus != "" {
-		t.Fatalf("a video sample carried a fingerprint: %+v", result)
+		t.Fatalf("a video sample carried the audio fingerprint: %+v", result)
 	}
 }

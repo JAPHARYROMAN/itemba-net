@@ -819,6 +819,15 @@ const SPEEDS=[0.97,0.98,0.99,1.01,1.02,1.03];
 	return []byte(strings.NewReplacer("{{nonce}}", nonce, "{{lastByte}}", strconv.Itoa(audioFingerprintBytes-1)).Replace(page))
 }
 
+// moviePlaybackHTML is the harness page for a movie: one video element,
+// the playback flags, and the frame capture for the video fingerprint: on
+// every time update, and whenever the sampler reads the page, the playing
+// video is drawn onto a canvas of lens.ImageHashColumns+1 by
+// lens.ImageHashRows cells once per lens.VideoFrameInterval of media time,
+// and the grey level of each cell is kept in window.__itembaFrames for the
+// sampler, which hashes the frames in Go. The video is served by the
+// harness itself, so the canvas is not tainted; a capture that fails leaves
+// its reason in window.__itembaFrameError.
 func moviePlaybackHTML(nonce string, hls, library bool) []byte {
 	script, source := "", ` src="/media"`
 	if library {
@@ -834,6 +843,18 @@ window.__itembaPlaybackProtocol='native';window.__itembaPlaybackState='loading';
 video.muted=true;video.addEventListener('playing',()=>{window.__itembaPlaybackState='playing'});
 video.addEventListener('error',()=>{window.__itembaPlaybackError='media_error';window.__itembaPlaybackState='error'});
 const play=()=>{video.play().catch(()=>{window.__itembaPlaybackError='play_rejected'})};
+const COLUMNS={{columns}},ROWS={{rows}},INTERVAL={{interval}},MAX_FRAMES={{maxFrames}};
+const canvas=document.createElement('canvas');canvas.width=COLUMNS;canvas.height=ROWS;
+const cells=canvas.getContext('2d',{willReadFrequently:true});
+window.__itembaFrames=[];window.__itembaFrameError='';let nextFrameAt=0;
+const capture=()=>{if(!cells){window.__itembaFrameError='no_canvas';return;}
+ if(video.readyState<2||video.videoWidth===0||window.__itembaFrames.length>=MAX_FRAMES){return;}
+ const t=video.currentTime;if(t<nextFrameAt){return;}
+ nextFrameAt=Math.floor(t/INTERVAL)*INTERVAL+INTERVAL;
+ try{cells.drawImage(video,0,0,COLUMNS,ROWS);const px=cells.getImageData(0,0,COLUMNS,ROWS).data;const grey=new Array(COLUMNS*ROWS);
+  for(let i=0;i<grey.length;i++){const o=4*i;grey[i]=Math.round(0.299*px[o]+0.587*px[o+1]+0.114*px[o+2]);}
+  window.__itembaFrames.push({t:t,cells:grey});}catch(e){window.__itembaFrameError=(e&&e.message)||'failed';}};
+video.addEventListener('timeupdate',capture);window.__itembaCaptureFrame=capture;
 if({{hls}} && typeof Hls!=='undefined' && Hls.isSupported()) {
  window.__itembaPlaybackProtocol='hls';
  const player=new Hls({enableWorker:false,startLevel:0,maxBufferLength:3,maxMaxBufferLength:3,maxBufferSize:1048576,backBufferLength:0,lowLatencyMode:false,autoStartLoad:true});
@@ -843,5 +864,7 @@ if({{hls}} && typeof Hls!=='undefined' && Hls.isSupported()) {
 } else if({{hls}} && !video.canPlayType('application/vnd.apple.mpegurl')) {window.__itembaPlaybackState='unsupported_hls';}
 else {video.src='/media';play();}
 })();</script></body></html>`
-	return []byte(strings.NewReplacer("{{source}}", source, "{{script}}", script, "{{nonce}}", nonce, "{{hls}}", strconv.FormatBool(hls)).Replace(page))
+	return []byte(strings.NewReplacer("{{source}}", source, "{{script}}", script, "{{nonce}}", nonce, "{{hls}}", strconv.FormatBool(hls),
+		"{{columns}}", strconv.Itoa(lens.ImageHashColumns+1), "{{rows}}", strconv.Itoa(lens.ImageHashRows),
+		"{{interval}}", strconv.FormatFloat(lens.VideoFrameInterval, 'f', -1, 64), "{{maxFrames}}", strconv.Itoa(int(lens.VideoFingerprintSeconds/lens.VideoFrameInterval))).Replace(page))
 }

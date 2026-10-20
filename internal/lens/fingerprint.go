@@ -118,6 +118,11 @@ func (f *Fingerprint) Valid() bool {
 		return f.Frames == ImageHashWords && f.Seconds == 0 && len(f.Variants) == 0
 	case FingerprintTextSimhash:
 		return f.Frames == TextHashWords && f.Seconds == 0 && len(f.Variants) == 0
+	case FingerprintVideoFrames:
+		if math.IsNaN(f.Seconds) || math.IsInf(f.Seconds, 0) || f.Seconds <= 0 || f.Seconds > VideoFingerprintSeconds+1 {
+			return false
+		}
+		return f.Frames%VideoFrameWords == 0 && len(f.Variants) == 0
 	}
 	return false
 }
@@ -136,6 +141,8 @@ func FingerprintMethod(fingerprintType string) string {
 		return MethodPerceptualHash
 	case FingerprintTextSimhash:
 		return MethodTextFingerprint
+	case FingerprintVideoFrames:
+		return MethodFrameFingerprint
 	}
 	return MethodFingerprint
 }
@@ -189,12 +196,18 @@ func (c FingerprintComparison) Same() bool {
 		threshold = SameSightThreshold
 	case FingerprintTextSimhash:
 		threshold = SameTextThreshold
+	case FingerprintVideoFrames:
+		threshold = SameMotionThreshold
 	}
 	return c.Known && c.Distance <= threshold
 }
 
-// OverlapSeconds is the span of audio the comparison rested on.
+// OverlapSeconds is the span of media the comparison rested on: frames of
+// audio or sampled frames of video.
 func (c FingerprintComparison) OverlapSeconds() float64 {
+	if c.Type == FingerprintVideoFrames {
+		return math.Round(float64(c.Overlap)*VideoFrameInterval*10) / 10
+	}
 	return math.Round(float64(c.Overlap*FingerprintHop)/FingerprintRate*10) / 10
 }
 
@@ -217,6 +230,15 @@ func CompareFingerprints(a, b Fingerprint) FingerprintComparison {
 			errors += bits.OnesCount32(wa[i] ^ wb[i])
 		}
 		return FingerprintComparison{Known: true, Distance: float64(errors) / float64(32*len(wa)), Overlap: len(wa), Speed: 1, Type: a.Type}
+	}
+	if a.Type == FingerprintVideoFrames {
+		// Frames align in time like audio frames, with no speed to try.
+		best := compareFrames(wa, wb)
+		if !best.Known {
+			return FingerprintComparison{}
+		}
+		best.Speed, best.Type = 1, a.Type
+		return best
 	}
 	best := compareWords(wa, wb)
 	best.Speed, best.Type = 1, a.Type
@@ -405,14 +427,15 @@ type IdentityMatch struct {
 
 // The verdicts and effects an IdentityMatch carries.
 const (
-	VerdictSame           = "same"
-	VerdictDifferent      = "different"
-	EffectConfirmed       = "confirmed"
-	EffectJoined          = "joined"
-	EffectKeptApart       = "kept_apart"
-	MethodFingerprint     = "acoustic_fingerprint"
-	MethodPerceptualHash  = "perceptual_hash"
-	MethodTextFingerprint = "text_fingerprint"
+	VerdictSame            = "same"
+	VerdictDifferent       = "different"
+	EffectConfirmed        = "confirmed"
+	EffectJoined           = "joined"
+	EffectKeptApart        = "kept_apart"
+	MethodFingerprint      = "acoustic_fingerprint"
+	MethodPerceptualHash   = "perceptual_hash"
+	MethodTextFingerprint  = "text_fingerprint"
+	MethodFrameFingerprint = "frame_fingerprint"
 )
 
 // IdentityDetail says a match in words, the same words wherever it is
@@ -427,6 +450,8 @@ func IdentityDetail(m IdentityMatch) string {
 		return imageIdentityDetail(m, peer)
 	case MethodTextFingerprint:
 		return textIdentityDetail(m, peer)
+	case MethodFrameFingerprint:
+		return videoIdentityDetail(m, peer)
 	}
 	if peer == "" {
 		return "Fingerprinted; nothing else of its kind has been heard yet, so there is nothing to compare it with."
@@ -445,6 +470,27 @@ func IdentityDetail(m IdentityMatch) string {
 		return fmt.Sprintf("Sounds different from %s (%s) although the tags agree: a different recording, kept apart.", peer, measure)
 	case m.Verdict == VerdictDifferent:
 		return fmt.Sprintf("Sounds different from %s (%s), the nearest fingerprint compared: a different recording, as the tags say.", peer, measure)
+	}
+	return ""
+}
+
+// videoIdentityDetail is IdentityDetail for a frame fingerprint.
+func videoIdentityDetail(m IdentityMatch, peer string) string {
+	if peer == "" {
+		return "Fingerprinted; nothing else of its kind has been sampled yet, so there is nothing to compare it with."
+	}
+	measure := fmt.Sprintf("frame distance %.2f over %.0f s of the beginning", m.Distance, m.Seconds)
+	switch {
+	case m.Verdict == VerdictSame && m.Effect == EffectJoined:
+		return fmt.Sprintf("Plays the same as %s (%s): the same film under different tags.", peer, measure)
+	case m.Verdict == VerdictSame && m.Effect == EffectConfirmed:
+		return fmt.Sprintf("Plays the same as %s (%s): the same film, as the tags say.", peer, measure)
+	case m.Verdict == VerdictSame:
+		return fmt.Sprintf("Plays the same as %s (%s).", peer, measure)
+	case m.Verdict == VerdictDifferent && m.Effect == EffectKeptApart:
+		return fmt.Sprintf("Plays differently from %s (%s) although the tags agree: a different film, kept apart.", peer, measure)
+	case m.Verdict == VerdictDifferent:
+		return fmt.Sprintf("Plays differently from %s (%s), the nearest sample compared: a different film, as the tags say.", peer, measure)
 	}
 	return ""
 }

@@ -1121,6 +1121,8 @@ export const SearchScoutPanel: React.FC<SearchScoutPanelProps> = ({
                 const checkCountry = countryName(check?.country);
                 const listingMarket = marketCode(source.region);
                 const playback = source.playbackCheck;
+                const movieIdentity = report.atlas?.identities?.[source.url] ?? source.identity;
+                const movieFingerprintNote = playback ? fingerprintLabel(playback) : null;
                 const providerPreflight = playback?.method === 'provider_playback_preflight';
                 const sampleStarted = playbackSampleStarted(source);
                 const sampleCountry = countryName(playback?.country);
@@ -1175,6 +1177,13 @@ export const SearchScoutPanel: React.FC<SearchScoutPanelProps> = ({
                         )}
                         {providerPreflight && <p className="scout-muted">Provider access check; main movie playback was not verified.</p>}
                         {sampleMetrics && <p className="scout-muted">{sampleMetrics}</p>}
+                        {movieFingerprintNote && <p className="scout-muted">{movieFingerprintNote}</p>}
+                        {movieIdentity && (
+                          <p className={`audio-identity identity-${movieIdentity.effect ?? movieIdentity.verdict ?? 'none'}`}>
+                            <span className="ladder-identity"><Fingerprint size={11} aria-hidden="true" /> {identityLabel(movieIdentity)}</span>
+                            {movieIdentity.detail && <span className="scout-muted">{movieIdentity.detail}</span>}
+                          </p>
+                        )}
                         {playback && (reportRegion === 'ALL' || !sampleStarted) && source.accessType === 'free' && <p className="scout-muted">Test location: {sampleCountry ?? 'unconfirmed'}</p>}
                         {sampleCheckedAt && <p className="scout-muted">{providerPreflight ? 'Provider checked' : 'Playback checked'} <time dateTime={playback?.checkedAt}>{sampleCheckedAt}</time></p>}
                       </div>

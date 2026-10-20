@@ -84,8 +84,10 @@ export interface MoviePlaybackCheck {
   durationSeconds?: number;
   method: string;
   playbackConfirmed: boolean;
-  // What an audio sample heard of the file's beginning, and how that went:
-  // computed, pending, timeout, invalid, failed or the page's own cause.
+  // What an audio sample heard of the file's beginning, or what a video
+  // sample saw of it (the frame fingerprint), and how that went: computed,
+  // pending, timeout, invalid, failed, too_short, unsupported or the page's
+  // own cause.
   fingerprint?: AudioFingerprint;
   fingerprintStatus?: string;
 }

@@ -71,7 +71,7 @@ func (s *Store) RecordObservations(ctx context.Context, q lens.ObjectQuery, obse
 		var match *lens.IdentityMatch
 		var peer int64
 		var neighbours []FingerprintNeighbour
-		heard := (candidate.Type == lens.TypeAudio || candidate.Type == lens.TypeImage || candidate.Type == lens.TypeDocument) && observation.Fingerprint != nil && observation.Fingerprint.Fingerprint.Valid()
+		heard := observation.Fingerprint != nil && observation.Fingerprint.Fingerprint.Valid()
 		if heard {
 			object, match, peer, neighbours, err = s.objectBySound(ctx, observation.Listing, candidate, objects, &summary)
 		} else {

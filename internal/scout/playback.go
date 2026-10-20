@@ -48,6 +48,69 @@ type playbackSnapshot struct {
 	Fingerprint      *lens.Fingerprint `json:"fingerprint"`
 	FingerprintState string            `json:"fingerprintState"`
 	FingerprintError string            `json:"fingerprintError"`
+	// The video page's sampled frames: the grey cells of each frame taken
+	// a VideoFrameInterval apart, in order, for the frame fingerprint, and
+	// the capture's error when one stopped it. The audio page reports none.
+	Frames     []lens.VideoFrame `json:"frames"`
+	FrameError string            `json:"frameError"`
+}
+
+// videoFrameGrace is how long a confirmed video sample keeps playing to
+// gather frames for the fingerprint when it has fewer than
+// videoFingerprintFrames, inside the sample's own deadline; and
+// videoFingerprintFrames is how many frames the sample is content with.
+// Variables so tests can shorten them.
+var (
+	videoFrameGrace        = 6 * time.Second
+	videoFingerprintFrames = 12
+)
+
+// attachVideoFingerprint builds the frame fingerprint from the frames the
+// page captured and carries it onto the check: computed when the sequence
+// is long enough to compare, too_short when it is not, unsupported when
+// the page could not read the frames at all.
+func attachVideoFingerprint(result *PlaybackCheck, state playbackSnapshot) {
+	if len(state.Frames) == 0 && state.FrameError != "" {
+		result.Fingerprint, result.FingerprintStatus = nil, "unsupported"
+		return
+	}
+	fp := lens.VideoFingerprint(state.Frames)
+	if !fp.Valid() || lens.VideoFrameCount(fp) < lens.MinVideoFrames {
+		result.Fingerprint, result.FingerprintStatus = nil, "too_short"
+		return
+	}
+	result.Fingerprint, result.FingerprintStatus = &fp, "computed"
+}
+
+// gatherVideoFrames keeps reading the page after a confirmed video sample
+// until it has videoFingerprintFrames frames, for at most videoFrameGrace
+// and within ctx, then attaches the fingerprint of what it has.
+func gatherVideoFrames(ctx context.Context, browser playbackBrowser, snapshotJS string, result *PlaybackCheck, state playbackSnapshot) {
+	deadline := time.Now().Add(videoFrameGrace)
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
+	for len(state.Frames) < videoFingerprintFrames && state.FrameError == "" {
+		if time.Now().After(deadline) {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			attachVideoFingerprint(result, state)
+			return
+		case <-ticker.C:
+			var response struct {
+				Result struct {
+					Value *playbackSnapshot `json:"value"`
+				} `json:"result"`
+			}
+			if browser.Call(ctx, "Runtime.evaluate", map[string]any{"expression": snapshotJS, "returnByValue": true}, &response) != nil || response.Result.Value == nil {
+				attachVideoFingerprint(result, state)
+				return
+			}
+			state = *response.Result.Value
+		}
+	}
+	attachVideoFingerprint(result, state)
 }
 
 // fingerprintGrace is how long a confirmed audio sample waits for the
@@ -320,11 +383,13 @@ const freePlaybackSnapshotJS = `(() => {
 	const q = typeof v.getVideoPlaybackQuality === 'function' ? v.getVideoPlaybackQuality() : null;
 	const decoded = Number.isFinite(v.webkitDecodedFrameCount) ? v.webkitDecodedFrameCount :
 		(q && Number.isFinite(q.totalVideoFrames) && Number.isFinite(q.droppedVideoFrames) ? Math.max(0, q.totalVideoFrames-q.droppedVideoFrames) : -1);
+	if (typeof window.__itembaCaptureFrame === 'function') window.__itembaCaptureFrame();
 	return { currentTime:v.currentTime, readyState:v.readyState, paused:v.paused, ended:v.ended, seeking:v.seeking,
 		playbackRate:v.playbackRate, errorCode:v.error ? v.error.code : 0, width:v.videoWidth, height:v.videoHeight,
 		decodedFrames:decoded, duration:Number.isFinite(v.duration) ? v.duration : 0, src:v.currentSrc || v.src,
 		protocol:window.__itembaPlaybackProtocol || 'direct', harnessState:window.__itembaPlaybackState || '',
-		seekCount:window.__itembaPlaybackIntegrity.seeks, rateChanges:window.__itembaPlaybackIntegrity.rateChanges };
+		seekCount:window.__itembaPlaybackIntegrity.seeks, rateChanges:window.__itembaPlaybackIntegrity.rateChanges,
+		frames:window.__itembaFrames || [], frameError:window.__itembaFrameError || '' };
 })()`
 
 // The audio element reports no frames or picture; its time advancing at
@@ -530,6 +595,11 @@ func runFreePlaybackSample(ctx context.Context, browser playbackBrowser, source 
 					if result.FingerprintStatus == "pending" {
 						waitForFingerprint(ctx, browser, snapshotJS, result)
 					}
+				} else {
+					// The frames the page sampled so far are the start of the
+					// fingerprint; the sample plays on a little to make it long
+					// enough to compare.
+					gatherVideoFrames(ctx, browser, snapshotJS, result, state)
 				}
 				return result
 			}
