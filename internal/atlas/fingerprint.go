@@ -21,6 +21,11 @@ import (
 // recording of its own. The comparison runs here, not in the database,
 // because it searches alignments, which no index can shift; the scan is
 // bounded by fingerprintScanLimit, the most recent rows of the type.
+//
+// A stored fingerprint keeps the verdict reached when it arrived, against
+// what the library held then. A later arrival revisits that verdict where
+// it is a better answer (revisitFingerprints), so the order in which
+// locations were recorded does not show in what the library says of them.
 
 // fingerprintScanLimit is how many stored fingerprints one comparison
 // reads: at a kilobyte and a half each, a few megabytes, which a personal
@@ -38,15 +43,21 @@ type FingerprintObservation struct {
 }
 
 // FingerprintNeighbour is a stored fingerprint compared with a given one:
-// whose location and object it belongs to, the length of its file and how
-// the comparison went.
+// whose location and object it belongs to, the length of its file, how the
+// comparison went, and what the library concluded about it when it arrived
+// (the location it was nearest to then, 0 when none, how far, and the
+// verdict and effect), which a later arrival may revisit.
 type FingerprintNeighbour struct {
-	LocationID   int64
-	Object       Object
-	URL          string
-	Title        string
-	MediaSeconds float64
-	Comparison   lens.FingerprintComparison
+	LocationID     int64
+	Object         Object
+	URL            string
+	Title          string
+	MediaSeconds   float64
+	Comparison     lens.FingerprintComparison
+	StoredPeer     int64
+	StoredDistance float64
+	StoredVerdict  string
+	StoredEffect   string
 }
 
 // RecordFingerprint stores a location's fingerprint of its type, replacing
@@ -121,6 +132,7 @@ func (s *Store) NearestFingerprints(ctx context.Context, fp lens.Fingerprint, li
 	}
 	rows, err := s.pool.Query(ctx, `
 		SELECT f.location_id, l.url, COALESCE(l.title, ''), COALESCE(f.media_seconds, 0), f.length, COALESCE(f.seconds, 0), f.data, f.variants,
+		       COALESCE(f.peer_location_id, 0), COALESCE(f.distance, -1), f.verdict, f.effect,
 		       o.id, o.type, o.title, o.title_key, COALESCE(o.creator, ''), o.creator_key, COALESCE(o.year, 0), COALESCE(o.language, ''), o.content_key
 		FROM atlas.fingerprints f
 		JOIN atlas.locations l ON l.id = f.location_id
@@ -136,10 +148,11 @@ func (s *Store) NearestFingerprints(ctx context.Context, fp lens.Fingerprint, li
 	for rows.Next() {
 		var n FingerprintNeighbour
 		stored := lens.Fingerprint{Type: fp.Type}
-		var mediaSeconds, seconds float32
+		var mediaSeconds, seconds, storedDistance float32
 		var variants []byte
 		o := &n.Object
 		if err := rows.Scan(&n.LocationID, &n.URL, &n.Title, &mediaSeconds, &stored.Frames, &seconds, &stored.Data, &variants,
+			&n.StoredPeer, &storedDistance, &n.StoredVerdict, &n.StoredEffect,
 			&o.ID, &o.Type, &o.Title, &o.TitleKey, &o.Creator, &o.CreatorKey, &o.Year, &o.Language, &o.ContentKey); err != nil {
 			return nil, fmt.Errorf("atlas: nearest fingerprints scan: %w", err)
 		}
@@ -148,7 +161,7 @@ func (s *Store) NearestFingerprints(ctx context.Context, fp lens.Fingerprint, li
 				return nil, fmt.Errorf("atlas: nearest fingerprints variants: %w", err)
 			}
 		}
-		n.MediaSeconds, stored.Seconds = float64(mediaSeconds), float64(seconds)
+		n.MediaSeconds, stored.Seconds, n.StoredDistance = float64(mediaSeconds), float64(seconds), float64(storedDistance)
 		n.Comparison = lens.CompareFingerprints(fp, stored)
 		if n.Comparison.Known {
 			neighbours = append(neighbours, n)
@@ -164,6 +177,14 @@ func (s *Store) NearestFingerprints(ctx context.Context, fp lens.Fingerprint, li
 	return neighbours, nil
 }
 
+// sameMedia says a stored neighbour is the same recording, picture or text
+// as the arriving fingerprint: the comparison says so, and the files'
+// lengths agree where both are known, the stored one scaled to the speed
+// the sounds matched at.
+func sameMedia(o FingerprintObservation, n FingerprintNeighbour) bool {
+	return n.Comparison.Same() && (o.MediaSeconds == 0 || n.MediaSeconds == 0 || lens.EditionLengthsAgree(o.MediaSeconds, n.MediaSeconds*n.Comparison.Speed))
+}
+
 // objectBySound lets a recording's fingerprint overrule its tags. The
 // stored fingerprints nearest to it, its own earlier one aside, decide:
 // the nearest that sounds the same, on a file whose length agrees or is
@@ -175,12 +196,13 @@ func (s *Store) NearestFingerprints(ctx context.Context, fp lens.Fingerprint, li
 // stays under its tags and the nearest fingerprint is reported for what it
 // was. The tag candidate is stored only when the listing stays under it.
 // The match says which; the returned location ID is the peer it was
-// compared with, for the record.
-func (s *Store) objectBySound(ctx context.Context, listing Listing, candidate Object, cache map[string]Object, summary *RecordSummary) (Object, *lens.IdentityMatch, int64, error) {
+// compared with, for the record, and the neighbours it was compared with
+// come back for the revisit.
+func (s *Store) objectBySound(ctx context.Context, listing Listing, candidate Object, cache map[string]Object, summary *RecordSummary) (Object, *lens.IdentityMatch, int64, []FingerprintNeighbour, error) {
 	o := *listing.Fingerprint
 	neighbours, err := s.NearestFingerprints(ctx, o.Fingerprint, 8)
 	if err != nil {
-		return Object{}, nil, 0, err
+		return Object{}, nil, 0, nil, err
 	}
 	var self *FingerprintNeighbour
 	var others []FingerprintNeighbour
@@ -209,7 +231,7 @@ func (s *Store) objectBySound(ctx context.Context, listing Listing, candidate Ob
 	// recording itself; the stored file's length is scaled to the speed
 	// the sounds matched at before the lengths are compared.
 	for _, n := range others {
-		if !n.Comparison.Same() || o.MediaSeconds > 0 && n.MediaSeconds > 0 && !lens.EditionLengthsAgree(o.MediaSeconds, n.MediaSeconds*n.Comparison.Speed) {
+		if !sameMedia(o, n) {
 			continue
 		}
 		describe(n)
@@ -218,7 +240,7 @@ func (s *Store) objectBySound(ctx context.Context, listing Listing, candidate Ob
 			match.Effect = lens.EffectConfirmed
 		}
 		match.Detail = lens.IdentityDetail(*match)
-		return n.Object, match, n.LocationID, nil
+		return n.Object, match, n.LocationID, others, nil
 	}
 	// Nothing it is the same recording as. Has the object its tags name
 	// been heard? Then it sounds different and the listing is kept apart.
@@ -230,15 +252,15 @@ func (s *Store) objectBySound(ctx context.Context, listing Listing, candidate Ob
 		match.Effect = lens.EffectKeptApart
 		match.Detail = lens.IdentityDetail(*match)
 		if variantOfItself {
-			return self.Object, match, n.LocationID, nil
+			return self.Object, match, n.LocationID, others, nil
 		}
 		variant := candidate
 		variant.ID, variant.ContentKey = 0, lens.ContentKey(o.Fingerprint)
 		created, err := s.resolveTagObject(ctx, variant, cache, summary)
 		if err != nil {
-			return Object{}, nil, 0, err
+			return Object{}, nil, 0, nil, err
 		}
-		return created, match, n.LocationID, nil
+		return created, match, n.LocationID, others, nil
 	}
 	// The object its tags name has not been heard; the nearest fingerprint
 	// belongs to another recording, which tells nothing new about this one,
@@ -250,11 +272,60 @@ func (s *Store) objectBySound(ctx context.Context, listing Listing, candidate Ob
 	}
 	match.Detail = lens.IdentityDetail(*match)
 	if variantOfItself {
-		return self.Object, match, peer, nil
+		return self.Object, match, peer, others, nil
 	}
 	object, err := s.resolveTagObject(ctx, candidate, cache, summary)
 	if err != nil {
-		return Object{}, nil, 0, err
+		return Object{}, nil, 0, nil, err
 	}
-	return object, match, peer, nil
+	return object, match, peer, others, nil
+}
+
+// revisitFingerprints lets a new arrival revise what the library concluded
+// about the fingerprints it was compared with, once the arrival has its
+// location and object. A neighbour the arrival is the same as takes it as
+// its peer with the verdict same, confirmed when the two now sit in one
+// object, unless the neighbour already has a same peer nearer than this
+// one; a neighbour that had nothing to compare with takes the arrival as
+// its nearest, different. A nearer different fingerprint tells a neighbour
+// that already has a peer nothing about its identity and is left alone.
+// The revised verdicts come back by the neighbours' URLs.
+func (s *Store) revisitFingerprints(ctx context.Context, o FingerprintObservation, arrival Location, object Object, neighbours []FingerprintNeighbour) (map[string]lens.IdentityMatch, error) {
+	revised := map[string]lens.IdentityMatch{}
+	for _, n := range neighbours {
+		if n.LocationID == arrival.ID {
+			continue
+		}
+		same := sameMedia(o, n)
+		switch {
+		case same && n.StoredPeer != 0 && n.StoredVerdict == lens.VerdictSame && n.StoredDistance <= n.Comparison.Distance:
+			continue
+		case !same && n.StoredPeer != 0:
+			continue
+		}
+		match := lens.IdentityMatch{
+			Method:    lens.FingerprintMethod(o.Fingerprint.Type),
+			Verdict:   lens.VerdictDifferent,
+			PeerURL:   arrival.URL,
+			PeerTitle: arrival.Title,
+			Distance:  math.Round(n.Comparison.Distance*1000) / 1000,
+			Seconds:   n.Comparison.OverlapSeconds(),
+		}
+		if same {
+			match.Verdict = lens.VerdictSame
+			if n.Object.ID == object.ID {
+				match.Effect = lens.EffectConfirmed
+			}
+		}
+		match.Detail = lens.IdentityDetail(match)
+		if _, err := s.pool.Exec(ctx, `
+			UPDATE atlas.fingerprints
+			SET peer_location_id = $3, distance = $4, verdict = $5, effect = $6
+			WHERE location_id = $1 AND type = $2`,
+			n.LocationID, o.Fingerprint.Type, arrival.ID, match.Distance, match.Verdict, match.Effect); err != nil {
+			return nil, fmt.Errorf("atlas: revisit fingerprint: %w", err)
+		}
+		revised[n.URL] = match
+	}
+	return revised, nil
 }

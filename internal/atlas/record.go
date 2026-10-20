@@ -11,13 +11,15 @@ import (
 
 // RecordSummary counts what one recording wrote to Atlas, and says what
 // the fingerprint library concluded about each fingerprinted listing, by
-// its URL.
+// its URL, including the stored locations whose earlier verdicts this
+// recording revisited (Revisited counts them).
 type RecordSummary struct {
 	Objects      int                           `json:"objects"`
 	Locations    int                           `json:"locations"`
 	Evidence     int                           `json:"evidence"`
 	Skipped      int                           `json:"skipped,omitempty"`
 	Fingerprints int                           `json:"fingerprints,omitempty"`
+	Revisited    int                           `json:"revisited,omitempty"`
 	Identities   map[string]lens.IdentityMatch `json:"identities,omitempty"`
 }
 
@@ -68,9 +70,10 @@ func (s *Store) RecordObservations(ctx context.Context, q lens.ObjectQuery, obse
 		var object Object
 		var match *lens.IdentityMatch
 		var peer int64
+		var neighbours []FingerprintNeighbour
 		heard := (candidate.Type == lens.TypeAudio || candidate.Type == lens.TypeImage || candidate.Type == lens.TypeDocument) && observation.Fingerprint != nil && observation.Fingerprint.Fingerprint.Valid()
 		if heard {
-			object, match, peer, err = s.objectBySound(ctx, observation.Listing, candidate, objects, &summary)
+			object, match, peer, neighbours, err = s.objectBySound(ctx, observation.Listing, candidate, objects, &summary)
 		} else {
 			object, err = s.resolveTagObject(ctx, candidate, objects, &summary)
 		}
@@ -110,6 +113,17 @@ func (s *Store) RecordObservations(ctx context.Context, q lens.ObjectQuery, obse
 				summary.Identities = map[string]lens.IdentityMatch{}
 			}
 			summary.Identities[observation.URL] = *match
+			// What the library said of the neighbours when they arrived may
+			// be a worse answer than this arrival; they are revisited, and
+			// their revised verdicts travel with this recording's.
+			revised, err := s.revisitFingerprints(ctx, *observation.Fingerprint, location, object, neighbours)
+			if err != nil {
+				return summary, err
+			}
+			for url, identity := range revised {
+				summary.Identities[url] = identity
+				summary.Revisited++
+			}
 		}
 		evidence := observation.Evidence
 		if len(evidence) == 0 {

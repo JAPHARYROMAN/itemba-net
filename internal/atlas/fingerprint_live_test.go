@@ -148,8 +148,8 @@ func TestFingerprintsDecideARecordingsObject(t *testing.T) {
 	if m := byURL[reissue].Identity; m == nil || m.Verdict != lens.VerdictSame || m.Effect != lens.EffectJoined || m.PeerURL != album || m.PeerTitle != "So What" || m.Detail == "" {
 		t.Fatalf("a lookup carries the verdict reached when the fingerprint arrived: %+v", m)
 	}
-	if m := byURL[album].Identity; m == nil || m.Verdict != "" || m.PeerURL != "" {
-		t.Fatalf("the first fingerprint stored has no peer: %+v", m)
+	if m := byURL[album].Identity; m == nil || m.Verdict != lens.VerdictSame || m.Effect != lens.EffectConfirmed || m.PeerURL != reissue || m.Method != lens.MethodFingerprint {
+		t.Fatalf("the first fingerprint stored, which arrived with nothing to compare with, took the reissue that joined it as its peer, confirmed: %+v", m)
 	}
 	if byURL[untested].Identity != nil {
 		t.Fatal("a location without a fingerprint carries no identity")

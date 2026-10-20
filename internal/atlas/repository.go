@@ -321,7 +321,7 @@ func (s *Store) Lookup(ctx context.Context, q lens.ObjectQuery, limit int) ([]Kn
 			return nil, fmt.Errorf("atlas: lookup scan: %w", err)
 		}
 		if fpType != nil {
-			identity := lens.IdentityMatch{Method: lens.MethodFingerprint, Verdict: deref(fpVerdict), Effect: deref(fpEffect), PeerURL: deref(peerURL), PeerTitle: deref(peerTitle)}
+			identity := lens.IdentityMatch{Method: lens.FingerprintMethod(deref(fpType)), Verdict: deref(fpVerdict), Effect: deref(fpEffect), PeerURL: deref(peerURL), PeerTitle: deref(peerTitle)}
 			if fpDistance != nil {
 				identity.Distance = math.Round(float64(*fpDistance)*1000) / 1000
 			}
