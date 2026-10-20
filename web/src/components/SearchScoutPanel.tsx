@@ -3,6 +3,7 @@ import { Play, Globe, Search, Shield, Clock, Sparkles, Film, Music, Fingerprint,
 import { ActiveRelayStream, AudioTrack, DocumentCheck, FawesomeShelfPlaybackReport, ImageCheck, MovieAvailabilityCheck, MovieDiscoveryItem, MovieDiscoveryMode, MovieDiscoveryReport, RenderCheck, SearchKind, SearchKnownEvent, SearchMergedEvent, SearchReport, VerifiedSource } from '../types';
 import { RankedLocations } from './RankedLocations';
 import { FormatMatrix } from './FormatMatrix';
+import { IndexResolution } from './IndexResolution';
 import { fingerprintLabel, identityLabel } from '../identity';
 import { isConvertibleUrl, isPdfUrl } from '../media/media';
 
@@ -1076,6 +1077,7 @@ export const SearchScoutPanel: React.FC<SearchScoutPanelProps> = ({
       {launchError && <p className="scout-error" role="alert">{launchError}</p>}
       {searching && <p className="scout-empty" role="status">{kind === 'audio' ? 'Finding recordings in open audio catalogs and checking their files…' : kind === 'image' ? 'Finding pictures in open media catalogs and decoding their files…' : kind === 'document' ? 'Finding documents in open text collections and reading their files…' : 'Finding global movie sources and testing free playback…'}</p>}
 
+      {(report || searching) && <IndexResolution query={report?.query ?? query} />}
       <RankedLocations known={known} merged={merged} report={report} searching={searching} launchingUrl={launchingUrl} onLaunchRbi={onLaunchRbi} />
 
       {report && !searching && !searchError && report.kind === 'audio' && (

@@ -192,6 +192,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/scout/fawesome/playback", fawesomeShelfPlaybackHandler(s.scout))
 	mux.HandleFunc("/api/convert", s.convertRoute)
 	mux.HandleFunc("/api/formats", s.formatsRoute)
+	mux.HandleFunc("/api/atlas/resolve", s.resolveRoute)
 	mux.HandleFunc("/api/scout/search", s.searchRoute)
 	mux.HandleFunc("/api/scout/search/stream", s.searchStream)
 

@@ -106,17 +106,20 @@ func (s *Store) UpsertObject(ctx context.Context, o Object) (Object, error) {
 	if o.CreatorKey == "" {
 		o.CreatorKey = lens.NormalizeTitle(o.Creator)
 	}
+	// The title's vector goes in beside it, for the lookups that miss by
+	// key; pgvector reads it from its text form.
 	var out Object
 	err := s.pool.QueryRow(ctx, `
-		INSERT INTO atlas.objects (type, title, title_key, creator, creator_key, year, language, content_key)
-		VALUES ($1, $2, $3, NULLIF($4, ''), $5, NULLIF($6, 0), NULLIF($7, ''), $8)
+		INSERT INTO atlas.objects (type, title, title_key, creator, creator_key, year, language, content_key, embedding)
+		VALUES ($1, $2, $3, NULLIF($4, ''), $5, NULLIF($6, 0), NULLIF($7, ''), $8, NULLIF($9, '')::vector)
 		ON CONFLICT ON CONSTRAINT objects_identity DO UPDATE
 		SET title = EXCLUDED.title,
 		    creator = COALESCE(EXCLUDED.creator, atlas.objects.creator),
 		    language = COALESCE(EXCLUDED.language, atlas.objects.language),
+		    embedding = COALESCE(EXCLUDED.embedding, atlas.objects.embedding),
 		    updated_at = now()
 		RETURNING id, type, title, title_key, COALESCE(creator, ''), creator_key, COALESCE(year, 0), COALESCE(language, ''), content_key`,
-		o.Type, o.Title, o.TitleKey, o.Creator, o.CreatorKey, o.Year, o.Language, o.ContentKey,
+		o.Type, o.Title, o.TitleKey, o.Creator, o.CreatorKey, o.Year, o.Language, o.ContentKey, lens.VectorLiteral(lens.TitleVector(o.Title)),
 	).Scan(&out.ID, &out.Type, &out.Title, &out.TitleKey, &out.Creator, &out.CreatorKey, &out.Year, &out.Language, &out.ContentKey)
 	if err != nil {
 		return Object{}, fmt.Errorf("atlas: upsert object: %w", err)
@@ -134,8 +137,8 @@ func (s *Store) AddAlias(ctx context.Context, objectID int64, alias string) erro
 		return nil
 	}
 	_, err := s.pool.Exec(ctx, `
-		INSERT INTO atlas.aliases (object_id, alias, alias_key) VALUES ($1, $2, $3)
-		ON CONFLICT (object_id, alias_key) DO NOTHING`, objectID, alias, key)
+		INSERT INTO atlas.aliases (object_id, alias, alias_key, embedding) VALUES ($1, $2, $3, NULLIF($4, '')::vector)
+		ON CONFLICT (object_id, alias_key) DO UPDATE SET embedding = COALESCE(EXCLUDED.embedding, atlas.aliases.embedding)`, objectID, alias, key, lens.VectorLiteral(lens.TitleVector(alias)))
 	if err != nil {
 		return fmt.Errorf("atlas: add alias: %w", err)
 	}
@@ -226,6 +229,32 @@ func (s *Store) RecordEvidence(ctx context.Context, e Evidence) error {
 	return nil
 }
 
+// lookupColumns and lookupLatest are the columns a known location is read
+// with and the lateral joins that bring its latest evidence and fingerprint.
+const lookupColumns = `
+	o.id, o.type, o.title, o.title_key, COALESCE(o.creator, ''), o.creator_key, COALESCE(o.year, 0), COALESCE(o.language, ''), o.content_key,
+	l.id, l.object_id, l.host_id, l.url, COALESCE(l.media_url, ''), l.access_type, COALESCE(l.price, ''), COALESCE(l.market, ''), COALESCE(l.title, ''), COALESCE(l.source_type, ''), COALESCE(l.duration_seconds, 0), l.last_seen,
+	h.id, h.hostname, COALESCE(h.provider, ''),
+	e.level, e.method, e.status, e.detail, e.egress, e.observed_at,
+	fp.type, fp.seconds, fp.distance, fp.verdict, fp.effect, p.url, p.title`
+
+// The latest evidence wins; two rows observed in the same instant resolve
+// to the stronger one, then the later insert. The latest fingerprint
+// brings the verdict reached when it arrived and the location it was
+// nearest to.
+const lookupLatest = `
+	LEFT JOIN LATERAL (
+		SELECT level, method, status, detail, egress, observed_at
+		FROM atlas.evidence ev WHERE ev.location_id = l.id
+		ORDER BY observed_at DESC, level DESC, id DESC LIMIT 1
+	) e ON true
+	LEFT JOIN LATERAL (
+		SELECT f.type, f.seconds, f.distance, f.verdict, f.effect, f.peer_location_id
+		FROM atlas.fingerprints f WHERE f.location_id = l.id
+		ORDER BY f.observed_at DESC LIMIT 1
+	) fp ON true
+	LEFT JOIN atlas.locations p ON p.id = fp.peer_location_id`
+
 // Lookup returns the locations Atlas already knows for a query, ranked under
 // the cap by effective level, relevance and freshness with host diversity.
 // A URL query returns that exact location if known. A nil Store returns
@@ -237,38 +266,15 @@ func (s *Store) Lookup(ctx context.Context, q lens.ObjectQuery, limit int) ([]Kn
 	if limit <= 0 {
 		limit = lens.DefaultLimit
 	}
-	const columns = `
-		o.id, o.type, o.title, o.title_key, COALESCE(o.creator, ''), o.creator_key, COALESCE(o.year, 0), COALESCE(o.language, ''), o.content_key,
-		l.id, l.object_id, l.host_id, l.url, COALESCE(l.media_url, ''), l.access_type, COALESCE(l.price, ''), COALESCE(l.market, ''), COALESCE(l.title, ''), COALESCE(l.source_type, ''), COALESCE(l.duration_seconds, 0), l.last_seen,
-		h.id, h.hostname, COALESCE(h.provider, ''),
-		e.level, e.method, e.status, e.detail, e.egress, e.observed_at,
-		fp.type, fp.seconds, fp.distance, fp.verdict, fp.effect, p.url, p.title`
-	// The latest evidence wins; two rows observed in the same instant resolve
-	// to the stronger one, then the later insert. The latest fingerprint
-	// brings the verdict reached when it arrived and the location it was
-	// nearest to.
-	const latest = `
-		LEFT JOIN LATERAL (
-			SELECT level, method, status, detail, egress, observed_at
-			FROM atlas.evidence ev WHERE ev.location_id = l.id
-			ORDER BY observed_at DESC, level DESC, id DESC LIMIT 1
-		) e ON true
-		LEFT JOIN LATERAL (
-			SELECT f.type, f.seconds, f.distance, f.verdict, f.effect, f.peer_location_id
-			FROM atlas.fingerprints f WHERE f.location_id = l.id
-			ORDER BY f.observed_at DESC LIMIT 1
-		) fp ON true
-		LEFT JOIN atlas.locations p ON p.id = fp.peer_location_id`
-
 	var rows pgx.Rows
 	var err error
 	switch {
 	case q.URL != "":
 		rows, err = s.pool.Query(ctx, `
-			SELECT `+columns+`
+			SELECT `+lookupColumns+`
 			FROM atlas.locations l
 			JOIN atlas.objects o ON o.id = l.object_id
-			JOIN atlas.hosts h ON h.id = l.host_id`+latest+`
+			JOIN atlas.hosts h ON h.id = l.host_id`+lookupLatest+`
 			WHERE l.url = $1
 			LIMIT $2`, q.URL, limit)
 	case q.TitleKey != "":
@@ -287,11 +293,11 @@ func (s *Store) Lookup(ctx context.Context, q lens.ObjectQuery, limit int) ([]Kn
 				  AND (o.title_key = $2 OR a.alias_key = $2 OR a.alias_key = $6
 				       OR o.search @@ plainto_tsquery('simple', $4) OR a.search @@ plainto_tsquery('simple', $4))
 			)
-			SELECT `+columns+`
+			SELECT `+lookupColumns+`
 			FROM matched m
 			JOIN atlas.objects o ON o.id = m.id
 			JOIN atlas.locations l ON l.object_id = o.id
-			JOIN atlas.hosts h ON h.id = l.host_id`+latest+`
+			JOIN atlas.hosts h ON h.id = l.host_id`+lookupLatest+`
 			ORDER BY e.level DESC NULLS LAST, e.observed_at DESC NULLS LAST
 			LIMIT $5`, q.Type, q.TitleKey, q.Year, q.Title, limit*3, q.RawKey, q.CreatorKey)
 	default:
@@ -302,6 +308,36 @@ func (s *Store) Lookup(ctx context.Context, q lens.ObjectQuery, limit int) ([]Kn
 	}
 	defer rows.Close()
 
+	candidates, err := s.collectKnown(rows, q, nil)
+	if err != nil {
+		return nil, err
+	}
+	if len(candidates) == 0 && q.URL == "" && q.TitleKey != "" {
+		// Nothing by title key or text search: resolve the query to objects
+		// by alias and title vector, and read their locations.
+		candidates, err = s.lookupResolved(ctx, q, limit)
+		if err != nil {
+			return nil, err
+		}
+	}
+	ranked := lens.Rank(candidates, limit, lens.DefaultMaxPerHost)
+	known := make([]KnownLocation, 0, len(ranked))
+	for _, c := range ranked {
+		known = append(known, c.Payload.(KnownLocation))
+	}
+	return known, nil
+}
+
+func deref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+// collectKnown reads lookup rows into ranked candidates; scoreOf, when
+// set, gives an object's relevance in place of the title's.
+func (s *Store) collectKnown(rows pgx.Rows, q lens.ObjectQuery, scoreOf func(objectID int64) (float64, bool)) ([]lens.Candidate, error) {
 	now := time.Now()
 	var candidates []lens.Candidate
 	for rows.Next() {
@@ -350,6 +386,11 @@ func (s *Store) Lookup(ctx context.Context, q lens.ObjectQuery, limit int) ([]Kn
 		if q.URL != "" {
 			k.Relevance = 1
 		}
+		if scoreOf != nil {
+			if score, ok := scoreOf(k.Object.ID); ok {
+				k.Relevance = score
+			}
+		}
 		observedAt := k.Location.LastSeen
 		if k.Evidence != nil {
 			observedAt = k.Evidence.ObservedAt
@@ -359,17 +400,50 @@ func (s *Store) Lookup(ctx context.Context, q lens.ObjectQuery, limit int) ([]Kn
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("atlas: lookup rows: %w", err)
 	}
-	ranked := lens.Rank(candidates, limit, lens.DefaultMaxPerHost)
-	known := make([]KnownLocation, 0, len(ranked))
-	for _, c := range ranked {
-		known = append(known, c.Payload.(KnownLocation))
-	}
-	return known, nil
+	return candidates, nil
 }
 
-func deref(s *string) string {
-	if s == nil {
-		return ""
+// lookupResolved reads the locations of the objects a query resolves to,
+// scored as the resolution scored them.
+func (s *Store) lookupResolved(ctx context.Context, q lens.ObjectQuery, limit int) ([]lens.Candidate, error) {
+	matches, err := s.Resolve(ctx, q, 10)
+	if err != nil || len(matches) == 0 {
+		return nil, err
 	}
-	return *s
+	ids := make([]int64, 0, len(matches))
+	scores := make(map[int64]float64, len(matches))
+	for _, m := range matches {
+		if m.Score < lens.SimilarTitleThreshold {
+			continue
+		}
+		// The fallback keeps the lookup's own rules: a year or a creator the
+		// query names excludes an object that names another.
+		if q.Year != 0 && m.Object.Year != 0 && m.Object.Year != q.Year {
+			continue
+		}
+		if q.CreatorKey != "" && m.Object.CreatorKey != "" && !lens.CreatorsAgree(q.CreatorKey, m.Object.CreatorKey) {
+			continue
+		}
+		ids = append(ids, m.Object.ID)
+		scores[m.Object.ID] = m.Score
+	}
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	rows, err := s.pool.Query(ctx, `
+		SELECT `+lookupColumns+`
+		FROM atlas.locations l
+		JOIN atlas.objects o ON o.id = l.object_id
+		JOIN atlas.hosts h ON h.id = l.host_id`+lookupLatest+`
+		WHERE l.object_id = ANY($1)
+		ORDER BY e.level DESC NULLS LAST, e.observed_at DESC NULLS LAST
+		LIMIT $2`, ids, limit*3)
+	if err != nil {
+		return nil, fmt.Errorf("atlas: lookup resolved: %w", err)
+	}
+	defer rows.Close()
+	return s.collectKnown(rows, q, func(objectID int64) (float64, bool) {
+		score, ok := scores[objectID]
+		return score, ok
+	})
 }

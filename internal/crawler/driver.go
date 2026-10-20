@@ -249,7 +249,7 @@ var (
 	listingKeys     = map[string]bool{
 		"id": true, "title": true, "url": true, "media_url": true, "year": true, "duration": true, "description": true,
 		"thumbnail": true, "access_type": true, "price": true, "market": true, "source_type": true, "provider": true,
-		"access_note": true, "resolution": true, "tags": true, "catalog_date": true, "creator": true, "license": true, "pages": true,
+		"access_note": true, "resolution": true, "tags": true, "catalog_date": true, "creator": true, "license": true, "pages": true, "aliases": true,
 	}
 	transforms = map[string]bool{
 		"": true, "scalar": true, "lower": true, "upper": true, "trim": true, "year_of_date": true, "year_in_text": true,
@@ -986,10 +986,15 @@ func (d *Driver) itemAllowed(it item) bool {
 
 func (d *Driver) listingFrom(it item, market string, fields map[string]FieldSpec) (atlas.Listing, bool) {
 	values := map[string]string{}
-	var tags []string
+	var tags, aliases []string
 	for key, spec := range fields {
 		if key == "tags" {
 			tags = spec.readTags(it)
+			continue
+		}
+		if key == "aliases" {
+			// Other names the host gives the object, read like tags.
+			aliases = spec.readTags(it)
 			continue
 		}
 		value, ok := spec.read(it)
@@ -1036,6 +1041,7 @@ func (d *Driver) listingFrom(it item, market string, fields map[string]FieldSpec
 		License:           values["license"],
 		CatalogDate:       values["catalog_date"],
 		Tags:              tags,
+		Aliases:           aliases,
 		ListingOnly:       values["media_url"] == "",
 	}
 	if year, err := strconv.Atoi(values["year"]); err == nil {

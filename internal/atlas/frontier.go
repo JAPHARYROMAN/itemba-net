@@ -279,6 +279,10 @@ type Listing struct {
 	// Pages is the page count the host states for a document; zero when it
 	// states none.
 	Pages int `json:"pages,omitempty"`
+	// Aliases are other names the host gives the object, such as its title
+	// in other languages; Atlas keeps them as aliases of the object, which
+	// Lens version two finds by key and by vector.
+	Aliases []string `json:"aliases,omitempty"`
 	// CatalogDate is the day a host's own catalog lists the item under, as a
 	// feed reports it; it is not a release date.
 	CatalogDate string `json:"catalogDate,omitempty"`

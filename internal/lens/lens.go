@@ -45,7 +45,23 @@ type ObjectQuery struct {
 	Year       int    `json:"year,omitempty"`
 	URL        string `json:"url,omitempty"`
 	Hash       string `json:"hash,omitempty"`
+	// Open says the query named no kind, so a lookup may search every
+	// kind; Type then holds Parse's default and should not narrow a search.
+	Open bool `json:"open,omitempty"`
 }
+
+// leadingHints are phrases that name an object type when they open a
+// query: "the film Sintel", "a painting called Starry Night", "the book
+// Alice in Wonderland by Lewis Carroll". The phrase goes; what follows is
+// the title, with its creator after "by".
+var leadingHints = map[string]string{
+	"film": TypeVideo, "movie": TypeVideo, "video": TypeVideo, "documentary": TypeVideo, "short": TypeVideo,
+	"recording": TypeAudio, "album": TypeAudio, "song": TypeAudio, "track": TypeAudio, "audiobook": TypeAudio, "podcast": TypeAudio, "symphony": TypeAudio,
+	"book": TypeDocument, "novel": TypeDocument, "ebook": TypeDocument, "pdf": TypeDocument, "paper": TypeDocument, "text": TypeDocument, "essay": TypeDocument, "poem": TypeDocument,
+	"painting": TypeImage, "picture": TypeImage, "photo": TypeImage, "photograph": TypeImage, "image": TypeImage, "drawing": TypeImage, "poster": TypeImage, "print": TypeImage,
+}
+
+var leadingHint = regexp.MustCompile(`^(?i)(?:the|a|an)?\s*([a-z]+)\s+(?:of|called|named|titled|by the name of)?\s*(.+)$`)
 
 // typeHints are words that name an object type when they trail a title.
 var typeHints = map[string]string{
@@ -66,17 +82,56 @@ var (
 // Parse interprets a raw query. It never fails: an unrecognised query is a
 // video title with no year.
 func Parse(raw string) ObjectQuery {
+	q, _ := parse(raw)
+	return q
+}
+
+// ParseOpen interprets a raw query without a kind chosen for it: a kind
+// named in the words, by a leading phrase ("the painting Starry Night") or
+// a trailing word ("Sintel movie"), is read; a query that names none is
+// Open, for a lookup across every kind. A creator after "by" is read for
+// any kind, since a film, a recording, a picture and a book are all named
+// that way.
+func ParseOpen(raw string) ObjectQuery {
+	trimmed := strings.TrimSpace(raw)
+	kind := ""
+	if match := leadingHint.FindStringSubmatch(trimmed); match != nil {
+		if hinted, ok := leadingHints[strings.ToLower(match[1])]; ok && strings.TrimSpace(match[2]) != "" {
+			kind, trimmed = hinted, strings.TrimSpace(match[2])
+		}
+	}
+	q, hinted := parse(trimmed)
+	q.Raw = strings.TrimSpace(raw)
+	if q.URL != "" || q.Hash != "" {
+		return q
+	}
+	switch {
+	case kind != "":
+		q.Type = kind
+	case !hinted:
+		q.Open = true
+	}
+	if title, creator := SplitPerformer(q.Title); creator != "" {
+		q.Title, q.TitleKey = title, NormalizeTitle(title)
+		q.Creator, q.CreatorKey = creator, NormalizeTitle(creator)
+	}
+	return q
+}
+
+// parse is Parse, also saying whether a trailing type word named the kind.
+func parse(raw string) (ObjectQuery, bool) {
+	hinted := false
 	q := ObjectQuery{Raw: strings.TrimSpace(raw), Type: TypeVideo}
 	if q.Raw == "" {
-		return q
+		return q, false
 	}
 	if u, err := url.Parse(q.Raw); err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != "" {
 		q.URL = u.String()
-		return q
+		return q, false
 	}
 	if n := len(q.Raw); (n == 32 || n == 40 || n == 64) && hexToken.MatchString(q.Raw) {
 		q.Hash = strings.ToLower(q.Raw)
-		return q
+		return q, false
 	}
 
 	tokens := strings.Fields(q.Raw)
@@ -93,15 +148,16 @@ func Parse(raw string) ObjectQuery {
 	}
 	if len(tokens) > 1 {
 		last := strings.ToLower(strings.Trim(tokens[len(tokens)-1], ".,:;!?"))
-		if hinted, ok := typeHints[last]; ok && !onlyArticles(tokens[:len(tokens)-1]) {
-			q.Type = hinted
+		if kind, ok := typeHints[last]; ok && !onlyArticles(tokens[:len(tokens)-1]) {
+			q.Type = kind
+			hinted = true
 			tokens = tokens[:len(tokens)-1]
 		}
 	}
 	q.Title = strings.Join(tokens, " ")
 	q.TitleKey = NormalizeTitle(q.Title)
 	q.RawKey = NormalizeTitle(q.Raw)
-	return q
+	return q, hinted
 }
 
 // ParseAs interprets a raw query as the object type the search form chose,

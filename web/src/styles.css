@@ -625,3 +625,8 @@ body {
 .format-mark--off { color: #fca5a5; }
 .format-mark--none { color: #475569; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* What the index reads a query as, above the ranked list. */
+.index-resolution { margin: 6px 0 10px; }
+.index-resolution-list { list-style: none; padding: 0; margin: 4px 0 0; display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; }
+.index-resolution-item { display: inline-flex; align-items: center; gap: 6px; }

@@ -104,6 +104,15 @@ func (s *Store) RecordObservations(ctx context.Context, q lens.ObjectQuery, obse
 			return summary, err
 		}
 		summary.Locations++
+		// Other names the host gives the object are its aliases.
+		for _, alias := range observation.Aliases {
+			if lens.NormalizeTitle(alias) == object.TitleKey {
+				continue
+			}
+			if err := s.AddAlias(ctx, object.ID, alias); err != nil {
+				return summary, err
+			}
+		}
 		if heard {
 			if err := s.RecordFingerprint(ctx, location.ID, *observation.Fingerprint, match, peer); err != nil {
 				return summary, err
