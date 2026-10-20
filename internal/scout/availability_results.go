@@ -156,10 +156,10 @@ func movieAvailabilityCoverage(region, country, locationDetail string, results [
 		if result.AvailabilityCheck != nil && result.AvailabilityCheck.Method != "not_checked" {
 			count++
 		}
-		if result.PlaybackCheck != nil && result.PlaybackCheck.Method == "isolated_video_sample" && result.PlaybackCheck.Status != "skipped" {
+		if result.PlaybackCheck != nil && (result.PlaybackCheck.Method == "isolated_video_sample" || result.PlaybackCheck.Method == "isolated_audio_sample") && result.PlaybackCheck.Status != "skipped" {
 			playbackChecked++
 		}
-		if playbackStarted(result) {
+		if playbackStarted(result) || audioPlaybackStarted(result) {
 			playbackStartedCount++
 		}
 	}

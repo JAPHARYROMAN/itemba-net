@@ -66,6 +66,11 @@ func audioFixtureScout(t *testing.T) (*Scout, func() []string) {
 		return searchFixtureResponse(404, "text/plain", "not here"), nil
 	})
 	s.UseDrivers(testDrivers(t))
+	// No browser in a unit test: the sampler is stubbed as unconfirmed, and
+	// the sampling tests replace it with what they need.
+	s.audioProbe = func(_ context.Context, source VerifiedSource, region, country string) *PlaybackCheck {
+		return &PlaybackCheck{Status: "unconfirmed", Method: "isolated_audio_sample", RequestedRegion: region, Country: country, EvidenceURL: source.URL, Detail: "stubbed sample"}
+	}
 	return s, func() []string {
 		mu.Lock()
 		defer mu.Unlock()
@@ -104,8 +109,8 @@ func TestAudioSearchListsRecordingsByTheirTags(t *testing.T) {
 	if !first.Verified || first.VerificationStatus != "media_reachable" || first.StreamFormat != "Direct MP3" || first.AvailabilityCheck == nil || first.AvailabilityCheck.Status != "media_reachable" || first.AvailabilityCheck.Method != "http_media_probe" {
 		t.Fatalf("an ID3-tagged file answers the probe as audio: %+v %+v", first, first.AvailabilityCheck)
 	}
-	if !strings.Contains(first.Description, "2 tracks") || first.PlaybackCheck != nil {
-		t.Fatalf("the description counts the tracks and no playback sample runs yet: %q %+v", first.Description, first.PlaybackCheck)
+	if !strings.Contains(first.Description, "2 tracks") || first.PlaybackCheck == nil || first.PlaybackCheck.Method != "isolated_audio_sample" {
+		t.Fatalf("the description counts the tracks and a reachable free file is offered to the sampler: %q %+v", first.Description, first.PlaybackCheck)
 	}
 	second := report.Sources[1]
 	if second.ID != "ia-audio-miles-davis-open-source" || second.Creator != "Open Source Media" || second.Duration != "3600" || second.VerificationStatus != "media_reachable" || second.RelevanceScore != 80 {

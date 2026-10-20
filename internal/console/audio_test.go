@@ -113,6 +113,25 @@ func TestAudioSearchCarriesTheKindFromTheFormToTheIndex(t *testing.T) {
 		t.Fatalf("observations carry the kind, performer and duration to Atlas: %+v", observations)
 	}
 
+	// A confirmed audio sample puts the recording at rendered, in the merged
+	// list and in the evidence Atlas is given.
+	sampled := search(context.Background(), "Kind of Blue by Miles Davis", "ALL", scout.SearchOptions{Kind: lens.TypeAudio})
+	sampled.Sources[0].PlaybackCheck = &scout.PlaybackCheck{Status: "started", PlaybackConfirmed: true, Method: "isolated_audio_sample", SecondsAdvanced: 1.4, DurationSeconds: 562.4, Country: "TZ", RequestedRegion: "ALL", CheckedAt: "2026-10-20T00:00:00Z", Detail: "A muted beginning sample decoded audio and advanced at normal speed."}
+	merged = mergeLocations(lens.ParseAs("Kind of Blue by Miles Davis", lens.TypeAudio), nil, sampled)
+	if len(merged.Locations) != 1 || merged.Locations[0].Level != lens.LevelRendered || merged.Locations[0].LevelName != "rendered" {
+		t.Fatalf("a started audio sample is rendered in the merged list: %+v", merged.Locations)
+	}
+	evidence := observationsFromReport(sampled)[0].Evidence
+	rendered := false
+	for _, e := range evidence {
+		if e.Method == "isolated_audio_sample" && e.Level == lens.LevelRendered && e.Status == "started" {
+			rendered = true
+		}
+	}
+	if !rendered {
+		t.Fatalf("a started audio sample is rendered evidence for Atlas: %+v", evidence)
+	}
+
 	response = httptest.NewRecorder()
 	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/scout/search/stream?query=Sintel&kind=image", nil))
 	if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), "Choose movies or audio.") {

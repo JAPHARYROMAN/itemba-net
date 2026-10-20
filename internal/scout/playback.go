@@ -7,11 +7,13 @@ import (
 	"math"
 	"net"
 	"net/url"
+	"path"
 	"strings"
 	"sync/atomic"
 	"time"
 
 	"github.com/itemba-net/core/internal/cdp"
+	"github.com/itemba-net/core/internal/lens"
 )
 
 const freePlaybackDeadline = 12 * time.Second
@@ -76,6 +78,83 @@ func verifyFreeMoviePlayback(ctx context.Context, source VerifiedSource, harness
 	}
 	defer browser.Close()
 	return runFreePlaybackSample(checkCtx, browser, source, origin, result)
+}
+
+// verifyAudioPlayback is the recording's counterpart: a short muted sample in
+// the same isolated browser and harness, judged by the audio element's time
+// advancing at normal speed rather than by decoded frames. It proves a
+// beginning decoded, nothing about the rest of the recording.
+func verifyAudioPlayback(ctx context.Context, source VerifiedSource, harnessOrigin, region, country string) *PlaybackCheck {
+	result := &PlaybackCheck{
+		Status: "unconfirmed", Country: movieCountry(country), RequestedRegion: strings.ToUpper(strings.TrimSpace(region)),
+		CheckedAt: time.Now().UTC().Format(time.RFC3339), Method: "isolated_audio_sample",
+		EvidenceURL: source.URL, Detail: "A short playback sample could not be confirmed.",
+	}
+	if !eligibleAudioPlayback(source) {
+		result.Status = "skipped"
+		result.Detail = "Automatic playback samples require a reachable free recording from a supported audio catalog."
+		return result
+	}
+	origin, ok := playbackHarnessOrigin(harnessOrigin)
+	if !ok {
+		result.Detail = "The isolated playback harness was unavailable."
+		return result
+	}
+	checkCtx, cancel := context.WithTimeout(ctx, freePlaybackDeadline)
+	defer cancel()
+	if checkCtx.Err() != nil {
+		result.Detail = "The playback sample was cancelled before it started."
+		return result
+	}
+	browser, err := launchFreePlaybackBrowser(checkCtx)
+	if err != nil {
+		result.Detail = "An isolated browser could not be started for the playback sample."
+		return result
+	}
+	defer browser.Close()
+	return runFreePlaybackSample(checkCtx, browser, source, origin, result)
+}
+
+// eligibleAudioPlayback admits a recording to the sample: a free, reachable,
+// verified Archive audio listing whose file sits under the item its metadata
+// evidence names, in a container the console plays, and whose page is that
+// item's. Every other audio source waits for its own pairing rule.
+func eligibleAudioPlayback(source VerifiedSource) bool {
+	if source.Kind != lens.TypeAudio || source.AccessType != "free" || source.ListingOnly || source.VerificationStatus != "media_reachable" || !source.Verified {
+		return false
+	}
+	if source.Provider != "Internet Archive" || source.SourceType != "Archive audio" || !strings.HasPrefix(source.ID, "ia-audio-") || source.AccessBasis != "archive_metadata" {
+		return false
+	}
+	media, mediaOK := safeAvailabilityURL(source.DirectStreamURL)
+	page, pageOK := safeAvailabilityURL(source.URL)
+	evidence, evidenceOK := safeAvailabilityURL(source.AccessEvidenceURL)
+	if !mediaOK || !pageOK || !evidenceOK || media.Hostname() != "archive.org" || page.Hostname() != "archive.org" || evidence.Hostname() != "archive.org" || evidence.RawQuery != "" {
+		return false
+	}
+	id := strings.TrimPrefix(evidence.Path, "/metadata/")
+	if !freeArchiveIdentifier.MatchString(id) || evidence.Path != "/metadata/"+id || !strings.HasPrefix(media.Path, "/download/"+id+"/") {
+		return false
+	}
+	if _, playable := audioExtensions[strings.ToLower(path.Ext(media.Path))]; !playable {
+		return false
+	}
+	return page.Path == "/details/"+id || page.Path == "/embed/"+id
+}
+
+// expectedAudioDuration is the listed length of the file being sampled: the
+// track that carries the direct URL. A recording's Duration is the whole
+// item's, so it cannot judge one track. Zero means no length to judge by.
+func expectedAudioDuration(source VerifiedSource) float64 {
+	for _, track := range source.Tracks {
+		if track.URL == source.DirectStreamURL {
+			return track.DurationSeconds
+		}
+	}
+	if len(source.Tracks) == 0 {
+		return mediaDurationSeconds(source.Duration)
+	}
+	return 0
 }
 
 func launchFreePlaybackBrowser(ctx context.Context) (*cdp.BrowserInstance, error) {
@@ -177,6 +256,19 @@ const freePlaybackSnapshotJS = `(() => {
 		seekCount:window.__itembaPlaybackIntegrity.seeks, rateChanges:window.__itembaPlaybackIntegrity.rateChanges };
 })()`
 
+// The audio element reports no frames or picture; its time advancing at
+// normal speed is the evidence. The same integrity counters apply.
+const audioPlaybackSnapshotJS = `(() => {
+	const audios = document.querySelectorAll('audio');
+	if (audios.length !== 1) return null;
+	const a = audios[0];
+	return { currentTime:a.currentTime, readyState:a.readyState, paused:a.paused, ended:a.ended, seeking:a.seeking,
+		playbackRate:a.playbackRate, errorCode:a.error ? a.error.code : 0, width:0, height:0, decodedFrames:0,
+		duration:Number.isFinite(a.duration) ? a.duration : 0, src:a.currentSrc || a.src,
+		protocol:window.__itembaPlaybackProtocol || 'direct', harnessState:window.__itembaPlaybackState || '',
+		seekCount:window.__itembaPlaybackIntegrity.seeks, rateChanges:window.__itembaPlaybackIntegrity.rateChanges };
+})()`
+
 const freePlaybackIntegrityJS = `(() => {
 	Object.defineProperty(window, 'open', { value: () => null, writable: false, configurable: false });
 	const integrity = { seeks:0, rateChanges:0 };
@@ -186,6 +278,12 @@ const freePlaybackIntegrityJS = `(() => {
 })()`
 
 func runFreePlaybackSample(ctx context.Context, browser playbackBrowser, source VerifiedSource, origin string, result *PlaybackCheck) *PlaybackCheck {
+	// A recording is sampled in an audio element and judged without frames.
+	audio := source.Kind == lens.TypeAudio
+	snapshotJS, noun := freePlaybackSnapshotJS, "video"
+	if audio {
+		snapshotJS, noun = audioPlaybackSnapshotJS, "recording"
+	}
 	var mediaResponse, segmentResponse, isolationFailed atomic.Bool
 	browser.OnEvent(func(method string, data json.RawMessage) {
 		switch method {
@@ -267,8 +365,11 @@ func runFreePlaybackSample(ctx context.Context, browser playbackBrowser, source 
 		result.Detail = "The isolated playback harness did not open."
 		return result
 	}
-	var evidence playbackProgress
+	evidence := playbackProgress{audio: audio}
 	expectedDuration := mediaDurationSeconds(source.Duration)
+	if audio {
+		expectedDuration = expectedAudioDuration(source)
+	}
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
 	for {
@@ -276,6 +377,9 @@ func runFreePlaybackSample(ctx context.Context, browser playbackBrowser, source 
 		case <-ctx.Done():
 			result.Status = "not_started"
 			result.Detail = "Video did not decode and advance within the bounded playback sample; playback remains unconfirmed."
+			if audio {
+				result.Detail = "The recording did not decode and advance within the bounded playback sample; playback remains unconfirmed."
+			}
 			return result
 		case now := <-ticker.C:
 			if isolationFailed.Load() {
@@ -288,12 +392,12 @@ func runFreePlaybackSample(ctx context.Context, browser playbackBrowser, source 
 				} `json:"result"`
 				Exception json.RawMessage `json:"exceptionDetails"`
 			}
-			if browser.Call(ctx, "Runtime.evaluate", map[string]any{"expression": freePlaybackSnapshotJS, "returnByValue": true}, &response) != nil {
+			if browser.Call(ctx, "Runtime.evaluate", map[string]any{"expression": snapshotJS, "returnByValue": true}, &response) != nil {
 				result.Detail = "The browser stopped responding during the playback sample."
 				return result
 			}
 			if len(response.Exception) > 0 && string(response.Exception) != "null" {
-				result.Detail = "The native video state could not be read."
+				result.Detail = "The native " + noun + " state could not be read."
 				return result
 			}
 			if response.Result.Value == nil {
@@ -313,10 +417,10 @@ func runFreePlaybackSample(ctx context.Context, browser playbackBrowser, source 
 			}
 			if state.ErrorCode != 0 {
 				result.Status = "not_started"
-				result.Detail = "The browser could not load or decode this free video; playback remains unconfirmed."
+				result.Detail = "The browser could not load or decode this free " + noun + "; playback remains unconfirmed."
 				return result
 			}
-			if state.DecodedFrames < 0 {
+			if !audio && state.DecodedFrames < 0 {
 				result.Status = "unsupported"
 				result.Detail = "This browser cannot report decoded video frames; playback remains unconfirmed."
 				return result
@@ -339,6 +443,11 @@ func runFreePlaybackSample(ctx context.Context, browser playbackBrowser, source 
 				result.Width, result.Height = state.Width, state.Height
 				result.DurationSeconds = math.Round(state.Duration*100) / 100
 				result.Detail = "A muted beginning sample decoded video frames and advanced at normal speed. Full-film playback remains unconfirmed."
+				if audio {
+					// A recording has no frames or picture to report.
+					result.DecodedFrames, result.Width, result.Height = 0, 0, 0
+					result.Detail = "A muted beginning sample decoded audio and advanced at normal speed. The rest of the recording remains unconfirmed."
+				}
 				return result
 			}
 		}
@@ -350,6 +459,9 @@ type playbackProgress struct {
 	startedAt   time.Time
 	lastAt      time.Time
 	samples     int
+	// audio judges a recording: time must advance as for video, but there
+	// are no frames or picture to demand.
+	audio bool
 }
 
 func (p *playbackProgress) observe(state playbackSnapshot, now time.Time, origin string, expectedDuration float64) (bool, string) {
@@ -375,7 +487,7 @@ func (p *playbackProgress) observe(state playbackSnapshot, now time.Time, origin
 	if state.Duration > 0 && expectedDuration > 0 && math.Abs(state.Duration-expectedDuration) > math.Max(60, expectedDuration*.15) {
 		return false, "The video's duration does not match the movie catalog; it may be a clip or a different edition."
 	}
-	if state.ReadyState < 2 || state.Paused || state.Ended || state.Width <= 0 || state.Height <= 0 || state.DecodedFrames < 1 || state.Duration <= 0 {
+	if state.ReadyState < 2 || state.Paused || state.Ended || state.Duration <= 0 || !p.audio && (state.Width <= 0 || state.Height <= 0 || state.DecodedFrames < 1) {
 		return false, ""
 	}
 	if p.samples == 0 {
@@ -387,10 +499,13 @@ func (p *playbackProgress) observe(state playbackSnapshot, now time.Time, origin
 	}
 	elapsed := now.Sub(p.lastAt).Seconds()
 	advance := state.CurrentTime - p.last.CurrentTime
-	if elapsed <= 0 || advance < -.05 || state.DecodedFrames < p.last.DecodedFrames || advance > elapsed*1.35+.25 || math.Abs(state.Duration-p.start.Duration) > 1 {
+	if elapsed <= 0 || advance < -.05 || !p.audio && state.DecodedFrames < p.last.DecodedFrames || advance > elapsed*1.35+.25 || math.Abs(state.Duration-p.start.Duration) > 1 {
+		if p.audio {
+			return false, "The recording's timeline changed unexpectedly; playback remains unconfirmed."
+		}
 		return false, "The video timeline or frame progression changed unexpectedly; playback remains unconfirmed."
 	}
 	p.last, p.lastAt = state, now
 	p.samples++
-	return p.samples >= 3 && now.Sub(p.startedAt) >= 800*time.Millisecond && state.CurrentTime-p.start.CurrentTime >= 1 && state.DecodedFrames-p.start.DecodedFrames >= 2, ""
+	return p.samples >= 3 && now.Sub(p.startedAt) >= 800*time.Millisecond && state.CurrentTime-p.start.CurrentTime >= 1 && (p.audio || state.DecodedFrames-p.start.DecodedFrames >= 2), ""
 }

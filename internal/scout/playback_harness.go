@@ -18,6 +18,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/itemba-net/core/internal/lens"
 	"github.com/itemba-net/core/internal/shield"
 )
 
@@ -687,6 +688,9 @@ func startProtectedMoviePlaybackHarness(ctx context.Context, source VerifiedSour
 	h.client = &guarded
 	isHLS := strings.HasSuffix(strings.ToLower(initial.Path), ".m3u8") || strings.Contains(strings.ToLower(source.StreamFormat), "hls")
 	page := moviePlaybackHTML(nonce, isHLS, len(moviePlaybackHLSScript) > 0)
+	if source.Kind == lens.TypeAudio {
+		page = audioPlaybackHTML(nonce)
+	}
 	address := listener.Addr().String()
 	server := &http.Server{ReadHeaderTimeout: 2 * time.Second, WriteTimeout: moviePlaybackLifetime, IdleTimeout: 2 * time.Second, MaxHeaderBytes: 16 << 10, BaseContext: func(net.Listener) context.Context { return attemptCtx }}
 	server.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -730,6 +734,21 @@ func startProtectedMoviePlaybackHarness(ctx context.Context, source VerifiedSour
 	go func() { _ = server.Serve(listener) }()
 	go func() { <-attemptCtx.Done(); close() }()
 	return "http://" + address, close, outcome, nil
+}
+
+// audioPlaybackHTML is the harness page for a recording: one audio element
+// on the relayed file, muted, playing as soon as it can, with the same state
+// flags the video page keeps. Nothing else loads.
+func audioPlaybackHTML(nonce string) []byte {
+	page := `<!doctype html><html><head><meta charset="utf-8"><title>ITEMBA playback sample</title></head><body><audio id="sample" autoplay muted preload="auto" src="/media"></audio><script nonce="{{nonce}}">
+(() => {
+const audio=document.getElementById('sample');
+window.__itembaPlaybackProtocol='native';window.__itembaPlaybackState='loading';window.__itembaPlaybackError='';
+audio.muted=true;audio.addEventListener('playing',()=>{window.__itembaPlaybackState='playing'});
+audio.addEventListener('error',()=>{window.__itembaPlaybackError='media_error';window.__itembaPlaybackState='error'});
+audio.play().catch(()=>{window.__itembaPlaybackError='play_rejected'});
+})();</script></body></html>`
+	return []byte(strings.ReplaceAll(page, "{{nonce}}", nonce))
 }
 
 func moviePlaybackHTML(nonce string, hls, library bool) []byte {

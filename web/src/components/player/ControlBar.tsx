@@ -34,6 +34,9 @@ export interface QueueControls {
   hasNext: boolean;
   onPrevious: () => void;
   onNext: () => void;
+  // nextSrc is the address the next item would load from, so a player can
+  // warm it before the current item ends.
+  nextSrc?: string;
 }
 
 export interface ControlBarFeatures {

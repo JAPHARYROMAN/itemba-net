@@ -95,13 +95,17 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ stream, src, isProtect
     <div className="mp-player mp-player--audio" aria-label={`Audio player: ${stream.title}`}>
       {/* The element is keyed by path so a direct retry gets an element the audio graph has never touched. */}
       <audio key={isProtected ? 'relay' : 'direct'} ref={setAudioEl} preload="metadata" />
+      {/* The next queued track loads its beginning now, muted and silent, so the
+          switch at the end of this one serves from the browser's media cache
+          instead of a cold request: near-gapless, not sample-accurate. */}
+      {queue?.nextSrc && <audio key={`next:${queue.nextSrc}`} src={queue.nextSrc} preload="auto" muted aria-hidden="true" />}
       <div className="mp-audio-body">
         <div className="mp-audio-art">
           {stream.poster ? <img src={stream.poster} alt="" /> : <Headphones size={42} />}
         </div>
         <div className="mp-audio-meta">
           <strong>{stream.title}</strong>
-          <span className="scout-muted">{stream.provider} · {stream.format}</span>
+          <span className="scout-muted">{stream.provider} · {stream.format}{queue && queue.length > 1 ? ` · track ${queue.position + 1} of ${queue.length}` : ''}</span>
           <span className={`mp-badge ${isProtected ? 'mp-badge--protected' : 'mp-badge--direct'}`}>
             {isProtected ? <ShieldCheck size={12} /> : <ShieldOff size={12} />}
             {isProtected ? 'Protected relay · Shield on' : 'Direct CDN · filtering off'}

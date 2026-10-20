@@ -47,6 +47,10 @@ type CandidateSource struct {
 	AvailabilityStatus      string   `json:"availabilityStatus,omitempty"`
 	AvailabilityNote        string   `json:"availabilityNote,omitempty"`
 	AvailabilityEvidenceURL string   `json:"availabilityEvidenceUrl,omitempty"`
+	// Tracks are the ordered files of a recording with several, as the host's
+	// metadata lists them; DirectStreamURL is the first. The console plays
+	// them in order.
+	Tracks []AudioTrack `json:"tracks,omitempty"`
 	// Metadata hints only guide which bounded sample to attempt first. They
 	// never establish decoded playback and are not sent to the browser client.
 	mediaBrowserFormat bool

@@ -21,10 +21,10 @@ import (
 // The audio search is the first Phase 3 domain. A query of kind audio fans
 // out to the audio drivers, keeps the listings whose tags name the requested
 // recording (Lens's audio identity: title, performer, duration), reads the
-// Archive's item metadata for the kept listings' files and lengths, and
-// checks that each file or page answers from the check location. No playback
-// sample runs yet: the audio probe is a later slice, so no audio result is
-// labelled playable here, and the ladder stops at identified.
+// Archive's item metadata for the kept listings' files and lengths, checks
+// that each file or page answers from the check location, and samples up to
+// two free recordings in the isolated browser: a muted beginning that decodes
+// and advances puts the recording at rendered on the ladder.
 
 const (
 	// maxArchiveAudioMetadata bounds the metadata requests one search spends.
@@ -148,6 +148,7 @@ func (s *Scout) searchAudio(ctx context.Context, query, region string, start tim
 		}(i, candidate)
 	}
 	wg.Wait()
+	s.checkAudioPlayback(ctx, results, region, location.country)
 
 	sources := make([]VerifiedSource, 0, len(results))
 	verified := []VerifiedSource{}
@@ -168,6 +169,7 @@ func (s *Scout) searchAudio(ctx context.Context, query, region string, start tim
 	report.TotalCandidates, report.ListedCount, report.VerifiedCount = len(candidates), len(sources), len(verified)
 	report.Providers = providers
 	report.AvailabilityChecks = movieAvailabilityCoverage(region, location.country, location.detail, sources)
+	report.AvailabilityChecks.Detail = audioWording.Replace(strings.Replace(report.AvailabilityChecks.Detail, "Up to two supported free videos receive a short playback sample. A successful start does not confirm the complete movie.", "Up to two free recordings with reachable files receive a short muted playback sample. A successful start does not confirm the complete recording.", 1))
 	report.DurationMs = time.Since(start).Milliseconds()
 	return report
 }
@@ -230,8 +232,12 @@ func rankAudioCandidates(q lens.ObjectQuery, candidates []CandidateSource) []Can
 	return out
 }
 
-// audioStatusRank orders sources by what their check proved.
+// audioStatusRank orders sources by what their checks proved: a decoded
+// sample, then a reachable file, then a reachable page.
 func audioStatusRank(source VerifiedSource) int {
+	if audioPlaybackStarted(source) {
+		return 3
+	}
 	switch source.VerificationStatus {
 	case "media_reachable":
 		return 2
@@ -295,11 +301,104 @@ func (s *Scout) resolveArchiveAudio(ctx context.Context, candidates []CandidateS
 	return candidates
 }
 
+// AudioTrack is one file of a recording with several, in the host's order.
+type AudioTrack struct {
+	Title           string  `json:"title"`
+	URL             string  `json:"url"`
+	DurationSeconds float64 `json:"durationSeconds,omitempty"`
+	Format          string  `json:"format,omitempty"`
+}
+
 // archiveAudioFile is one playable file of an Archive audio item.
 type archiveAudioFile struct {
 	name     string
 	duration float64
 	label    string
+}
+
+// trackTitle reads a track's name from its file name: the extension goes,
+// underscores become spaces. Leading numbers stay, since they order the set.
+func trackTitle(name string) string {
+	title := strings.TrimSuffix(name, path.Ext(name))
+	title = strings.ReplaceAll(title, "_", " ")
+	return strings.TrimSpace(title)
+}
+
+// checkAudioPlayback samples up to two free recordings whose files answered
+// as audio, in the isolated browser the movie samples use and under the same
+// slots, so a recording can reach rendered on the ladder. Every other free
+// recording says why it was not sampled.
+func (s *Scout) checkAudioPlayback(ctx context.Context, results []VerifiedSource, region, country string) {
+	var indexes []int
+	for i := range results {
+		if results[i].AccessType != "free" {
+			continue
+		}
+		if !eligibleAudioPlayback(results[i]) {
+			results[i].PlaybackCheck = skippedPlayback(region, country, "Automatic playback samples need a reachable free recording from a supported audio catalog. Open the page to check playback.")
+			continue
+		}
+		indexes = append(indexes, i)
+		results[i].PlaybackCheck = skippedPlayback(region, country, "Not sampled within this search's two-recording playback budget. You can still play the file through the relay.")
+	}
+	sort.SliceStable(indexes, func(i, j int) bool {
+		return results[indexes[i]].RelevanceScore > results[indexes[j]].RelevanceScore
+	})
+	indexes = diversePlaybackIndexes(results, indexes)
+	if len(indexes) == 0 || ctx.Err() != nil {
+		return
+	}
+	probe := s.audioProbe
+	if probe == nil {
+		probe = s.probeAudioPlayback
+	}
+	checkCtx, cancel := context.WithTimeout(ctx, 14*time.Second)
+	defer cancel()
+	var wg sync.WaitGroup
+	for _, idx := range indexes {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			if s.playbackSlots != nil {
+				select {
+				case s.playbackSlots <- struct{}{}:
+					defer func() { <-s.playbackSlots }()
+				case <-checkCtx.Done():
+					return
+				}
+			}
+			if checkCtx.Err() != nil {
+				return
+			}
+			if check := probe(checkCtx, results[i], region, country); check != nil {
+				results[i].PlaybackCheck = check
+			}
+		}(idx)
+	}
+	wg.Wait()
+}
+
+// probeAudioPlayback runs one recording's sample behind the protected
+// harness, so the browser only ever sees the relayed file.
+func (s *Scout) probeAudioPlayback(ctx context.Context, source VerifiedSource, region, country string) *PlaybackCheck {
+	client := s.availabilityHTTPClient
+	if client == nil {
+		client = newMovieAvailabilityClient()
+	}
+	origin, closeHarness, outcome, err := startProtectedMoviePlaybackHarness(ctx, source, client, s.shield)
+	if err != nil {
+		check := &PlaybackCheck{Status: "unconfirmed", RequestedRegion: region, Country: country, Method: "isolated_audio_sample", CheckedAt: time.Now().UTC().Format(time.RFC3339), EvidenceURL: source.URL, Detail: "The isolated playback sample could not be prepared; playback remains unconfirmed."}
+		return applyPlaybackProtectionOutcome(check, outcome)
+	}
+	defer closeHarness()
+	return applyPlaybackProtectionOutcome(verifyAudioPlayback(ctx, source, origin, region, country), outcome)
+}
+
+// audioPlaybackStarted reports a confirmed audio sample: a free recording
+// whose muted beginning decoded and advanced at least a second.
+func audioPlaybackStarted(source VerifiedSource) bool {
+	p := source.PlaybackCheck
+	return source.AccessType == "free" && p != nil && p.Status == "started" && p.Reason == "" && p.PlaybackConfirmed && p.Method == "isolated_audio_sample" && p.SecondsAdvanced >= 1
 }
 
 // resolveArchiveAudioSource reads one item's public metadata. The item must
@@ -382,8 +481,13 @@ func resolveArchiveAudioSource(ctx context.Context, client *http.Client, source 
 	first := tracks[0]
 	stream := &url.URL{Scheme: "https", Host: "archive.org", Path: "/download/" + identifier + "/" + first.name}
 	source.DirectStreamURL, source.KnownManifests = stream.String(), []string{stream.String()}
+	source.Tracks = make([]AudioTrack, 0, len(tracks))
+	for _, track := range tracks {
+		trackURL := &url.URL{Scheme: "https", Host: "archive.org", Path: "/download/" + identifier + "/" + track.name}
+		source.Tracks = append(source.Tracks, AudioTrack{Title: trackTitle(track.name), URL: trackURL.String(), DurationSeconds: math.Round(track.duration*100) / 100, Format: strings.TrimPrefix(track.label, "Direct ")})
+	}
 	source.AccessType, source.AccessBasis, source.AccessEvidenceURL = "free", "archive_metadata", metadataURL
-	source.AccessNote = fmt.Sprintf("%d public %s file(s) are listed in this item's Archive metadata. Rights vary by item; playback is not sampled yet.", len(tracks), strings.TrimPrefix(first.label, "Direct "))
+	source.AccessNote = fmt.Sprintf("%d public %s file(s) are listed in this item's Archive metadata. Rights vary by item; a short muted sample may be played to confirm the first file decodes.", len(tracks), strings.TrimPrefix(first.label, "Direct "))
 	source.ListingOnly = false
 	if total > 0 {
 		// Summed track lengths carry float noise; hundredths are plenty.
@@ -400,7 +504,7 @@ func resolveArchiveAudioSource(ctx context.Context, client *http.Client, source 
 		}
 	}
 	if len(tracks) > 1 {
-		source.Description = fmt.Sprintf("%d tracks, %s in all, from the Internet Archive item. The first track plays; the queue player arrives with a later slice.", len(tracks), lens.FormatDuration(total))
+		source.Description = fmt.Sprintf("%d tracks, %s in all, from the Internet Archive item; they play in order through the relay.", len(tracks), lens.FormatDuration(total))
 	} else {
 		source.Description = fmt.Sprintf("One audio file, %s, from the Internet Archive item.", lens.FormatDuration(total))
 	}

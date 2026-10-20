@@ -37,7 +37,31 @@ export const MediaStage: React.FC<MediaStageProps> = ({ stream, onSelectStream, 
 
   useEffect(() => {
     if (!stream) return;
-    setQueue((items) => (items.some((item) => item.streamUrl === stream.streamUrl) ? items : [...items, stream]));
+    // A recording with several files brings them all: the selected track is
+    // followed by the rest of the set, in the host's order, so the queue
+    // plays the whole item when auto-advance is on.
+    const incoming: ActiveRelayStream[] = [stream];
+    const collection = stream.collection ?? stream.title;
+    for (const track of stream.tracks ?? []) {
+      if (track.url === stream.streamUrl) continue;
+      incoming.push({
+        title: `${track.title} · ${collection}`,
+        collection,
+        streamUrl: track.url,
+        pageUrl: stream.pageUrl,
+        provider: stream.provider,
+        format: track.format ? `Direct ${track.format}` : stream.format,
+        useZeroTrustProxy: stream.useZeroTrustProxy,
+        kind: 'audio',
+        poster: stream.poster,
+        durationSeconds: track.durationSeconds,
+      });
+    }
+    setQueue((items) => {
+      const known = new Set(items.map((item) => item.streamUrl));
+      const added = incoming.filter((item) => !known.has(item.streamUrl));
+      return added.length === 0 ? items : [...items, ...added];
+    });
   }, [stream]);
 
   const position = stream ? queue.findIndex((item) => item.streamUrl === stream.streamUrl) : -1;
@@ -53,15 +77,19 @@ export const MediaStage: React.FC<MediaStageProps> = ({ stream, onSelectStream, 
 
   const queueControls = useMemo<QueueControls | undefined>(() => {
     if (!stream || position < 0) return undefined;
+    const next = position < queue.length - 1 ? queue[position + 1] : null;
     return {
       position,
       length: queue.length,
       hasPrevious: position > 0,
-      hasNext: position < queue.length - 1,
+      hasNext: next !== null,
       onPrevious: () => onSelectStream(queue[position - 1]),
       onNext: () => onSelectStream(queue[position + 1]),
+      // The next item takes the path the current one takes, so the warmed
+      // bytes are the bytes it will load.
+      nextSrc: next ? (isProtected ? relayUrl(next.streamUrl) : next.streamUrl) : undefined,
     };
-  }, [stream, position, queue, onSelectStream]);
+  }, [stream, position, queue, onSelectStream, isProtected]);
 
   const onEnded = () => {
     if (autoAdvance && queueControls?.hasNext) queueControls.onNext();

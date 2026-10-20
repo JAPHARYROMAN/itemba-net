@@ -89,13 +89,23 @@ export interface MoviePlaybackCheck {
 // their Phase 3 slices.
 export type SearchKind = 'video' | 'audio';
 
+// One file of a recording with several, in the host's order.
+export interface AudioTrack {
+  title: string;
+  url: string;
+  durationSeconds?: number;
+  format?: string;
+}
+
 export interface VerifiedSource {
   id: string;
   title: string;
   // kind is the object type the source holds; creator the performer a
-  // recording is credited to. Both are absent on movie sources.
+  // recording is credited to; tracks the recording's files when it has
+  // several. All absent on movie sources.
   kind?: SearchKind;
   creator?: string;
+  tracks?: AudioTrack[];
   url: string;
   directStreamUrl?: string;
   provider: string;
@@ -330,4 +340,9 @@ export interface ActiveRelayStream {
   poster?: string;
   subtitles?: SubtitleTrack[];
   durationSeconds?: number;
+  // tracks are the other files of a recording with several: the stage
+  // queues them after this one so they play in order. collection names the
+  // recording they belong to, for the queued tracks' titles.
+  tracks?: AudioTrack[];
+  collection?: string;
 }

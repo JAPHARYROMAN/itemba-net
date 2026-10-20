@@ -49,7 +49,10 @@ type Scout struct {
 	httpClient             *http.Client
 	availabilityHTTPClient *http.Client
 	playbackProbe          func(context.Context, VerifiedSource, string, string) *PlaybackCheck
-	playbackSlots          chan struct{}
+	// audioProbe samples a recording the way playbackProbe samples a movie;
+	// both share playbackSlots. Tests substitute it.
+	audioProbe    func(context.Context, VerifiedSource, string, string) *PlaybackCheck
+	playbackSlots chan struct{}
 
 	poolMu          sync.Mutex
 	poolBrowser     *cdp.BrowserInstance
@@ -76,6 +79,7 @@ func New(sh *shield.Shield, localServerURL string) *Scout {
 		playbackSlots:          make(chan struct{}, maxAutomaticPlaybackChecks),
 	}
 	s.playbackProbe = s.probeFreeMoviePlayback
+	s.audioProbe = s.probeAudioPlayback
 	return s
 }
 

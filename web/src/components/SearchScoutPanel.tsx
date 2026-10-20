@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Play, Globe, Search, Shield, Clock, Sparkles, Film, Music } from 'lucide-react';
-import { ActiveRelayStream, FawesomeShelfPlaybackReport, MovieAvailabilityCheck, MovieDiscoveryItem, MovieDiscoveryMode, MovieDiscoveryReport, SearchKind, SearchKnownEvent, SearchMergedEvent, SearchReport, VerifiedSource } from '../types';
+import { ActiveRelayStream, AudioTrack, FawesomeShelfPlaybackReport, MovieAvailabilityCheck, MovieDiscoveryItem, MovieDiscoveryMode, MovieDiscoveryReport, SearchKind, SearchKnownEvent, SearchMergedEvent, SearchReport, VerifiedSource } from '../types';
 import { RankedLocations } from './RankedLocations';
 
 interface SearchScoutPanelProps {
@@ -420,10 +420,48 @@ const MovieDiscoveryShelf: React.FC<{ region: string; onSelect: (query: string) 
 };
 
 // A recording plays through the relay when its file is free and answered
-// the reach check as audio. Nothing else is offered for playback: the audio
-// probe that would prove decoding arrives with a later slice.
+// the reach check as audio, whether or not the sample ran.
 const canPlayAudio = (source: VerifiedSource): boolean =>
   source.accessType === 'free' && Boolean(source.directStreamUrl) && source.verificationStatus === 'media_reachable';
+
+// A confirmed audio sample: a muted beginning decoded and advanced at least
+// a second in the isolated browser. Frames and picture are not asked of it.
+const audioSampleStarted = (source: VerifiedSource): boolean => {
+  const check = source.playbackCheck;
+  return source.accessType === 'free' && check?.status === 'started' && check.playbackConfirmed === true
+    && check.method === 'isolated_audio_sample' && !check.reason && Number.isFinite(check.secondsAdvanced) && (check.secondsAdvanced ?? 0) >= 1;
+};
+
+const audioSampleLabel = (source: VerifiedSource): string => {
+  const check = source.playbackCheck;
+  if (audioSampleStarted(source)) {
+    const location = countryName(check?.country);
+    return location ? `Playback started from ${location}` : 'Playback started';
+  }
+  if (!check || check.method === 'not_checked') return 'Playback not sampled';
+  const reasonLabel = check.reason ? PLAYBACK_REASON_LABELS[check.reason] : undefined;
+  if (reasonLabel) return reasonLabel;
+  switch (check.status) {
+    case 'not_started': return 'Playback did not start';
+    case 'unsupported': return 'Playback test unsupported';
+    case 'skipped': return 'Playback not sampled';
+    default: return 'Playback sample unconfirmed';
+  }
+};
+
+// The stream a track plays as: the chosen file first, the whole set behind
+// it so the stage queues the rest in order.
+const audioStream = (source: VerifiedSource, track?: AudioTrack): ActiveRelayStream => {
+  const collection = source.creator ? `${source.title} · ${source.creator}` : source.title;
+  const streamUrl = track?.url ?? (source.directStreamUrl as string);
+  const current = track ?? source.tracks?.find((entry) => entry.url === streamUrl);
+  const title = current && (source.tracks?.length ?? 0) > 1 ? `${current.title} · ${collection}` : collection;
+  return {
+    title, collection, streamUrl, pageUrl: source.url, provider: source.provider,
+    format: current?.format ? `Direct ${current.format}` : source.streamFormat, useZeroTrustProxy: true, kind: 'audio', poster: source.thumbnail,
+    durationSeconds: current?.durationSeconds, tracks: source.tracks,
+  };
+};
 
 interface AudioResultsProps {
   report: SearchReport;
@@ -450,7 +488,7 @@ const AudioResults: React.FC<AudioResultsProps> = ({ report, sources, filter, on
         <div><strong>{sources.length} {sources.length === 1 ? 'recording' : 'recordings'}</strong> for “{report.query}”<span className="scout-muted"> · {regionName}</span></div>
         <span className="scout-muted scout-duration"><Clock size={12} aria-hidden="true" /> {(report.durationMs / 1000).toFixed(1)}s</span>
       </div>
-      <p className="scout-muted">Audio search · Listings are matched by title and performer. Files are checked for reach from the server; no playback sample runs yet, so nothing is labelled playable.</p>
+      <p className="scout-muted">Audio search · Listings are matched by title and performer. Files are checked for reach from the server, and up to two free recordings get a short muted sample in the isolated browser; a started sample confirms the first file decodes, not the whole recording.</p>
       {report.providers && report.providers.length > 0 && (
         <details className="scout-provider-details" open={coverageOpen}>
           <summary>Search coverage{coverageOpen ? ' · some sources unavailable' : ''}</summary>
@@ -464,6 +502,7 @@ const AudioResults: React.FC<AudioResultsProps> = ({ report, sources, filter, on
       {report.availabilityChecks && (
         <div className="scout-link-check-summary">
           <p><strong>Automatic link checks</strong> · {report.availabilityChecks.checkedCount} checked{checkLocation ? ` from ${checkLocation}` : ' · check location unconfirmed'}</p>
+          {report.availabilityChecks.playbackCheckedCount !== undefined && <p><strong>Muted playback samples</strong> · {report.availabilityChecks.playbackCheckedCount} attempted{report.availabilityChecks.playbackStartedCount !== undefined ? ` · ${report.availabilityChecks.playbackStartedCount} started` : ''}. A started sample confirms the first file decodes, not the whole recording.</p>}
           {batchCheckedAt && <p>Checked <time dateTime={report.availabilityChecks.checkedAt}>{batchCheckedAt}</time></p>}
         </div>
       )}
@@ -487,13 +526,17 @@ const AudioResults: React.FC<AudioResultsProps> = ({ report, sources, filter, on
             const checkedAt = formatCheckedAt(check?.checkedAt);
             const length = runtimeSeconds(source.duration);
             const showYear = source.releaseYear && !source.title.includes(String(source.releaseYear));
-            const reach = source.verificationStatus === 'media_reachable' ? 'Audio file reachable' : source.verificationStatus === 'page_reachable' ? 'Page reachable' : 'Listing';
+            const sampleStarted = audioSampleStarted(source);
+            const sample = source.playbackCheck;
+            const sampleCheckedAt = formatCheckedAt(sample?.checkedAt);
+            const reach = sampleStarted ? 'Playback sample passed' : source.verificationStatus === 'media_reachable' ? 'Audio file reachable' : source.verificationStatus === 'page_reachable' ? 'Page reachable' : 'Listing';
+            const tracks = source.tracks ?? [];
             return (
               <article key={source.id} className="source-card movie-source-card audio-source-card">
                 <div>
                   <div className="movie-source-badges">
                     <span className={`pill-badge${source.accessType === 'free' ? ' live' : ''}`}>{ACCESS_LABELS[source.accessType ?? 'unknown']}</span>
-                    <span className="scout-muted">{reach}</span>
+                    <span className={`scout-muted${sampleStarted ? ' scout-media-status' : ''}`}>{reach}</span>
                   </div>
                   <div className="movie-source-title">
                     {source.thumbnail && <img src={source.thumbnail} alt="" loading="lazy" referrerPolicy="no-referrer"
@@ -505,13 +548,37 @@ const AudioResults: React.FC<AudioResultsProps> = ({ report, sources, filter, on
                       <p className="scout-muted movie-source-runtime">{length === null ? 'Length unconfirmed' : `Listed length: ${formatRuntime(length)}`}{source.verificationStatus === 'media_reachable' && source.streamFormat ? ` · ${source.streamFormat}` : ''}</p>
                     </div>
                   </div>
+                  {source.accessType === 'free' && (
+                    <div className={`movie-playback-check${sampleStarted ? ' sample-started' : ''}`}>
+                      <p className="movie-check-status">{audioSampleLabel(source)}</p>
+                      {sampleStarted
+                        ? <p className="scout-muted">{(sample?.secondsAdvanced ?? 0).toFixed(1)}s of audio decoded in the isolated browser; the rest of the recording is not verified.</p>
+                        : <p className="scout-muted">{sample?.detail || 'No playback sample was tested for this recording.'}</p>}
+                      {sampleCheckedAt && <p className="scout-muted">Sample checked <time dateTime={sample?.checkedAt}>{sampleCheckedAt}</time></p>}
+                    </div>
+                  )}
                   {source.description && <p className="scout-description movie-source-description">{source.description}</p>}
+                  {tracks.length > 1 && (
+                    <details className="scout-provider-details audio-track-list">
+                      <summary>{tracks.length} tracks · play from any</summary>
+                      <ol>{tracks.map((track, index) => {
+                        const trackLength = track.durationSeconds && track.durationSeconds > 0 ? formatRuntime(track.durationSeconds) : null;
+                        return (
+                          <li key={track.url}>
+                            <button type="button" className="btn" disabled={!canPlayAudio(source)} onClick={() => onPlayRelay(audioStream(source, track))}>
+                              <Play size={12} aria-hidden="true" /> {index + 1}. {track.title}{trackLength ? <span className="scout-muted"> · {trackLength}</span> : null}
+                            </button>
+                          </li>
+                        );
+                      })}</ol>
+                    </details>
+                  )}
                   <div className="movie-source-facts">
                     {source.accessNote && <p className="scout-muted">{source.accessNote}</p>}
                     <div className="movie-access-check">
                       <p className={`movie-check-status check-${check?.status ?? 'unchecked'}`}>{accessCheckLabel(check)}</p>
                       {check?.detail && <p className="scout-muted">{check.detail}</p>}
-                      <p className="scout-muted">A reachable file does not confirm playback; the audio probe arrives with a later slice.</p>
+                      <p className="scout-muted">A reachable file does not confirm playback; only a started sample does, and only for its beginning.</p>
                       {checkedAt && <p className="scout-muted">Link checked <time dateTime={check?.checkedAt}>{checkedAt}</time></p>}
                     </div>
                   </div>
@@ -521,11 +588,8 @@ const AudioResults: React.FC<AudioResultsProps> = ({ report, sources, filter, on
                     onClick={() => onLaunchRbi(source.url, false)}>
                     <Globe size={14} aria-hidden="true" /> {launchingUrl === source.url ? 'Opening protected browser…' : 'Open page with ad blocking'}
                   </button>
-                  {canPlayAudio(source) && <button type="button" className="btn" onClick={() => onPlayRelay({
-                    title: source.creator ? `${source.title} · ${source.creator}` : source.title, streamUrl: source.directStreamUrl as string, pageUrl: source.url,
-                    provider: source.provider, format: source.streamFormat, useZeroTrustProxy: true, kind: 'audio', poster: source.thumbnail,
-                  })}>
-                    <Play size={13} aria-hidden="true" /> Play through the relay
+                  {canPlayAudio(source) && <button type="button" className="btn" onClick={() => onPlayRelay(audioStream(source))}>
+                    <Play size={13} aria-hidden="true" /> {sampleStarted ? (tracks.length > 1 ? 'Play sampled recording · all tracks' : 'Play sampled recording') : (tracks.length > 1 ? 'Play all tracks through the relay' : 'Play through the relay')}
                   </button>}
                 </div>
               </article>
@@ -579,7 +643,7 @@ export const SearchScoutPanel: React.FC<SearchScoutPanelProps> = ({
         <div>
           <h2 id="movie-search-heading">{kind === 'audio' ? 'Find recordings across open audio catalogs.' : 'Find full-length movies across the web.'}</h2>
           <p className="scout-description">{kind === 'audio'
-            ? 'Search the Internet Archive’s audio collections by title, with the performer if known. Each listing shows its performer, year and length; files are checked for reach, not yet sampled.'
+            ? 'Search the Internet Archive’s audio collections by title, with the performer if known. Each listing shows its performer, year and length; files are checked for reach, and up to two get a short muted sample.'
             : region === 'ALL'
               ? 'Search recent releases, popular titles and independent cinema globally. Find free and paid options; playback samples show which supported free sources actually start.'
               : `Search globally with a preference for ${selectedRegionName}. Playback badges show the actual test location; prices and full playback still need confirmation.`}</p>
@@ -635,7 +699,7 @@ export const SearchScoutPanel: React.FC<SearchScoutPanelProps> = ({
           </div>
         </>
       ) : (
-        <p className="scout-muted">Audio results come from the Internet Archive’s audio collections, read through the same driver runtime as the movie catalogs. A recording is matched by its title, performer and length; the acoustic fingerprint, the queue player and the audio probe arrive with later slices.</p>
+        <p className="scout-muted">Audio results come from the Internet Archive’s audio collections, read through the same driver runtime as the movie catalogs. A recording is matched by its title, performer and length, its files are checked for reach and sampled, and a multi-track item plays in order through the relay; the acoustic fingerprint arrives with a later slice.</p>
       )}
       <p className="scout-protection-note"><Shield size={14} aria-hidden="true" /> Sites open in ITEMBA's browser with ad and tracker blocking enabled. Some ads may remain; subscriptions and regional restrictions still apply.</p>
       {kind === 'video' && <p className="scout-muted">Native samples cover supported free catalogs, including NASA+, NFB, creator-authorized Catsuka and matching Fawesome movie pages. Provider checks can report restrictions for Pluto TV and Filmzie. Playback badges require decoded movie content; pages, ads and trailers do not qualify.</p>}
