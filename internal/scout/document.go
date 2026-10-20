@@ -196,6 +196,9 @@ func (s *Scout) searchDocument(ctx context.Context, query, region string, start 
 	}
 	wg.Wait()
 	matchDocumentsByText(results)
+	// Up to two parsed PDFs are framed and drawn in the isolated sandbox,
+	// which is what makes a document rendered on the ladder.
+	rendersAttempted, rendersDone := s.renderSources(ctx, results, "document", region, location.country, renderableDocument)
 
 	sources := make([]VerifiedSource, 0, len(results))
 	verified := []VerifiedSource{}
@@ -210,6 +213,9 @@ func (s *Scout) searchDocument(ctx context.Context, query, region string, start 
 		sources = append(sources, result)
 	}
 	sort.SliceStable(sources, func(i, j int) bool {
+		if a, b := renderStatusRank(sources[i]), renderStatusRank(sources[j]); a != b {
+			return a > b
+		}
 		if a, b := imageStatusRank(sources[i]), imageStatusRank(sources[j]); a != b {
 			return a > b
 		}
@@ -220,7 +226,8 @@ func (s *Scout) searchDocument(ctx context.Context, query, region string, start 
 	report.Providers = providers
 	coverage := movieAvailabilityCoverage(region, location.country, location.detail, sources)
 	coverage.FingerprintCount = fingerprints
-	detail := "Each document's PDF is fetched at both ends for its format and page count, and its text, from the OCR text beside it or from the PDF's own content, is fingerprinted for the index to compare with everything it has read. No sandbox render runs yet, so no document is rendered on the ladder. "
+	coverage.RenderCheckedCount, coverage.RenderedCount = rendersAttempted, rendersDone
+	detail := "Each document's PDF is fetched at both ends for its format and page count, and its text, from the OCR text beside it or from the PDF's own content, is fingerprinted for the index to compare with everything it has read. Up to two parsed PDFs are framed and drawn in the isolated sandbox, which makes them rendered on the ladder. "
 	if location.country == "" {
 		detail += "The check server's country could not be confirmed. "
 		if location.detail != "" {

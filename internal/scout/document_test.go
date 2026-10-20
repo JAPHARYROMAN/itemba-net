@@ -136,6 +136,9 @@ func documentFixtureScout(t *testing.T) (*Scout, func() []string) {
 		return nil, fmt.Errorf("unexpected host for a document search: %s", req.URL)
 	})
 	s.UseDrivers(testDrivers(t))
+	// No browser runs in a unit test: the render is stubbed away unless a
+	// test puts its own in.
+	s.renderProbe = func(context.Context, VerifiedSource, string, string, string) *RenderCheck { return nil }
 	return s, func() []string {
 		mu.Lock()
 		defer mu.Unlock()

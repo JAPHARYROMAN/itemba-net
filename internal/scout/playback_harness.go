@@ -95,6 +95,10 @@ func (r moviePlaybackReader) Read(p []byte) (int, error) {
 }
 
 type moviePlaybackHarness struct {
+	// kind is what the harness serves: "" for a playback sample, "image"
+	// or "document" for a sandbox render, which changes the page, the
+	// policy and the bytes the relay admits.
+	kind          string
 	client        *http.Client
 	budget        moviePlaybackBudget
 	slots         chan struct{}
@@ -556,7 +560,7 @@ func (h *moviePlaybackHarness) relay(w http.ResponseWriter, r *http.Request, tar
 		contentType = "application/vnd.apple.mpegurl"
 	} else {
 		var allowed bool
-		contentType, allowed = playbackResponseType(contentType, prefix)
+		contentType, allowed = h.responseType(contentType, prefix)
 		if !allowed {
 			http.Error(w, "Playback resource unavailable", http.StatusBadGateway)
 			return
@@ -623,10 +627,22 @@ func startMoviePlaybackHarness(ctx context.Context, source VerifiedSource, clien
 }
 
 func startProtectedMoviePlaybackHarness(ctx context.Context, source VerifiedSource, client *http.Client, protection *shield.Shield) (origin string, close func(), outcome func() string, err error) {
+	return startProtectedHarness(ctx, source, client, protection, "")
+}
+
+// startProtectedHarness starts the harness for a playback sample (kind "")
+// or a sandbox render of a picture or a document (kind "image" or
+// "document"): the same local server, relay, budget and protection, with
+// the page, the policy and the admitted bytes chosen by the kind.
+func startProtectedHarness(ctx context.Context, source VerifiedSource, client *http.Client, protection *shield.Shield, kind string) (origin string, close func(), outcome func() string, err error) {
 	if protection == nil {
 		protection = shield.New()
 	}
-	h := &moviePlaybackHarness{shield: protection, budget: moviePlaybackBudget{remaining: moviePlaybackByteLimit}, slots: make(chan struct{}, 4), targets: make(map[string]string), ids: make(map[string]string)}
+	h := &moviePlaybackHarness{kind: kind, shield: protection, budget: moviePlaybackBudget{remaining: moviePlaybackByteLimit}, slots: make(chan struct{}, 4), targets: make(map[string]string), ids: make(map[string]string)}
+	// A document render fetches a megabyte of a PDF and then its tail
+	// through the relay before the viewer can draw, which a slow host
+	// spreads over more than a sample's window.
+	lifetime := harnessLifetime(kind)
 	outcome = h.outcome
 	media := strings.TrimSpace(source.DirectStreamURL)
 	if media == "" {
@@ -654,7 +670,7 @@ func startProtectedMoviePlaybackHarness(ctx context.Context, source VerifiedSour
 	guarded.Jar = nil
 	// Page availability uses a shorter deadline; cold CDN sample bodies need
 	// the bounded playback attempt's lifetime while retaining the same route.
-	guarded.Timeout = moviePlaybackLifetime
+	guarded.Timeout = lifetime
 	previousRedirect := guarded.CheckRedirect
 	guarded.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		if len(via) >= 5 {
@@ -684,19 +700,24 @@ func startProtectedMoviePlaybackHarness(ctx context.Context, source VerifiedSour
 	if err != nil {
 		return "", nil, outcome, errors.New("local playback sample could not be started")
 	}
-	attemptCtx, cancel := context.WithTimeout(ctx, moviePlaybackLifetime)
+	attemptCtx, cancel := context.WithTimeout(ctx, lifetime)
 	h.client = &guarded
 	isHLS := strings.HasSuffix(strings.ToLower(initial.Path), ".m3u8") || strings.Contains(strings.ToLower(source.StreamFormat), "hls")
 	page := moviePlaybackHTML(nonce, isHLS, len(moviePlaybackHLSScript) > 0)
-	if source.Kind == lens.TypeAudio {
+	switch {
+	case kind == "image":
+		page = imageRenderHTML(nonce)
+	case kind == "document":
+		page = documentRenderHTML(nonce, 640, 360)
+	case source.Kind == lens.TypeAudio:
 		page = audioPlaybackHTML(nonce)
 	}
 	address := listener.Addr().String()
-	server := &http.Server{ReadHeaderTimeout: 2 * time.Second, WriteTimeout: moviePlaybackLifetime, IdleTimeout: 2 * time.Second, MaxHeaderBytes: 16 << 10, BaseContext: func(net.Listener) context.Context { return attemptCtx }}
+	server := &http.Server{ReadHeaderTimeout: 2 * time.Second, WriteTimeout: lifetime, IdleTimeout: 2 * time.Second, MaxHeaderBytes: 16 << 10, BaseContext: func(net.Listener) context.Context { return attemptCtx }}
 	server.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'nonce-"+nonce+"'; connect-src 'self'; media-src 'self' blob:; img-src 'none'; style-src 'none'; object-src 'none'; worker-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
+		w.Header().Set("Content-Security-Policy", harnessCSP(kind, nonce))
 		if r.Host != address || r.URL.RawQuery != "" {
 			http.Error(w, "Unknown playback request", http.StatusBadRequest)
 			return
@@ -714,6 +735,11 @@ func startProtectedMoviePlaybackHarness(ctx context.Context, source VerifiedSour
 			w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
 			_, _ = w.Write(moviePlaybackHLSScript)
 		case r.URL.Path == "/media":
+			if kind == "document" {
+				// The framed PDF is drawn by the browser's own viewer, which
+				// a policy on the document itself would keep from loading.
+				w.Header().Del("Content-Security-Policy")
+			}
 			h.relay(w, r, initial.String())
 		case strings.HasPrefix(r.URL.Path, "/resource/"):
 			id := strings.TrimPrefix(r.URL.Path, "/resource/")

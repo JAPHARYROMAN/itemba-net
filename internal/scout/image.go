@@ -214,6 +214,9 @@ func (s *Scout) searchImage(ctx context.Context, query, region string, start tim
 	}
 	wg.Wait()
 	matchImagesBySight(results)
+	// Up to two decoded pictures are drawn in the isolated sandbox, which is
+	// what makes a picture rendered on the ladder.
+	rendersAttempted, rendersDone := s.renderSources(ctx, results, "image", region, location.country, renderablePicture)
 
 	sources := make([]VerifiedSource, 0, len(results))
 	verified := []VerifiedSource{}
@@ -229,6 +232,9 @@ func (s *Scout) searchImage(ctx context.Context, query, region string, start tim
 	}
 	// What a check proved, then relevance, then the hosts' own order.
 	sort.SliceStable(sources, func(i, j int) bool {
+		if a, b := renderStatusRank(sources[i]), renderStatusRank(sources[j]); a != b {
+			return a > b
+		}
 		if a, b := imageStatusRank(sources[i]), imageStatusRank(sources[j]); a != b {
 			return a > b
 		}
@@ -239,7 +245,8 @@ func (s *Scout) searchImage(ctx context.Context, query, region string, start tim
 	report.Providers = providers
 	coverage := movieAvailabilityCoverage(region, location.country, location.detail, sources)
 	coverage.FingerprintCount = fingerprints
-	detail := "Each picture's file is fetched for its header, which gives the dimensions and format, and its thumbnail is decoded for a perceptual hash the index compares with everything it has seen. No sandbox render runs yet, so no picture is rendered on the ladder. "
+	coverage.RenderCheckedCount, coverage.RenderedCount = rendersAttempted, rendersDone
+	detail := "Each picture's file is fetched for its header, which gives the dimensions and format, and its thumbnail is decoded for a perceptual hash the index compares with everything it has seen. Up to two decoded pictures are drawn in the isolated sandbox, which makes them rendered on the ladder. "
 	if location.country == "" {
 		detail += "The check server's country could not be confirmed. "
 		if location.detail != "" {

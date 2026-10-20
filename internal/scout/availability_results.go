@@ -33,8 +33,12 @@ type AvailabilityCheckCoverage struct {
 	PlaybackStartedCount int    `json:"playbackStartedCount"`
 	// FingerprintCount is how many sampled recordings yielded an acoustic
 	// fingerprint; movie searches report none.
-	FingerprintCount int    `json:"fingerprintCount,omitempty"`
-	Detail           string `json:"detail"`
+	FingerprintCount int `json:"fingerprintCount,omitempty"`
+	// RenderCheckedCount is how many pictures or documents the isolated
+	// sandbox was asked to draw, and RenderedCount how many it drew.
+	RenderCheckedCount int    `json:"renderCheckedCount,omitempty"`
+	RenderedCount      int    `json:"renderedCount,omitempty"`
+	Detail             string `json:"detail"`
 }
 
 // PlaybackCheck records a short decoded video sample, separately from HTTP

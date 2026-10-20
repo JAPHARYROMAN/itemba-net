@@ -48,6 +48,18 @@ func validateSearch(query, region, kind string) (string, string, string, string)
 	return query, region, kind, ""
 }
 
+// searchDeadline bounds a search by its kind. A document search probes six
+// PDFs at both ends with the OCR text beside each, then frames two of them
+// in the sandbox, which a slow host spreads well past the common window;
+// the server sets no write timeout, so a long search is only as long as
+// its deadline.
+func searchDeadline(kind string) time.Duration {
+	if kind == lens.TypeDocument {
+		return 90 * time.Second
+	}
+	return 44 * time.Second
+}
+
 // knownEvent is the first event of a streamed search: what Atlas already
 // holds for the object, before any fresh discovery.
 type knownEvent struct {
@@ -150,7 +162,7 @@ func (s *Server) searchStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 44*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), searchDeadline(kind))
 	defer cancel()
 	report := s.search(ctx, query, region, scout.SearchOptions{FullLengthOnly: fullLengthOnly, Kind: kind})
 	if s.metrics != nil {
@@ -245,6 +257,15 @@ func mergeLocations(q lens.ObjectQuery, known []atlas.KnownLocation, report scou
 			}
 		}
 		level := lens.LevelFromChecks(availability, playback, confirmed)
+		if check := source.RenderCheck; check != nil && check.Status == "rendered" && level < lens.LevelRendered {
+			// A picture or a document the sandbox drew is rendered, as a
+			// movie whose sample started is.
+			level = lens.LevelRendered
+			egress = firstNonEmpty(check.Country, egress)
+			if t, ok := lens.ObservedTime(check.CheckedAt); ok {
+				observed = t
+			}
+		}
 		// A listed title is read as a listing, so "Sintel (2010)" is Sintel.
 		listed, _ := lens.ListedTitle(source.Title, source.ReleaseYear)
 		relevance := lens.TitleRelevance(q.TitleKey, lens.NormalizeTitle(listed))

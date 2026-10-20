@@ -51,7 +51,10 @@ type Scout struct {
 	playbackProbe          func(context.Context, VerifiedSource, string, string) *PlaybackCheck
 	// audioProbe samples a recording the way playbackProbe samples a movie;
 	// both share playbackSlots. Tests substitute it.
-	audioProbe    func(context.Context, VerifiedSource, string, string) *PlaybackCheck
+	audioProbe func(context.Context, VerifiedSource, string, string) *PlaybackCheck
+	// renderProbe renders a picture or a document in the sandbox; tests
+	// stub it so no browser runs.
+	renderProbe   func(context.Context, VerifiedSource, string, string, string) *RenderCheck
 	playbackSlots chan struct{}
 
 	poolMu          sync.Mutex
@@ -80,6 +83,7 @@ func New(sh *shield.Shield, localServerURL string) *Scout {
 	}
 	s.playbackProbe = s.probeFreeMoviePlayback
 	s.audioProbe = s.probeAudioPlayback
+	s.renderProbe = s.renderInSandbox
 	return s
 }
 

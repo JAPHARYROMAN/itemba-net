@@ -266,7 +266,7 @@ func (s *Server) searchRoute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 44*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), searchDeadline(kind))
 	defer cancel()
 
 	fullLengthOnly := req.FullLengthOnly == nil || *req.FullLengthOnly

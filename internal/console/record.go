@@ -109,6 +109,31 @@ func evidenceFor(source scout.VerifiedSource, defaultEgress string) []atlas.Evid
 			Artefacts:  artefacts,
 		})
 	}
+	// A picture or a document the isolated sandbox drew is rendered; one it
+	// loaded without proof of drawing, or could not load, keeps the level
+	// its other checks earned.
+	if check := source.RenderCheck; check != nil && check.Status != "" && check.Status != "skipped" {
+		level := lens.LevelListed
+		switch {
+		case check.Status == "rendered":
+			level = lens.LevelRendered
+		case check.HTTPStatus >= 200 && check.HTTPStatus < 300:
+			level = lens.LevelReachable
+		}
+		artefacts := map[string]any{"width": check.Width, "height": check.Height, "milliseconds": check.Milliseconds, "httpStatus": check.HTTPStatus, "mimeType": check.MimeType, "evidenceUrl": check.EvidenceURL, "visibleShare": check.VisibleShare, "frameLoaded": check.FrameLoaded}
+		if check.HashAgrees != "" {
+			artefacts["hashAgrees"], artefacts["hashDistance"] = check.HashAgrees, check.HashDistance
+		}
+		out = append(out, atlas.Evidence{
+			Level:      level,
+			Method:     firstNonEmpty(check.Method, "sandbox_render"),
+			Status:     check.Status,
+			Detail:     check.Detail,
+			Egress:     firstNonEmpty(check.Country, defaultEgress),
+			ObservedAt: observedOrNow(check.CheckedAt),
+			Artefacts:  artefacts,
+		})
+	}
 	if check := source.AvailabilityCheck; check != nil && check.Status != "" {
 		out = append(out, atlas.Evidence{
 			Level:      lens.LevelFromChecks(check.Status, "", false),

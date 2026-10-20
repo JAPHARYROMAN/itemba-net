@@ -82,6 +82,9 @@ type VerifiedSource struct {
 	// DocumentCheck is what a bounded fetch and parse proved of a document's
 	// file: its format, its page count and the fingerprint of its text.
 	DocumentCheck *DocumentCheck `json:"documentCheck,omitempty"`
+	// RenderCheck is what the isolated sandbox drew of a picture or a
+	// document: the rendered level of the ladder for those kinds.
+	RenderCheck *RenderCheck `json:"renderCheck,omitempty"`
 	// Identity is what the recording's fingerprint said beside the other
 	// fingerprint this search computed: the same sound or a different one,
 	// and what that meant for the tags. The index adds its own against

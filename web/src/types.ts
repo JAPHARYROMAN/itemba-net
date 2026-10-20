@@ -67,6 +67,10 @@ export interface SearchAvailabilityChecks {
   playbackStartedCount?: number;
   providerCheckedCount?: number;
   fingerprintCount?: number;
+  // renderCheckedCount is how many pictures or documents the isolated
+  // sandbox was asked to draw, and renderedCount how many it drew.
+  renderCheckedCount?: number;
+  renderedCount?: number;
 }
 
 export interface MoviePlaybackCheck {
@@ -162,6 +166,31 @@ export interface DocumentCheck {
   fingerprintStatus?: 'computed' | 'too_short' | 'unreadable' | 'partial';
 }
 
+// What the isolated sandbox drew of a picture or a document: rendered when
+// a picture decoded and its pixels were drawn, or a PDF frame loaded and
+// the screenshot shows a drawn page; unconfirmed when it loaded without
+// proof of drawing; not_rendered when it could not load.
+export interface RenderCheck {
+  status: 'rendered' | 'not_rendered' | 'unsupported' | 'unconfirmed' | 'skipped';
+  reason?: string;
+  method: string;
+  country?: string;
+  requestedRegion: string;
+  checkedAt: string;
+  detail: string;
+  evidenceUrl?: string;
+  width?: number;
+  height?: number;
+  milliseconds?: number;
+  httpStatus?: number;
+  mimeType?: string;
+  frameLoaded?: boolean;
+  visibleShare?: number;
+  fingerprint?: AudioFingerprint;
+  hashDistance?: number;
+  hashAgrees?: 'yes' | 'no';
+}
+
 // One file of a recording with several, in the host's order.
 export interface AudioTrack {
   title: string;
@@ -189,6 +218,8 @@ export interface VerifiedSource {
   documentCheck?: DocumentCheck;
   pages?: number;
   textUrl?: string;
+  // renderCheck is what the isolated sandbox drew of the file.
+  renderCheck?: RenderCheck;
   // identity is the search's own fingerprint comparison between its
   // samples; the index's verdict arrives in the report's atlas summary.
   identity?: IdentityMatch;

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Play, Globe, Search, Shield, Clock, Sparkles, Film, Music, Fingerprint, Image as ImageIcon, Scan, FileText, BookOpen } from 'lucide-react';
-import { ActiveRelayStream, AudioTrack, DocumentCheck, FawesomeShelfPlaybackReport, ImageCheck, MovieAvailabilityCheck, MovieDiscoveryItem, MovieDiscoveryMode, MovieDiscoveryReport, SearchKind, SearchKnownEvent, SearchMergedEvent, SearchReport, VerifiedSource } from '../types';
+import { ActiveRelayStream, AudioTrack, DocumentCheck, FawesomeShelfPlaybackReport, ImageCheck, MovieAvailabilityCheck, MovieDiscoveryItem, MovieDiscoveryMode, MovieDiscoveryReport, RenderCheck, SearchKind, SearchKnownEvent, SearchMergedEvent, SearchReport, VerifiedSource } from '../types';
 import { RankedLocations } from './RankedLocations';
 import { fingerprintLabel, identityLabel } from '../identity';
 import { isPdfUrl } from '../media/media';
@@ -615,6 +615,19 @@ const AudioResults: React.FC<AudioResultsProps> = ({ report, sources, filter, on
   );
 };
 
+// What the isolated sandbox drew of a picture or a document, in a line.
+const renderLabel = (check?: RenderCheck): string | null => {
+  if (!check || check.status === 'skipped') return null;
+  if (check.status === 'rendered') {
+    const size = check.width && check.height ? ` at ${check.width}×${check.height}` : '';
+    const took = check.milliseconds ? ` in ${(check.milliseconds / 1000).toFixed(1)} s` : '';
+    const hash = check.hashAgrees === 'yes' ? '; the drawn pixels hash as the probe said' : check.hashAgrees === 'no' ? '; the drawn pixels hash differently from the file the probe read' : '';
+    const drawn = check.visibleShare ? `; ${Math.round(check.visibleShare * 100)}% of the frame drawn` : '';
+    return `Rendered in the sandbox${size}${took}${hash}${drawn}.`;
+  }
+  return `Not rendered in the sandbox: ${check.detail}`;
+};
+
 // A picture opens in the zoomable viewer through the relay whenever its
 // file answered, decoded or not: the viewer can show what the probe cannot
 // decode yet, such as WebP.
@@ -674,7 +687,7 @@ const ImageResults: React.FC<ImageResultsProps> = ({ report, sources, filter, on
         <div><strong>{sources.length} {sources.length === 1 ? 'picture' : 'pictures'}</strong> for “{report.query}”<span className="scout-muted"> · {regionName}</span></div>
         <span className="scout-muted scout-duration"><Clock size={12} aria-hidden="true" /> {(report.durationMs / 1000).toFixed(1)}s</span>
       </div>
-      <p className="scout-muted">Picture search · The host matched these by its own index, so a file name need not say what the picture shows. Each file is fetched for its header, which gives the dimensions and format, and its thumbnail is decoded for a perceptual hash; pictures that look the same are matched by it whatever their names say. No sandbox render runs yet.</p>
+      <p className="scout-muted">Picture search · The host matched these by its own index, so a file name need not say what the picture shows. Each file is fetched for its header, which gives the dimensions and format, and its thumbnail is decoded for a perceptual hash; pictures that look the same are matched by it whatever their names say. Up to two decoded pictures are drawn in the isolated sandbox, which makes them rendered on the ladder.</p>
       {report.providers && report.providers.length > 0 && (
         <details className="scout-provider-details" open={coverageOpen}>
           <summary>Search coverage{coverageOpen ? ' · some sources unavailable' : ''}</summary>
@@ -688,6 +701,7 @@ const ImageResults: React.FC<ImageResultsProps> = ({ report, sources, filter, on
       {report.availabilityChecks && (
         <div className="scout-link-check-summary">
           <p><strong>File probes</strong> · {report.availabilityChecks.checkedCount} checked{checkLocation ? ` from ${checkLocation}` : ' · check location unconfirmed'}{report.availabilityChecks.fingerprintCount ? ` · ${report.availabilityChecks.fingerprintCount} perceptual ${report.availabilityChecks.fingerprintCount === 1 ? 'hash' : 'hashes'} taken` : ''}</p>
+          {report.availabilityChecks.renderCheckedCount ? <p><strong>Sandbox renders</strong> · {report.availabilityChecks.renderCheckedCount} attempted · {report.availabilityChecks.renderedCount ?? 0} rendered. A render draws the beginning of the file in the isolated browser; it does not verify the whole.</p> : null}
           {report.atlas?.fingerprints ? <p><strong>Fingerprint library</strong> · {report.atlas.fingerprints} stored in the index and compared with every picture seen before.</p> : null}
           {batchCheckedAt && <p>Checked <time dateTime={report.availabilityChecks.checkedAt}>{batchCheckedAt}</time></p>}
         </div>
@@ -744,7 +758,8 @@ const ImageResults: React.FC<ImageResultsProps> = ({ report, sources, filter, on
                           {identity.detail && <span className="scout-muted">{identity.detail}</span>}
                         </p>
                       )}
-                      <p className="scout-muted">A decoded header confirms the file is a picture of these dimensions; no sandbox has rendered it yet.</p>
+                      {renderLabel(source.renderCheck) && <p className={`scout-muted${source.renderCheck?.status === 'rendered' ? ' scout-media-status' : ''}`}>{renderLabel(source.renderCheck)}</p>}
+                      {source.renderCheck?.status !== 'rendered' && <p className="scout-muted">A decoded header confirms the file is a picture of these dimensions; the sandbox has not rendered it.</p>}
                       {checkedAt && <p className="scout-muted">File checked <time dateTime={probe?.checkedAt ?? check?.checkedAt}>{checkedAt}</time></p>}
                     </div>
                   </div>
@@ -835,7 +850,7 @@ const DocumentResults: React.FC<DocumentResultsProps> = ({ report, sources, filt
         <div><strong>{sources.length} {sources.length === 1 ? 'document' : 'documents'}</strong> for “{report.query}”<span className="scout-muted"> · {regionName}</span></div>
         <span className="scout-muted scout-duration"><Clock size={12} aria-hidden="true" /> {(report.durationMs / 1000).toFixed(1)}s</span>
       </div>
-      <p className="scout-muted">Document search · The host matched these by its own catalog. Each PDF is fetched at both ends for its format and its own page count, and its text, from the OCR text beside it or from the PDF itself, is fingerprinted; documents that read the same are matched by it whatever their titles say. No sandbox render runs yet.</p>
+      <p className="scout-muted">Document search · The host matched these by its own catalog. Each PDF is fetched at both ends for its format and its own page count, and its text, from the OCR text beside it or from the PDF itself, is fingerprinted; documents that read the same are matched by it whatever their titles say. Up to two parsed PDFs are framed and drawn in the isolated sandbox, which makes them rendered on the ladder.</p>
       {report.providers && report.providers.length > 0 && (
         <details className="scout-provider-details" open={coverageOpen}>
           <summary>Search coverage{coverageOpen ? ' · some sources unavailable' : ''}</summary>
@@ -849,6 +864,7 @@ const DocumentResults: React.FC<DocumentResultsProps> = ({ report, sources, filt
       {report.availabilityChecks && (
         <div className="scout-link-check-summary">
           <p><strong>File probes</strong> · {report.availabilityChecks.checkedCount} checked{checkLocation ? ` from ${checkLocation}` : ' · check location unconfirmed'}{report.availabilityChecks.fingerprintCount ? ` · ${report.availabilityChecks.fingerprintCount} text ${report.availabilityChecks.fingerprintCount === 1 ? 'fingerprint' : 'fingerprints'} taken` : ''}</p>
+          {report.availabilityChecks.renderCheckedCount ? <p><strong>Sandbox renders</strong> · {report.availabilityChecks.renderCheckedCount} attempted · {report.availabilityChecks.renderedCount ?? 0} rendered. A render frames the PDF in the isolated browser and looks at what it drew; it does not verify the whole.</p> : null}
           {report.atlas?.fingerprints ? <p><strong>Fingerprint library</strong> · {report.atlas.fingerprints} stored in the index and compared with every document read before.</p> : null}
           {batchCheckedAt && <p>Checked <time dateTime={report.availabilityChecks.checkedAt}>{batchCheckedAt}</time></p>}
         </div>
@@ -905,7 +921,8 @@ const DocumentResults: React.FC<DocumentResultsProps> = ({ report, sources, filt
                           {identity.detail && <span className="scout-muted">{identity.detail}</span>}
                         </p>
                       )}
-                      <p className="scout-muted">A parsed file confirms the document is a PDF of these pages; no sandbox has rendered it yet.</p>
+                      {renderLabel(source.renderCheck) && <p className={`scout-muted${source.renderCheck?.status === 'rendered' ? ' scout-media-status' : ''}`}>{renderLabel(source.renderCheck)}</p>}
+                      {source.renderCheck?.status !== 'rendered' && <p className="scout-muted">A parsed file confirms the document is a PDF of these pages; the sandbox has not rendered it.</p>}
                       {checkedAt && <p className="scout-muted">File checked <time dateTime={probe?.checkedAt ?? check?.checkedAt}>{checkedAt}</time></p>}
                     </div>
                   </div>
