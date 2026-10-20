@@ -611,3 +611,17 @@ body {
 
 /* Picture cards lead with the thumbnail at its own aspect ratio. */
 .image-source-card .image-thumb { display: block; width: 100%; max-height: 240px; object-fit: contain; background: #0b1220; border-radius: 8px; margin-bottom: 10px; }
+
+/* The format matrix: one table per kind, marks for what this host can do. */
+.format-matrix-details { margin-bottom: 10px; }
+.format-matrix { display: grid; gap: 12px; margin-top: 8px; }
+.format-table { width: 100%; border-collapse: collapse; font-size: 11px; line-height: 1.5; }
+.format-table caption { text-align: left; color: #cbd5e1; font-weight: 600; padding: 4px 0; }
+.format-table th, .format-table td { text-align: left; vertical-align: top; padding: 4px 8px 4px 0; border-top: 1px solid #1e293b; }
+.format-table thead th { color: #94a3b8; font-weight: 500; border-top: 0; }
+.format-table code { font-size: 10.5px; color: #cbd5e1; }
+.format-mark { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.format-mark--ok { color: #86efac; }
+.format-mark--off { color: #fca5a5; }
+.format-mark--none { color: #475569; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

@@ -44,6 +44,12 @@ var (
 	playbackAdClass        = regexp.MustCompile(`(?i)(?:^|[._:/\s-])(?:ad|ads|adbreak|advert|advertisement|advertising|ssai|interstitial|preroll|midroll|postroll)(?:$|[._:/\s-])`)
 )
 
+// HLSSupported reports whether the HLS library was built into this
+// console, without which an HLS source is neither played nor sampled.
+func HLSSupported() bool {
+	return len(moviePlaybackHLSScript) > 0
+}
+
 // Load only the installed, locally built player artifact, once at server startup.
 func readMoviePlaybackHLSScript(path string) []byte {
 	file, err := os.Open(path)

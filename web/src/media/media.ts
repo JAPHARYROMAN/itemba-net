@@ -1,14 +1,21 @@
 import { ActiveRelayStream, MediaKind } from '../types';
+import { FORMATS, FormatEntry } from './formats.generated';
 
 // Media-kind detection, relay addressing and the small formatting helpers the
 // players and viewers share. Detection is by URL extension first and by the
 // scout's format label second; anything undecided is treated as video, which
-// is what the relay player always assumed before kinds existed.
+// is what the relay player always assumed before kinds existed. The
+// extension sets come from the format matrix (internal/formats, generated
+// into formats.generated.ts), so nothing is offered a player, a viewer or a
+// reader that the matrix does not name.
 
-const VIDEO_EXT = new Set(['mp4', 'm4v', 'webm', 'mkv', 'mov', 'ogv', 'ts', 'm3u8', 'mpd']);
-const AUDIO_EXT = new Set(['mp3', 'flac', 'ogg', 'oga', 'opus', 'm4a', 'aac', 'wav', 'weba']);
-const IMAGE_EXT = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'svg', 'bmp', 'tif', 'tiff']);
-const DOCUMENT_EXT = new Set(['pdf', 'epub', 'txt', 'djvu', 'mobi', 'doc', 'docx', 'odt']);
+const extensionsOf = (kind: FormatEntry['kind'], keep: (entry: FormatEntry) => boolean = () => true): Set<string> =>
+  new Set(FORMATS.filter((entry) => entry.kind === kind && keep(entry)).flatMap((entry) => entry.extensions));
+
+const VIDEO_EXT = extensionsOf('video');
+const AUDIO_EXT = extensionsOf('audio');
+const IMAGE_EXT = extensionsOf('image');
+const DOCUMENT_EXT = extensionsOf('document', (entry) => entry.format !== 'html');
 
 export const extensionOf = (raw: string): string => {
   try {
@@ -25,10 +32,19 @@ export const isDashUrl = (raw: string): boolean => extensionOf(raw) === 'mpd';
 export const isPdfUrl = (raw: string): boolean => extensionOf(raw) === 'pdf';
 
 // The formats the console converts to PDF for the reader when the host has
-// a converter: e-books, DjVu and office files. The reader asks the
-// conversion route whether this host can, and shows what it answers.
-const CONVERTIBLE_EXT = new Set(['epub', 'mobi', 'azw3', 'azw', 'fb2', 'lit', 'djvu', 'doc', 'docx', 'odt', 'rtf', 'ppt', 'pptx', 'odp', 'xls', 'xlsx', 'ods']);
+// a converter: the document rows of the matrix that name one. The reader
+// asks the conversion route whether this host can, and shows what it
+// answers.
+const CONVERTIBLE_EXT = extensionsOf('document', (entry) => Boolean(entry.converter));
 export const isConvertibleUrl = (raw: string): boolean => CONVERTIBLE_EXT.has(extensionOf(raw));
+
+// The matrix row an address falls under, if any, and whether the console
+// presents that format itself through a player, a viewer or a reader.
+export const formatEntryOf = (raw: string): FormatEntry | undefined => {
+  const ext = extensionOf(raw);
+  return FORMATS.find((entry) => entry.extensions.includes(ext));
+};
+export const isPresentableUrl = (raw: string): boolean => Boolean(formatEntryOf(raw)?.relay);
 export const convertUrl = (raw: string): string => `/api/convert?url=${encodeURIComponent(raw)}`;
 
 export const detectMediaKind = (raw: string, formatHint?: string): MediaKind => {

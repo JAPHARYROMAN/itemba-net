@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Play, Globe, Search, Shield, Clock, Sparkles, Film, Music, Fingerprint, Image as ImageIcon, Scan, FileText, BookOpen } from 'lucide-react';
 import { ActiveRelayStream, AudioTrack, DocumentCheck, FawesomeShelfPlaybackReport, ImageCheck, MovieAvailabilityCheck, MovieDiscoveryItem, MovieDiscoveryMode, MovieDiscoveryReport, RenderCheck, SearchKind, SearchKnownEvent, SearchMergedEvent, SearchReport, VerifiedSource } from '../types';
 import { RankedLocations } from './RankedLocations';
+import { FormatMatrix } from './FormatMatrix';
 import { fingerprintLabel, identityLabel } from '../identity';
 import { isConvertibleUrl, isPdfUrl } from '../media/media';
 
@@ -1064,6 +1065,10 @@ export const SearchScoutPanel: React.FC<SearchScoutPanelProps> = ({
       ) : (
         <p className="scout-muted">Document results come from the Internet Archive’s texts, read through the same driver runtime as the other catalogs. Each item’s metadata names its PDF and the OCR text beside it; the PDF is fetched at both ends for its format and its own page count, and the text is fingerprinted, so the index matches the same text under any title and keeps a different text under the same title apart. A PDF opens in the reader through the relay; other formats open in the protected browser.</p>
       )}
+      <details className="scout-provider-details format-matrix-details">
+        <summary>Formats this console presents, probes, samples and renders</summary>
+        <FormatMatrix />
+      </details>
       <p className="scout-protection-note"><Shield size={14} aria-hidden="true" /> Sites open in ITEMBA's browser with ad and tracker blocking enabled. Some ads may remain; subscriptions and regional restrictions still apply.</p>
       {kind === 'video' && <p className="scout-muted">Native samples cover supported free catalogs, including NASA+, NFB, creator-authorized Catsuka and matching Fawesome movie pages. Provider checks can report restrictions for Pluto TV and Filmzie. Playback badges require decoded movie content; pages, ads and trailers do not qualify.</p>}
 
