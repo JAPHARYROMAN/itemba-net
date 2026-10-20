@@ -95,6 +95,7 @@ func documentFixtureScout(t *testing.T) (*Scout, func() []string) {
 		"alice-other":     `{"metadata":{"identifier":"alice-other","mediatype":"texts","creator":"Carroll, Lewis","imagecount":99},"files":[{"name":"alice-other.pdf","format":"Text PDF"}]}`,
 		"alice-gutenberg": `{"metadata":{"identifier":"alice-gutenberg","mediatype":"texts","creator":"Lewis Carroll"},"files":[{"name":"alice-gutenberg.txt","format":"Text"},{"name":"alice-gutenberg.htm","format":"HTML"}]}`,
 		"alice-dark":      `{"is_dark":true,"metadata":{"identifier":"alice-dark","mediatype":"texts"},"files":[{"name":"alice-dark.pdf","format":"Text PDF"}]}`,
+		"alice-epub":      `{"metadata":{"identifier":"alice-epub","mediatype":"texts","creator":"Lewis Carroll"},"files":[{"name":"alice-epub.epub","format":"EPUB"},{"name":"alice-epub.mobi","format":"MOBI"}]}`,
 	}
 	var mu sync.Mutex
 	var requests []string
@@ -112,7 +113,8 @@ func documentFixtureScout(t *testing.T) (*Scout, func() []string) {
 				{"identifier":"alice-edition","title":"Adventures Under Ground","creator":"Carroll, Lewis","date":"1920-01-01T00:00:00Z"},
 				{"identifier":"alice-other","title":"Alice in Wonderland","creator":"Carroll, Lewis","imagecount":99},
 				{"identifier":"alice-gutenberg","title":"Alice in Wonderland","creator":"Lewis Carroll"},
-				{"identifier":"alice-dark","title":"Alice in Wonderland annotated"}
+				{"identifier":"alice-dark","title":"Alice in Wonderland annotated"},
+				{"identifier":"alice-epub","title":"Alice in Wonderland for e-readers","creator":"Lewis Carroll"}
 			]}}`), nil
 		case req.URL.Host == "archive.org" && strings.HasPrefix(req.URL.Path, "/metadata/"):
 			if payload, ok := metadata[strings.TrimPrefix(req.URL.Path, "/metadata/")]; ok {
@@ -127,6 +129,8 @@ func documentFixtureScout(t *testing.T) (*Scout, func() []string) {
 			return response, nil
 		case req.URL.Host == "archive.org" && req.URL.Path == "/details/alice-dark":
 			return searchFixtureResponse(200, "text/html; charset=utf-8", `<html><head><title>Alice in Wonderland annotated : Free Download, Borrow, and Streaming : Internet Archive</title></head><body><h1>Alice in Wonderland annotated</h1><p>An item page whose files are dark, kept here as a page for the probe to reach and read.</p></body></html>`), nil
+		case req.URL.Host == "archive.org" && req.URL.Path == "/download/alice-epub/alice-epub.epub":
+			return rangeResponse(req, "application/epub+zip", []byte("PK\x03\x04 a fake epub for the reader to convert")), nil
 		case req.URL.Host == "archive.org" || req.URL.Host == "dn760105.eu.archive.org":
 			if file, ok := files[req.URL.Path]; ok {
 				return rangeResponse(req, file.contentType, file.data), nil
@@ -157,7 +161,16 @@ func TestDocumentSearchParsesFilesAndMatchesTextsByFingerprint(t *testing.T) {
 			t.Fatalf("a document search reached %s; only the document drivers' hosts may be asked", request)
 		}
 	}
-	if len(report.Sources) != 5 || report.VerifiedCount != 4 {
+	var epub VerifiedSource
+	for _, source := range report.Sources {
+		if source.ID == "ia-text-alice-epub" {
+			epub = source
+		}
+	}
+	if epub.DirectStreamURL != "https://archive.org/download/alice-epub/alice-epub.epub" || epub.DocumentCheck == nil || epub.DocumentCheck.Status != "unsupported" || epub.DocumentCheck.Format != "epub" {
+		t.Fatalf("an item with only an e-book names the EPUB as its file, which the probe cannot read: %+v %+v", epub.CandidateSource, epub.DocumentCheck)
+	}
+	if len(report.Sources) != 6 || report.VerifiedCount != 4 {
 		var states []string
 		for _, source := range report.Sources {
 			state := source.ID + ":" + source.VerificationStatus
@@ -226,11 +239,11 @@ func TestDocumentSearchParsesFilesAndMatchesTextsByFingerprint(t *testing.T) {
 	if detail := strings.ToLower(dark.AvailabilityCheck.Detail); strings.Contains(detail, "movie") || strings.Contains(detail, "playback") {
 		t.Fatalf("the page check speaks of a document: %q", dark.AvailabilityCheck.Detail)
 	}
-	if report.Sources[0].VerificationStatus != "media_reachable" || report.Sources[4].ID != "ia-text-alice-dark" {
-		t.Fatalf("parsed files lead and the page-only listing trails: %v", []string{report.Sources[0].ID, report.Sources[1].ID, report.Sources[2].ID, report.Sources[3].ID, report.Sources[4].ID})
+	if report.Sources[0].VerificationStatus != "media_reachable" || report.Sources[4].ID != "ia-text-alice-dark" || report.Sources[5].ID != "ia-text-alice-epub" {
+		t.Fatalf("parsed files lead, then the page-only listing, then the e-book the probe could not read: %v", []string{report.Sources[0].ID, report.Sources[1].ID, report.Sources[2].ID, report.Sources[3].ID, report.Sources[4].ID, report.Sources[5].ID})
 	}
 	coverage := report.AvailabilityChecks
-	if coverage == nil || coverage.CheckedCount != 5 || coverage.FingerprintCount != 4 || !strings.Contains(coverage.Detail, "fingerprinted") || strings.Contains(strings.ToLower(coverage.Detail), "movie") {
+	if coverage == nil || coverage.CheckedCount != 6 || coverage.FingerprintCount != 4 || !strings.Contains(coverage.Detail, "fingerprinted") || strings.Contains(strings.ToLower(coverage.Detail), "movie") {
 		t.Fatalf("the coverage counts the fingerprints in the document's words: %+v", coverage)
 	}
 	for _, provider := range report.Providers {

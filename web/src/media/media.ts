@@ -24,6 +24,13 @@ export const isHlsUrl = (raw: string): boolean => extensionOf(raw) === 'm3u8' ||
 export const isDashUrl = (raw: string): boolean => extensionOf(raw) === 'mpd';
 export const isPdfUrl = (raw: string): boolean => extensionOf(raw) === 'pdf';
 
+// The formats the console converts to PDF for the reader when the host has
+// a converter: e-books, DjVu and office files. The reader asks the
+// conversion route whether this host can, and shows what it answers.
+const CONVERTIBLE_EXT = new Set(['epub', 'mobi', 'azw3', 'azw', 'fb2', 'lit', 'djvu', 'doc', 'docx', 'odt', 'rtf', 'ppt', 'pptx', 'odp', 'xls', 'xlsx', 'ods']);
+export const isConvertibleUrl = (raw: string): boolean => CONVERTIBLE_EXT.has(extensionOf(raw));
+export const convertUrl = (raw: string): string => `/api/convert?url=${encodeURIComponent(raw)}`;
+
 export const detectMediaKind = (raw: string, formatHint?: string): MediaKind => {
   const ext = extensionOf(raw);
   if (AUDIO_EXT.has(ext)) return 'audio';

@@ -16,8 +16,16 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/itemba-net/core/internal/convert"
 	"github.com/itemba-net/core/internal/lens"
 )
+
+// hostConverter finds the host's document converters once; tests put a
+// converter of their own in its place.
+var hostConverter = sync.OnceValue(func() *convert.Converter { return convert.Detect("") })
+
+// convertInputLimit bounds the bytes fetched for a conversion.
+const convertInputLimit = 48 << 20
 
 // The sandbox render: the rendered level of the ladder for pictures and
 // documents, which only video and audio samples reached before. The same
@@ -83,6 +91,9 @@ type RenderCheck struct {
 	Fingerprint     *lens.Fingerprint `json:"fingerprint,omitempty"`
 	HashDistance    float64           `json:"hashDistance,omitempty"`
 	HashAgrees      string            `json:"hashAgrees,omitempty"`
+	// Converted says how an e-book or office file became the PDF that was
+	// framed: the format, the converter and the time it took.
+	Converted string `json:"converted,omitempty"`
 }
 
 // renderSnapshot is the harness page's render state as the page keeps it
@@ -542,7 +553,21 @@ func (s *Scout) renderInSandbox(ctx context.Context, source VerifiedSource, kind
 	if client == nil {
 		client = newMovieAvailabilityClient()
 	}
-	origin, closeHarness, outcome, err := startProtectedHarness(ctx, source, client, s.shield, kind)
+	// An e-book or office file is converted to a PDF on this host first,
+	// and the harness serves that PDF as the document.
+	localFile := ""
+	if kind == "document" {
+		if format := convert.FormatOf(source.DirectStreamURL); format != "" && format != "pdf" {
+			converted, detail := convertForRender(ctx, client, hostConverter(), source.DirectStreamURL, format)
+			if converted.Path == "" {
+				result.Status, result.Detail = "unsupported", detail
+				return result
+			}
+			localFile = converted.Path
+			result.Converted = detail
+		}
+	}
+	origin, closeHarness, outcome, err := startProtectedHarness(ctx, source, client, s.shield, kind, localFile)
 	if err != nil {
 		result.Detail = "The isolated render harness could not be prepared."
 		return result
@@ -644,12 +669,50 @@ func renderablePicture(source VerifiedSource) (VerifiedSource, bool) {
 	return source, false
 }
 
-// renderableDocument admits a parsed free PDF to the render.
+// renderableDocument admits a parsed free PDF to the render, and a free
+// e-book or office file the probe could not read when this host has a
+// converter for it, which turns it into the PDF the sandbox frames.
 func renderableDocument(source VerifiedSource) (VerifiedSource, bool) {
-	if source.DocumentCheck == nil || source.DocumentCheck.Status != "parsed" || source.DocumentCheck.Format != "pdf" || source.AccessType != "free" || source.DirectStreamURL == "" {
+	if source.DocumentCheck == nil || source.AccessType != "free" || source.DirectStreamURL == "" {
 		return source, false
 	}
-	return source, true
+	if source.DocumentCheck.Status == "parsed" && source.DocumentCheck.Format == "pdf" {
+		return source, true
+	}
+	if source.DocumentCheck.Status == "unsupported" {
+		if _, ok := hostConverter().Supports(convert.FormatOf(source.DirectStreamURL)); ok {
+			return source, true
+		}
+	}
+	return source, false
+}
+
+// convertForRender fetches an e-book or office file within the conversion
+// limit and converts it to a PDF on this host. It returns the result and
+// a line saying how it went, which is the detail when it did not.
+func convertForRender(ctx context.Context, client *http.Client, converter *convert.Converter, raw, format string) (convert.Result, string) {
+	upper := strings.ToUpper(format)
+	if _, ok := converter.Supports(format); !ok {
+		if !converter.Available() {
+			return convert.Result{}, "No converter on this host turns " + upper + " into a PDF (Calibre's ebook-convert, DjVuLibre's ddjvu or LibreOffice's soffice would); the file is not rendered."
+		}
+		return convert.Result{}, "No converter on this host takes " + upper + "; the file is not rendered."
+	}
+	data, status, _, err := fetchImageBytes(ctx, client, raw, convertInputLimit, true)
+	if err != nil {
+		if status == http.StatusTooManyRequests {
+			return convert.Result{}, "The host rate-limited the fetch (HTTP 429), so the " + upper + " was not converted this time."
+		}
+		return convert.Result{}, "The " + upper + " could not be fetched for conversion: " + err.Error() + "."
+	}
+	result, err := converter.Convert(ctx, format, data)
+	if err != nil {
+		return convert.Result{}, "The " + upper + " could not be converted to a PDF: " + strings.TrimPrefix(err.Error(), "convert: ") + "."
+	}
+	if result.Cached {
+		return result, fmt.Sprintf("%s converted to PDF by %s earlier (cached).", upper, result.Converter)
+	}
+	return result, fmt.Sprintf("%s converted to PDF by %s in %.1f s.", upper, result.Converter, result.Seconds)
 }
 
 // renderStatusRank orders rendered sources first.

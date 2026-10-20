@@ -43,7 +43,7 @@ func TestLiveDocumentRenderInTheSandbox(t *testing.T) {
 	source := VerifiedSource{CandidateSource: CandidateSource{Kind: lens.TypeDocument, URL: "https://archive.org/details/aliceinwonderlan00carriala", DirectStreamURL: "https://archive.org/download/aliceinwonderlan00carriala/aliceinwonderlan00carriala.pdf", AccessType: "free"}}
 	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
 	defer cancel()
-	origin, closeHarness, outcome, err := startProtectedHarness(ctx, source, nil, nil, "document")
+	origin, closeHarness, outcome, err := startProtectedHarness(ctx, source, nil, nil, "document", "")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -374,7 +374,7 @@ func resolveArchiveTextSource(ctx context.Context, client *http.Client, source C
 	}
 	// The Text PDF is the item's own file; a plain PDF stands in for it;
 	// the grayscale, black-and-white and text-only derivatives come last.
-	var pdfName, textName, ocrName string
+	var pdfName, textName, ocrName, bookName string
 	pdfRank := 0
 	for _, file := range payload.Files {
 		if !safeName(file.Name) || file.Private == true || strings.EqualFold(scalarMetadataString(file.Private), "true") || scalarMetadataString(file.Private) == "1" {
@@ -397,9 +397,13 @@ func resolveArchiveTextSource(ctx context.Context, client *http.Client, source C
 			ocrName = file.Name
 		case strings.HasSuffix(lower, ".txt") && textName == "":
 			textName = file.Name
+		case (strings.HasSuffix(lower, ".epub") || strings.HasSuffix(lower, ".mobi") || strings.HasSuffix(lower, ".djvu")) && (bookName == "" || strings.HasSuffix(lower, ".epub")):
+			// An e-book or a DjVu scan stands in for a missing PDF: the
+			// reader and the sandbox convert it when this host can.
+			bookName = file.Name
 		}
 	}
-	if pdfName == "" && textName == "" && ocrName == "" {
+	if pdfName == "" && textName == "" && ocrName == "" && bookName == "" {
 		return source, false
 	}
 	download := func(name string) string {
@@ -411,8 +415,10 @@ func resolveArchiveTextSource(ctx context.Context, client *http.Client, source C
 		source.DirectStreamURL = download(pdfName)
 	case ocrName != "":
 		source.DirectStreamURL = download(ocrName)
-	default:
+	case textName != "":
 		source.DirectStreamURL = download(textName)
+	default:
+		source.DirectStreamURL = download(bookName)
 	}
 	switch {
 	case ocrName != "":

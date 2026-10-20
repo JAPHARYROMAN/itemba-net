@@ -189,6 +189,25 @@ export interface RenderCheck {
   fingerprint?: AudioFingerprint;
   hashDistance?: number;
   hashAgrees?: 'yes' | 'no';
+  // converted says how an e-book or office file became the PDF the
+  // sandbox framed: the format, the converter and the time it took.
+  converted?: string;
+}
+
+// What the conversion route answers with info=1: whether this host can
+// convert the format, by which tool, and whether it did.
+export interface ConvertStatus {
+  url: string;
+  format: string;
+  supported: boolean;
+  converter?: string;
+  converters: string[];
+  formats: string[];
+  converted: boolean;
+  cached?: boolean;
+  seconds?: number;
+  bytes?: number;
+  error?: string;
 }
 
 // One file of a recording with several, in the host's order.

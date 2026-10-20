@@ -97,8 +97,11 @@ func (r moviePlaybackReader) Read(p []byte) (int, error) {
 type moviePlaybackHarness struct {
 	// kind is what the harness serves: "" for a playback sample, "image"
 	// or "document" for a sandbox render, which changes the page, the
-	// policy and the bytes the relay admits.
+	// policy and the bytes the relay admits. localFile, when set, is a PDF
+	// on this host served as the document instead of a relayed source: a
+	// converted e-book or office file.
 	kind          string
+	localFile     string
 	client        *http.Client
 	budget        moviePlaybackBudget
 	slots         chan struct{}
@@ -627,18 +630,20 @@ func startMoviePlaybackHarness(ctx context.Context, source VerifiedSource, clien
 }
 
 func startProtectedMoviePlaybackHarness(ctx context.Context, source VerifiedSource, client *http.Client, protection *shield.Shield) (origin string, close func(), outcome func() string, err error) {
-	return startProtectedHarness(ctx, source, client, protection, "")
+	return startProtectedHarness(ctx, source, client, protection, "", "")
 }
 
 // startProtectedHarness starts the harness for a playback sample (kind "")
 // or a sandbox render of a picture or a document (kind "image" or
 // "document"): the same local server, relay, budget and protection, with
-// the page, the policy and the admitted bytes chosen by the kind.
-func startProtectedHarness(ctx context.Context, source VerifiedSource, client *http.Client, protection *shield.Shield, kind string) (origin string, close func(), outcome func() string, err error) {
+// the page, the policy and the admitted bytes chosen by the kind. A
+// document render may serve a PDF on this host, localFile, in place of a
+// relayed source: a converted e-book or office file.
+func startProtectedHarness(ctx context.Context, source VerifiedSource, client *http.Client, protection *shield.Shield, kind, localFile string) (origin string, close func(), outcome func() string, err error) {
 	if protection == nil {
 		protection = shield.New()
 	}
-	h := &moviePlaybackHarness{kind: kind, shield: protection, budget: moviePlaybackBudget{remaining: moviePlaybackByteLimit}, slots: make(chan struct{}, 4), targets: make(map[string]string), ids: make(map[string]string)}
+	h := &moviePlaybackHarness{kind: kind, localFile: localFile, shield: protection, budget: moviePlaybackBudget{remaining: moviePlaybackByteLimit}, slots: make(chan struct{}, 4), targets: make(map[string]string), ids: make(map[string]string)}
 	// A document render fetches a megabyte of a PDF and then its tail
 	// through the relay before the viewer can draw, which a slow host
 	// spreads over more than a sample's window.
@@ -654,11 +659,23 @@ func startProtectedHarness(ctx context.Context, source VerifiedSource, client *h
 		}
 	}
 	initial, safe := safeAvailabilityURL(media)
-	if !safe || ctx.Err() != nil {
-		return "", nil, outcome, errors.New("playback sample requires a public media source")
-	}
-	if err := h.inspectTarget(initial); err != nil {
-		return "", nil, outcome, err
+	if localFile != "" {
+		// A converted document is served from this host; the relay has
+		// nothing to fetch, so no public source is needed.
+		if kind != "document" || ctx.Err() != nil {
+			return "", nil, outcome, errors.New("a local file is served only to a document render")
+		}
+		if info, statErr := os.Stat(localFile); statErr != nil || info.IsDir() {
+			return "", nil, outcome, errors.New("the converted document is missing")
+		}
+		initial, safe = &url.URL{Scheme: "https", Host: "localhost.invalid", Path: "/converted.pdf"}, true
+	} else {
+		if !safe || ctx.Err() != nil {
+			return "", nil, outcome, errors.New("playback sample requires a public media source")
+		}
+		if err := h.inspectTarget(initial); err != nil {
+			return "", nil, outcome, err
+		}
 	}
 	if client == nil {
 		client = newMovieAvailabilityClient()
@@ -740,6 +757,10 @@ func startProtectedHarness(ctx context.Context, source VerifiedSource, client *h
 				// a policy on the document itself would keep from loading.
 				w.Header().Del("Content-Security-Policy")
 			}
+			if h.localFile != "" {
+				h.serveLocalDocument(w, r)
+				return
+			}
 			h.relay(w, r, initial.String())
 		case strings.HasPrefix(r.URL.Path, "/resource/"):
 			id := strings.TrimPrefix(r.URL.Path, "/resource/")
@@ -760,6 +781,25 @@ func startProtectedHarness(ctx context.Context, source VerifiedSource, client *h
 	go func() { _ = server.Serve(listener) }()
 	go func() { <-attemptCtx.Done(); close() }()
 	return "http://" + address, close, outcome, nil
+}
+
+// serveLocalDocument serves the converted PDF on this host as the
+// document, with the ranges the viewer asks for.
+func (h *moviePlaybackHarness) serveLocalDocument(w http.ResponseWriter, r *http.Request) {
+	file, err := os.Open(h.localFile)
+	if err != nil {
+		http.Error(w, "Converted document unavailable", http.StatusBadGateway)
+		return
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		http.Error(w, "Converted document unavailable", http.StatusBadGateway)
+		return
+	}
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Accept-Ranges", "bytes")
+	http.ServeContent(w, r, "converted.pdf", info.ModTime(), file)
 }
 
 // audioFingerprintBytes is how much of the relayed file the harness page

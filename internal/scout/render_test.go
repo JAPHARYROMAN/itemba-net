@@ -8,11 +8,16 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/itemba-net/core/internal/cdp"
+	"github.com/itemba-net/core/internal/convert"
 	"github.com/itemba-net/core/internal/lens"
 )
 
@@ -200,6 +205,42 @@ func TestRenderHarnessPagesAndPolicies(t *testing.T) {
 	parsed.DocumentCheck.Format = "txt"
 	if _, ok := renderableDocument(parsed); ok {
 		t.Fatal("only PDFs are framed")
+	}
+	ebook := VerifiedSource{CandidateSource: CandidateSource{AccessType: "free", DirectStreamURL: "https://archive.org/download/x/x.epub"}, DocumentCheck: &DocumentCheck{Status: "unsupported", Format: "epub"}}
+	withoutConverter := hostConverter
+	hostConverter = func() *convert.Converter { return &convert.Converter{} }
+	if _, ok := renderableDocument(ebook); ok {
+		t.Fatal("an e-book is not framed on a host without a converter")
+	}
+	stub := &convert.Converter{Commands: []convert.Command{{Name: "ebook-convert", Path: "ebook-convert", Formats: []string{"epub"}}}, CacheDir: t.TempDir(), CacheLimit: 1 << 20, InputLimit: 1 << 20, Timeout: 5 * time.Second, Run: func(_ context.Context, cmd *exec.Cmd) error {
+		return os.WriteFile(filepath.Join(cmd.Dir, "input.pdf"), []byte("%PDF-1.4\n%%EOF\n"), 0o600)
+	}}
+	hostConverter = func() *convert.Converter { return stub }
+	defer func() { hostConverter = withoutConverter }()
+	if _, ok := renderableDocument(ebook); !ok {
+		t.Fatal("an e-book is framed when this host converts it")
+	}
+	client := &http.Client{Transport: searchFixtureTransport(func(req *http.Request) (*http.Response, error) {
+		if strings.HasSuffix(req.URL.Path, "/x.epub") {
+			return searchFixtureResponse(200, "application/epub+zip", "PK\x03\x04 a fake epub"), nil
+		}
+		return searchFixtureResponse(404, "text/plain", "gone"), nil
+	})}
+	converted, detail := convertForRender(context.Background(), client, stub, ebook.DirectStreamURL, "epub")
+	if converted.Path == "" || !strings.Contains(detail, "EPUB converted to PDF by ebook-convert in") {
+		t.Fatalf("the e-book is fetched and converted for the render: %+v %q", converted, detail)
+	}
+	if again, detail := convertForRender(context.Background(), client, stub, ebook.DirectStreamURL, "epub"); again.Path != converted.Path || !strings.Contains(detail, "cached") {
+		t.Fatalf("the second render finds the cached PDF: %+v %q", again, detail)
+	}
+	if _, detail := convertForRender(context.Background(), client, stub, "https://archive.org/download/x/missing.epub", "epub"); !strings.Contains(detail, "could not be fetched") {
+		t.Fatalf("a file the host does not have is said: %q", detail)
+	}
+	if _, detail := convertForRender(context.Background(), client, stub, ebook.DirectStreamURL, "djvu"); !strings.Contains(detail, "No converter on this host takes DJVU") {
+		t.Fatalf("a format this host cannot convert is said: %q", detail)
+	}
+	if _, detail := convertForRender(context.Background(), client, &convert.Converter{}, ebook.DirectStreamURL, "epub"); !strings.Contains(detail, "No converter on this host turns EPUB") {
+		t.Fatalf("a host without converters is said: %q", detail)
 	}
 	if share, w, h, err := visibleShare(screenshotPNG(0)); err != nil || share != 0 || w != 320 || h != 180 {
 		t.Fatalf("a blank frame has nothing drawn: %v %d %d %v", share, w, h, err)

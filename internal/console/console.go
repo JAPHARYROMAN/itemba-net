@@ -190,6 +190,7 @@ func (s *Server) Handler() http.Handler {
 	// Pillar 1: itemba-scout Federated Search & Stream Verification
 	mux.HandleFunc("/api/scout/discover", movieDiscoveryHandler(s.scout.DiscoverMovies, s.scout.DiscoverFawesomeMovies))
 	mux.HandleFunc("/api/scout/fawesome/playback", fawesomeShelfPlaybackHandler(s.scout))
+	mux.HandleFunc("/api/convert", s.convertRoute)
 	mux.HandleFunc("/api/scout/search", s.searchRoute)
 	mux.HandleFunc("/api/scout/search/stream", s.searchStream)
 

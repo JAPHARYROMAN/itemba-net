@@ -3,7 +3,7 @@ import { Play, Globe, Search, Shield, Clock, Sparkles, Film, Music, Fingerprint,
 import { ActiveRelayStream, AudioTrack, DocumentCheck, FawesomeShelfPlaybackReport, ImageCheck, MovieAvailabilityCheck, MovieDiscoveryItem, MovieDiscoveryMode, MovieDiscoveryReport, RenderCheck, SearchKind, SearchKnownEvent, SearchMergedEvent, SearchReport, VerifiedSource } from '../types';
 import { RankedLocations } from './RankedLocations';
 import { fingerprintLabel, identityLabel } from '../identity';
-import { isPdfUrl } from '../media/media';
+import { isConvertibleUrl, isPdfUrl } from '../media/media';
 
 interface SearchScoutPanelProps {
   report: SearchReport | null;
@@ -623,7 +623,8 @@ const renderLabel = (check?: RenderCheck): string | null => {
     const took = check.milliseconds ? ` in ${(check.milliseconds / 1000).toFixed(1)} s` : '';
     const hash = check.hashAgrees === 'yes' ? '; the drawn pixels hash as the probe said' : check.hashAgrees === 'no' ? '; the drawn pixels hash differently from the file the probe read' : '';
     const drawn = check.visibleShare ? `; ${Math.round(check.visibleShare * 100)}% of the frame drawn` : '';
-    return `Rendered in the sandbox${size}${took}${hash}${drawn}.`;
+    const converted = check.converted ? ` ${check.converted}` : '';
+    return `Rendered in the sandbox${size}${took}${hash}${drawn}.${converted}`;
   }
   return `Not rendered in the sandbox: ${check.detail}`;
 };
@@ -784,11 +785,15 @@ const ImageResults: React.FC<ImageResultsProps> = ({ report, sources, filter, on
 
 // A document opens in the reader through the relay when its file is a PDF
 // that answered, or one the search did not get to probe: the reader checks
-// the relay's answer again before framing it. Plain text and the formats
-// the probe cannot read yet open in the protected browser.
-const canReadDocument = (source: VerifiedSource): boolean =>
-  Boolean(source.directStreamUrl) && isPdfUrl(source.directStreamUrl as string)
-  && (source.documentCheck?.status === 'parsed' || source.documentCheck?.status === 'not_checked');
+// the relay's answer again before framing it. An e-book, a DjVu scan or an
+// office file opens in the reader too, which asks the console to convert
+// it and says when this host cannot. Plain text opens in the protected
+// browser.
+const canReadDocument = (source: VerifiedSource): boolean => {
+  if (!source.directStreamUrl) return false;
+  if (isPdfUrl(source.directStreamUrl)) return source.documentCheck?.status === 'parsed' || source.documentCheck?.status === 'not_checked';
+  return isConvertibleUrl(source.directStreamUrl);
+};
 
 const documentStream = (source: VerifiedSource): ActiveRelayStream => ({
   title: source.creator ? `${source.title} · ${source.creator}` : source.title,
