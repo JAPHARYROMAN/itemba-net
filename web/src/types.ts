@@ -115,9 +115,26 @@ export interface IdentityMatch {
   detail?: string;
 }
 
-// The object types the search form offers. Images and documents arrive with
-// their Phase 3 slices.
-export type SearchKind = 'video' | 'audio';
+// The object types the search form offers. Documents arrive with their
+// Phase 3 slice.
+export type SearchKind = 'video' | 'audio' | 'image';
+
+// What a bounded fetch and decode of a picture's file proved: its
+// dimensions and format from the header, and the perceptual hash of it.
+export interface ImageCheck {
+  status: 'decoded' | 'undecodable' | 'unsupported' | 'unreachable' | 'not_checked';
+  method: string;
+  checkedAt: string;
+  detail: string;
+  width?: number;
+  height?: number;
+  format?: string;
+  bytes?: number;
+  httpStatus?: number;
+  evidenceUrl?: string;
+  fingerprint?: AudioFingerprint;
+  fingerprintStatus?: 'computed' | 'too_large' | 'undecodable' | 'unavailable';
+}
 
 // One file of a recording with several, in the host's order.
 export interface AudioTrack {
@@ -136,6 +153,10 @@ export interface VerifiedSource {
   kind?: SearchKind;
   creator?: string;
   tracks?: AudioTrack[];
+  // license is the licence the host states for the media, as it names it.
+  license?: string;
+  // imageCheck is what the picture probe proved of a picture's file.
+  imageCheck?: ImageCheck;
   // identity is the search's own fingerprint comparison between its
   // samples; the index's verdict arrives in the report's atlas summary.
   identity?: IdentityMatch;

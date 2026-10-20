@@ -131,9 +131,10 @@ func (s *Scout) SearchWithRegion(ctx context.Context, query, region string) Sear
 
 type SearchOptions struct {
 	FullLengthOnly bool
-	// Kind is the object type to search for: video, the default, or audio.
-	// An audio search runs the audio pipeline (see searchAudio); anything
-	// else runs the movie pipeline below.
+	// Kind is the object type to search for: video, the default, audio or
+	// image. An audio search runs the audio pipeline (see searchAudio) and
+	// an image search the picture pipeline (see searchImage); anything else
+	// runs the movie pipeline below.
 	Kind string
 }
 
@@ -145,15 +146,18 @@ func (s *Scout) SearchWithOptions(ctx context.Context, query, region string, opt
 		region = "ALL"
 	}
 	kind := strings.ToLower(strings.TrimSpace(options.Kind))
-	if kind != lens.TypeAudio {
+	if kind != lens.TypeAudio && kind != lens.TypeImage {
 		kind = lens.TypeVideo
 	}
 	empty := SearchReport{Query: query, Kind: kind, Region: region, FullLengthOnly: options.FullLengthOnly, Sources: []VerifiedSource{}, VerifiedSources: []VerifiedSource{}, PrunedSources: []VerifiedSource{}, Providers: []ProviderStatus{}}
 	if query == "" {
 		return empty
 	}
-	if kind == lens.TypeAudio {
+	switch kind {
+	case lens.TypeAudio:
 		return s.searchAudio(ctx, query, region, start)
+	case lens.TypeImage:
+		return s.searchImage(ctx, query, region, start)
 	}
 
 	isDirectURL := strings.HasPrefix(query, "http://") || strings.HasPrefix(query, "https://")

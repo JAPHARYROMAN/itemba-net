@@ -273,14 +273,17 @@ func (s *Store) Lookup(ctx context.Context, q lens.ObjectQuery, limit int) ([]Kn
 			LIMIT $2`, q.URL, limit)
 	case q.TitleKey != "":
 		// A performer in the query keeps recordings by other performers out;
-		// an object whose performer is unknown still matches.
+		// an object whose performer is unknown still matches, and so does
+		// one whose performer names the asked one or is named by it, as
+		// Lens's CreatorsAgree reads "Van Gogh" against "Vincent van Gogh".
 		rows, err = s.pool.Query(ctx, `
 			WITH matched AS (
 				SELECT DISTINCT o.id FROM atlas.objects o
 				LEFT JOIN atlas.aliases a ON a.object_id = o.id
 				WHERE o.type = $1
 				  AND ($3 = 0 OR o.year IS NULL OR o.year = $3)
-				  AND ($7 = '' OR o.creator_key = '' OR o.creator_key = $7)
+				  AND ($7 = '' OR o.creator_key = '' OR o.creator_key = $7
+				       OR position($7 in o.creator_key) > 0 OR position(o.creator_key in $7) > 0)
 				  AND (o.title_key = $2 OR a.alias_key = $2 OR a.alias_key = $6
 				       OR o.search @@ plainto_tsquery('simple', $4) OR a.search @@ plainto_tsquery('simple', $4))
 			)

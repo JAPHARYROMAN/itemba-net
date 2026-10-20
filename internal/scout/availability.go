@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/itemba-net/core/internal/crawler"
+	"github.com/itemba-net/core/internal/lens"
 	"io"
 	"net"
 	"net/http"
@@ -409,6 +410,11 @@ func availabilityMovieMatches(candidate CandidateSource, page availabilityPage, 
 	headingMatched := false
 	for i, identity := range identities {
 		normalized := normalizeWebMovieTitle(identity, host)
+		if candidate.Kind == lens.TypeImage {
+			// A file page names its picture as a file, "File:Name.jpg";
+			// the name is what the listing carries.
+			normalized = pictureFileName(normalized)
+		}
 		pageTitle, pageYear := movieTitleDetails(CandidateSource{Title: normalized})
 		if strings.EqualFold(strings.Join(titleWords(pageTitle), " "), strings.Join(titleWords(title), " ")) && year != 0 && pageYear != 0 && pageYear != year {
 			return false
@@ -421,6 +427,15 @@ func availabilityMovieMatches(candidate CandidateSource, page availabilityPage, 
 	// A matching browser title cannot override a primary heading for a
 	// different work after a redirect or an incorrectly indexed page.
 	return matched && (len(page.headings) == 0 || headingMatched)
+}
+
+var pictureExtension = regexp.MustCompile(`(?i)\.(jpe?g|png|gif|tiff?|webp|svg|bmp|avif)$`)
+
+// pictureFileName reads a picture's name out of a file page's heading: the
+// "File:" prefix and the extension go.
+func pictureFileName(title string) string {
+	title = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(title), "File:"))
+	return strings.TrimSpace(pictureExtension.ReplaceAllString(title, ""))
 }
 
 func availabilitySoftNotFound(candidate CandidateSource, page availabilityPage) bool {

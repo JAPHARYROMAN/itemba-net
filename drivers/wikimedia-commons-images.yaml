@@ -1,0 +1,52 @@
+# Wikimedia Commons pictures through the MediaWiki API: the first image
+# driver of Phase 3. The search runs over bitmap files; each page comes with
+# the original file, a 640-pixel thumbnail, the dimensions, the MIME type and
+# the file page's structured metadata (the credited artist, the licence, the
+# description and the date). The file URLs carry tracking parameters, which
+# the strip_query transform removes. Pages come back as an object keyed by
+# page id, which the runtime reads as its values.
+# https://www.mediawiki.org/wiki/API:Imageinfo, checked 2026-10-20.
+name: wikimedia-commons-images
+provider: Wikimedia Commons
+kind: image
+hosts: [commons.wikimedia.org, upload.wikimedia.org]
+rate:
+  per_minute: 30
+  concurrency: 2
+search:
+  url: https://commons.wikimedia.org/w/api.php
+  params:
+    action: query
+    generator: search
+    gsrsearch: "filetype:bitmap {query}"
+    gsrnamespace: "6"
+    gsrlimit: "12"
+    prop: imageinfo
+    iiprop: url|size|mime|extmetadata
+    iiurlwidth: "640"
+    iiextmetadatafilter: Artist|LicenseShortName|ImageDescription|DateTimeOriginal
+    format: json
+  headers:
+    # Wikimedia's API policy asks clients to identify themselves.
+    User-Agent: ITEMBA-NET/2 (personal research crawler)
+  status_name: Wikimedia Commons pictures
+  timeout_seconds: 8
+  response: json
+  items: query.pages
+  limit: 12
+  fields:
+    id: { template: "wm-image-{pageid}" }
+    title: { path: title, strip_prefix: "File:", strip_suffixes: [".jpg", ".jpeg", ".png", ".gif", ".tif", ".tiff", ".webp"] }
+    url: { path: "imageinfo[0].descriptionurl" }
+    media_url: { path: "imageinfo[0].url", transform: strip_query }
+    thumbnail: { path: "imageinfo[0].thumburl", transform: strip_query }
+    resolution: { template: "{imageinfo[0].width}x{imageinfo[0].height}" }
+    # The credit is wiki markup rendered to HTML; its text is the maker.
+    creator: { path: "imageinfo[0].extmetadata.Artist.value", transform: html_text, truncate: 120 }
+    license: { path: "imageinfo[0].extmetadata.LicenseShortName.value", transform: html_text }
+    description: { path: "imageinfo[0].extmetadata.ImageDescription.value", transform: html_text, truncate: 300, default: Picture listing from Wikimedia Commons. }
+    year: { path: "imageinfo[0].extmetadata.DateTimeOriginal.value", transform: year_in_text }
+  constants:
+    source_type: Open picture
+    access_type: free
+    access_note: Open media listing; the licence is the one the file page states, and attribution may be required.

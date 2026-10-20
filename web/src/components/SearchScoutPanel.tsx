@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Play, Globe, Search, Shield, Clock, Sparkles, Film, Music, Fingerprint } from 'lucide-react';
-import { ActiveRelayStream, AudioTrack, FawesomeShelfPlaybackReport, MovieAvailabilityCheck, MovieDiscoveryItem, MovieDiscoveryMode, MovieDiscoveryReport, SearchKind, SearchKnownEvent, SearchMergedEvent, SearchReport, VerifiedSource } from '../types';
+import { Play, Globe, Search, Shield, Clock, Sparkles, Film, Music, Fingerprint, Image as ImageIcon, Scan } from 'lucide-react';
+import { ActiveRelayStream, AudioTrack, FawesomeShelfPlaybackReport, ImageCheck, MovieAvailabilityCheck, MovieDiscoveryItem, MovieDiscoveryMode, MovieDiscoveryReport, SearchKind, SearchKnownEvent, SearchMergedEvent, SearchReport, VerifiedSource } from '../types';
 import { RankedLocations } from './RankedLocations';
 import { fingerprintLabel, identityLabel } from '../identity';
 
@@ -614,6 +614,158 @@ const AudioResults: React.FC<AudioResultsProps> = ({ report, sources, filter, on
   );
 };
 
+// A picture opens in the zoomable viewer through the relay whenever its
+// file answered, decoded or not: the viewer can show what the probe cannot
+// decode yet, such as WebP.
+const canViewImage = (source: VerifiedSource): boolean =>
+  Boolean(source.directStreamUrl) && (source.imageCheck?.status === 'decoded' || source.imageCheck?.status === 'unsupported');
+
+const imageStream = (source: VerifiedSource): ActiveRelayStream => ({
+  title: source.creator ? `${source.title} · ${source.creator}` : source.title,
+  streamUrl: source.directStreamUrl as string, pageUrl: source.url, provider: source.provider,
+  format: source.streamFormat || (source.imageCheck?.format ? `${source.imageCheck.format.toUpperCase()} image` : 'Image'),
+  resolution: source.imageCheck?.width && source.imageCheck?.height ? `${source.imageCheck.width}×${source.imageCheck.height}` : source.resolution,
+  useZeroTrustProxy: true, kind: 'image', poster: source.thumbnail,
+});
+
+const imageProbeLabel = (check?: ImageCheck): string => {
+  switch (check?.status) {
+    case 'decoded': return `Decoded ${check.width}×${check.height} ${(check.format ?? '').toUpperCase()}`.trim();
+    case 'unsupported': return `File reachable · ${(check.format ?? 'this').toUpperCase()} not decoded yet`;
+    case 'undecodable': return 'File answered but is not a picture';
+    case 'unreachable': return check.httpStatus ? `File answered HTTP ${check.httpStatus}` : 'File unreachable';
+    default: return 'File not probed';
+  }
+};
+
+const imageHashLabel = (check?: ImageCheck): string | null => {
+  switch (check?.fingerprintStatus) {
+    case 'computed': return 'Perceptual hash taken from the decoded picture; the index compares it with every picture it has seen.';
+    case 'too_large': return 'No perceptual hash: the file is larger than the probe decodes whole and the host gave no thumbnail.';
+    case 'undecodable': return 'No perceptual hash: the thumbnail could not be decoded.';
+    case 'unavailable': return 'No perceptual hash: the thumbnail could not be fetched.';
+    default: return null;
+  }
+};
+
+interface ImageResultsProps {
+  report: SearchReport;
+  sources: VerifiedSource[];
+  filter: AccessFilter;
+  onFilter: (filter: AccessFilter) => void;
+  regionName: string;
+  checkLocation: string | null;
+  batchCheckedAt: string | null;
+  launchingUrl: string | null;
+  onLaunchRbi: (url: string, theaterMode: boolean) => void;
+  onPlayRelay: (stream: ActiveRelayStream) => void;
+}
+
+// The picture results: each picture with its maker, year, dimensions,
+// licence, what the probe decoded of its file, and what its hash said
+// beside the other pictures of the search and the index.
+const ImageResults: React.FC<ImageResultsProps> = ({ report, sources, filter, onFilter, regionName, checkLocation, batchCheckedAt, launchingUrl, onLaunchRbi, onPlayRelay }) => {
+  const visible = sources.filter((source) => filter === 'all' || accessGroup(source) === filter);
+  const coverageOpen = report.providers?.some((provider) => provider.status === 'error' || provider.status === 'not_configured') ?? false;
+  return (
+    <>
+      <div className="movie-results-summary" role="status">
+        <div><strong>{sources.length} {sources.length === 1 ? 'picture' : 'pictures'}</strong> for “{report.query}”<span className="scout-muted"> · {regionName}</span></div>
+        <span className="scout-muted scout-duration"><Clock size={12} aria-hidden="true" /> {(report.durationMs / 1000).toFixed(1)}s</span>
+      </div>
+      <p className="scout-muted">Picture search · The host matched these by its own index, so a file name need not say what the picture shows. Each file is fetched for its header, which gives the dimensions and format, and its thumbnail is decoded for a perceptual hash; pictures that look the same are matched by it whatever their names say. No sandbox render runs yet.</p>
+      {report.providers && report.providers.length > 0 && (
+        <details className="scout-provider-details" open={coverageOpen}>
+          <summary>Search coverage{coverageOpen ? ' · some sources unavailable' : ''}</summary>
+          <ul>{report.providers.map((provider) => (
+            <li key={provider.name}>
+              <strong>{provider.name}</strong>: {provider.detail || (provider.status === 'ok' ? 'Search completed.' : provider.status === 'empty' ? 'No matching listings.' : provider.status === 'not_configured' ? 'Not configured.' : 'Could not search this source.')}
+            </li>
+          ))}</ul>
+        </details>
+      )}
+      {report.availabilityChecks && (
+        <div className="scout-link-check-summary">
+          <p><strong>File probes</strong> · {report.availabilityChecks.checkedCount} checked{checkLocation ? ` from ${checkLocation}` : ' · check location unconfirmed'}{report.availabilityChecks.fingerprintCount ? ` · ${report.availabilityChecks.fingerprintCount} perceptual ${report.availabilityChecks.fingerprintCount === 1 ? 'hash' : 'hashes'} taken` : ''}</p>
+          {report.atlas?.fingerprints ? <p><strong>Fingerprint library</strong> · {report.atlas.fingerprints} stored in the index and compared with every picture seen before.</p> : null}
+          {batchCheckedAt && <p>Checked <time dateTime={report.availabilityChecks.checkedAt}>{batchCheckedAt}</time></p>}
+        </div>
+      )}
+      <div className="preset-chips" role="group" aria-label="Filter by access type">
+        {FILTERS.map(({ value, label }) => (
+          <button key={value} type="button" className={`chip${filter === value ? ' scout-filter-active' : ''}`}
+            aria-pressed={filter === value} onClick={() => onFilter(value)}>
+            {label} ({value === 'all' ? sources.length : sources.filter((source) => accessGroup(source) === value).length})
+          </button>
+        ))}
+      </div>
+      {visible.length === 0 ? (
+        <div className="scout-empty" role="status">
+          <strong>{sources.length === 0 ? 'No pictures found in the covered catalogs.' : `No listings marked ${filter} in these results.`}</strong>
+          <p>{sources.length === 0 ? 'Try what the picture shows in other words, or the artist, as in “Starry Night by Van Gogh”. Search coverage is shown above.' : 'Choose another filter. Access labels reflect the evidence available for each source.'}</p>
+        </div>
+      ) : (
+        <div className="sources-grid movie-sources-grid">
+          {visible.map((source) => {
+            const check = source.availabilityCheck;
+            const probe = source.imageCheck;
+            const checkedAt = formatCheckedAt(probe?.checkedAt ?? check?.checkedAt);
+            const showYear = source.releaseYear && !source.title.includes(String(source.releaseYear));
+            const identity = report.atlas?.identities?.[source.url] ?? source.identity;
+            const hashNote = imageHashLabel(probe);
+            const dimensions = probe?.width && probe?.height ? `${probe.width}×${probe.height}` : source.resolution ? source.resolution.replace('x', '×') : null;
+            return (
+              <article key={source.id} className="source-card movie-source-card image-source-card">
+                <div>
+                  {source.thumbnail && <img className="image-thumb" src={source.thumbnail} alt="" loading="lazy" referrerPolicy="no-referrer"
+                    onError={(event) => { event.currentTarget.hidden = true; }} />}
+                  <div className="movie-source-badges">
+                    <span className={`pill-badge${source.accessType === 'free' ? ' live' : ''}`}>{ACCESS_LABELS[source.accessType ?? 'unknown']}</span>
+                    <span className={`scout-muted${probe?.status === 'decoded' ? ' scout-media-status' : ''}`}>{probe ? imageProbeLabel(probe) : source.verificationStatus === 'page_reachable' ? 'Page reachable' : 'Listing'}</span>
+                  </div>
+                  <div className="movie-source-title">
+                    <div>
+                      <h3>{source.title}{showYear ? <span className="scout-muted"> ({source.releaseYear})</span> : null}</h3>
+                      <p className="movie-source-provider">{source.creator || <span className="scout-muted">Maker unconfirmed</span>}</p>
+                      <p className="scout-muted movie-source-host">{source.provider} · {sourceHost(source.url)}{dimensions ? ` · ${dimensions}` : ''}{source.license ? ` · ${source.license}` : ''}</p>
+                    </div>
+                  </div>
+                  {source.description && <p className="scout-description movie-source-description">{source.description}</p>}
+                  <div className="movie-source-facts">
+                    {source.accessNote && <p className="scout-muted">{source.accessNote}</p>}
+                    <div className="movie-access-check">
+                      <p className={`movie-check-status check-${check?.status ?? 'unchecked'}`}>{probe ? imageProbeLabel(probe) : accessCheckLabel(check)}</p>
+                      {(probe?.detail || check?.detail) && <p className="scout-muted">{probe?.detail || check?.detail}</p>}
+                      {hashNote && <p className="scout-muted">{hashNote}</p>}
+                      {identity && (
+                        <p className={`audio-identity identity-${identity.effect ?? identity.verdict ?? 'none'}`}>
+                          <span className="ladder-identity"><Fingerprint size={11} aria-hidden="true" /> {identityLabel(identity)}</span>
+                          {identity.detail && <span className="scout-muted">{identity.detail}</span>}
+                        </p>
+                      )}
+                      <p className="scout-muted">A decoded header confirms the file is a picture of these dimensions; no sandbox has rendered it yet.</p>
+                      {checkedAt && <p className="scout-muted">File checked <time dateTime={probe?.checkedAt ?? check?.checkedAt}>{checkedAt}</time></p>}
+                    </div>
+                  </div>
+                </div>
+                <div className="movie-source-actions">
+                  {canViewImage(source) && <button type="button" className="btn btn-primary" onClick={() => onPlayRelay(imageStream(source))}>
+                    <Scan size={13} aria-hidden="true" /> Open in the viewer
+                  </button>}
+                  <button type="button" className={`btn${canViewImage(source) ? '' : ' btn-primary'}`} disabled={launchingUrl !== null}
+                    onClick={() => onLaunchRbi(source.url, false)}>
+                    <Globe size={14} aria-hidden="true" /> {launchingUrl === source.url ? 'Opening protected browser…' : 'Open page with ad blocking'}
+                  </button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </>
+  );
+};
+
 export const SearchScoutPanel: React.FC<SearchScoutPanelProps> = ({
   report, known, merged, searching, searchError, launchError, launchingUrl, onSearch,
   onRunBenchmark, onLaunchRbi, onPlayRelay,
@@ -654,10 +806,12 @@ export const SearchScoutPanel: React.FC<SearchScoutPanelProps> = ({
     <section className="scout-panel" aria-labelledby="movie-search-heading" aria-busy={searching}>
       <div className="movie-search-heading">
         <div>
-          <h2 id="movie-search-heading">{kind === 'audio' ? 'Find recordings across open audio catalogs.' : 'Find full-length movies across the web.'}</h2>
+          <h2 id="movie-search-heading">{kind === 'audio' ? 'Find recordings across open audio catalogs.' : kind === 'image' ? 'Find pictures across open media catalogs.' : 'Find full-length movies across the web.'}</h2>
           <p className="scout-description">{kind === 'audio'
             ? 'Search the Internet Archive’s audio collections by title, with the performer if known. Each listing shows its performer, year and length; files are checked for reach, and up to two get a short muted sample.'
-            : region === 'ALL'
+            : kind === 'image'
+              ? 'Search Wikimedia Commons by what the picture shows, with the artist if known. Each file is fetched for its dimensions and hashed, so the same picture is recognised under any name.'
+              : region === 'ALL'
               ? 'Search recent releases, popular titles and independent cinema globally. Find free and paid options; playback samples show which supported free sources actually start.'
               : `Search globally with a preference for ${selectedRegionName}. Playback badges show the actual test location; prices and full playback still need confirmation.`}</p>
         </div>
@@ -674,13 +828,16 @@ export const SearchScoutPanel: React.FC<SearchScoutPanelProps> = ({
         <button type="button" className={`chip${kind === 'audio' ? ' scout-filter-active' : ''}`} aria-pressed={kind === 'audio'} onClick={() => setKind('audio')}>
           <Music size={12} aria-hidden="true" /> Audio
         </button>
+        <button type="button" className={`chip${kind === 'image' ? ' scout-filter-active' : ''}`} aria-pressed={kind === 'image'} onClick={() => setKind('image')}>
+          <ImageIcon size={12} aria-hidden="true" /> Pictures
+        </button>
       </div>
 
       <form className="search-row movie-search-form" onSubmit={(event) => { event.preventDefault(); search(query); }}>
         <label className="movie-query-field">
-          <span className="scout-field-label">{kind === 'audio' ? 'Recording title, with the performer if known' : 'Movie title or keywords'}</span>
+          <span className="scout-field-label">{kind === 'audio' ? 'Recording title, with the performer if known' : kind === 'image' ? 'What the picture shows, with the artist if known' : 'Movie title or keywords'}</span>
           <input className="search-input" value={query} onChange={(event) => setQuery(event.target.value)}
-            placeholder={kind === 'audio' ? 'Title by performer, e.g. Kind of Blue by Miles Davis' : 'Movie title and year, or a movie page URL'} maxLength={500} required />
+            placeholder={kind === 'audio' ? 'Title by performer, e.g. Kind of Blue by Miles Davis' : kind === 'image' ? 'Subject by artist, e.g. Starry Night by Van Gogh' : 'Movie title and year, or a movie page URL'} maxLength={500} required />
         </label>
         <label className="movie-region-field">
           <span className="scout-field-label">Region preference (optional)</span>
@@ -689,7 +846,7 @@ export const SearchScoutPanel: React.FC<SearchScoutPanelProps> = ({
           </select>
         </label>
         <button type="submit" className="btn btn-primary movie-search-submit" disabled={!query.trim()}>
-          <Search size={14} aria-hidden="true" /> {searching ? 'Search again' : kind === 'audio' ? 'Find recordings' : 'Find movie pages'}
+          <Search size={14} aria-hidden="true" /> {searching ? 'Search again' : kind === 'audio' ? 'Find recordings' : kind === 'image' ? 'Find pictures' : 'Find movie pages'}
         </button>
         {kind === 'video' && (
           <label className="movie-length-preference">
@@ -711,15 +868,17 @@ export const SearchScoutPanel: React.FC<SearchScoutPanelProps> = ({
             <p className="scout-muted">Film examples; search to see access checks and any confirmed playback sample.</p>
           </div>
         </>
-      ) : (
+      ) : kind === 'audio' ? (
         <p className="scout-muted">Audio results come from the Internet Archive’s audio collections, read through the same driver runtime as the movie catalogs. A recording is matched by its title, performer and length, its files are checked for reach and sampled, and a multi-track item plays in order through the relay. The sample takes an acoustic fingerprint of the file’s beginning; the index compares it with every fingerprint it holds, so two listings of the same recording are matched by what they sound like, and a different recording under the same tags is kept apart.</p>
+      ) : (
+        <p className="scout-muted">Picture results come from Wikimedia Commons, read through the same driver runtime as the other catalogs. Each file is fetched for its header, which gives the dimensions and format, and its thumbnail is decoded for a perceptual hash; the index compares the hash with every picture it has seen, so the same picture is matched under any file name and a different picture under the same name is kept apart. A picture opens in the zoomable viewer through the relay.</p>
       )}
       <p className="scout-protection-note"><Shield size={14} aria-hidden="true" /> Sites open in ITEMBA's browser with ad and tracker blocking enabled. Some ads may remain; subscriptions and regional restrictions still apply.</p>
       {kind === 'video' && <p className="scout-muted">Native samples cover supported free catalogs, including NASA+, NFB, creator-authorized Catsuka and matching Fawesome movie pages. Provider checks can report restrictions for Pluto TV and Filmzie. Playback badges require decoded movie content; pages, ads and trailers do not qualify.</p>}
 
       {searchError && <p className="scout-error" role="alert">{searchError}</p>}
       {launchError && <p className="scout-error" role="alert">{launchError}</p>}
-      {searching && <p className="scout-empty" role="status">{kind === 'audio' ? 'Finding recordings in open audio catalogs and checking their files…' : 'Finding global movie sources and testing free playback…'}</p>}
+      {searching && <p className="scout-empty" role="status">{kind === 'audio' ? 'Finding recordings in open audio catalogs and checking their files…' : kind === 'image' ? 'Finding pictures in open media catalogs and decoding their files…' : 'Finding global movie sources and testing free playback…'}</p>}
 
       <RankedLocations known={known} merged={merged} report={report} searching={searching} launchingUrl={launchingUrl} onLaunchRbi={onLaunchRbi} />
 
@@ -728,7 +887,12 @@ export const SearchScoutPanel: React.FC<SearchScoutPanelProps> = ({
           checkLocation={checkLocation} batchCheckedAt={batchCheckedAt} launchingUrl={launchingUrl} onLaunchRbi={onLaunchRbi} onPlayRelay={onPlayRelay} />
       )}
 
-      {report && !searching && !searchError && report.kind !== 'audio' && (
+      {report && !searching && !searchError && report.kind === 'image' && (
+        <ImageResults report={report} sources={sources} filter={filter} onFilter={setFilter} regionName={regionName}
+          checkLocation={checkLocation} batchCheckedAt={batchCheckedAt} launchingUrl={launchingUrl} onLaunchRbi={onLaunchRbi} onPlayRelay={onPlayRelay} />
+      )}
+
+      {report && !searching && !searchError && report.kind !== 'audio' && report.kind !== 'image' && (
         <>
           <div className="movie-results-summary" role="status">
             <div><strong>{sources.length} {sources.length === 1 ? 'movie page' : 'movie pages'}</strong> for “{report.query}”<span className="scout-muted"> · {regionName}</span></div>

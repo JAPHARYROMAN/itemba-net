@@ -273,6 +273,9 @@ type Listing struct {
 	Description       string `json:"description,omitempty"`
 	Thumbnail         string `json:"thumbnail,omitempty"`
 	Resolution        string `json:"resolution,omitempty"`
+	// License is the licence the host states for the media, as it names it
+	// ("CC BY-SA 4.0", "Public domain"); empty when the host says none.
+	License string `json:"license,omitempty"`
 	// CatalogDate is the day a host's own catalog lists the item under, as a
 	// feed reports it; it is not a release date.
 	CatalogDate string `json:"catalogDate,omitempty"`

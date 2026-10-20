@@ -27,8 +27,9 @@ type CandidateSource struct {
 	// host credits, part of a recording's identity.
 	Kind                    string   `json:"kind,omitempty"`
 	Creator                 string   `json:"creator,omitempty"`
-	URL                     string   `json:"url"`             // Target web page or embed URL for RBI Vault
-	DirectStreamURL         string   `json:"directStreamUrl"` // Direct .m3u8 / .mp4 / .webm stream URL for 60fps Native Relay Player
+	License                 string   `json:"license,omitempty"` // The licence the host states, as it names it
+	URL                     string   `json:"url"`               // Target web page or embed URL for RBI Vault
+	DirectStreamURL         string   `json:"directStreamUrl"`   // Direct .m3u8 / .mp4 / .webm stream URL for 60fps Native Relay Player
 	Provider                string   `json:"provider"`
 	SourceType              string   `json:"sourceType"` // "Public Domain", "Federated PeerTube", "HLS Reference", "Open Web", "Security Benchmark"
 	Description             string   `json:"description"`
@@ -73,6 +74,9 @@ type VerifiedSource struct {
 	CandidateSource
 	PlaybackCheck     *PlaybackCheck     `json:"playbackCheck,omitempty"`
 	AvailabilityCheck *AvailabilityCheck `json:"availabilityCheck,omitempty"`
+	// ImageCheck is what a bounded fetch and decode proved of a picture's
+	// file: its dimensions and format, and the perceptual hash of it.
+	ImageCheck *ImageCheck `json:"imageCheck,omitempty"`
 	// Identity is what the recording's fingerprint said beside the other
 	// fingerprint this search computed: the same sound or a different one,
 	// and what that meant for the tags. The index adds its own against

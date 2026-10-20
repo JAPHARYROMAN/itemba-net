@@ -225,6 +225,7 @@ func candidateFromListing(d *crawler.Driver, listing atlas.Listing) CandidateSou
 		Kind:              listing.Kind,
 		Title:             listing.Title,
 		Creator:           listing.Creator,
+		License:           listing.License,
 		URL:               listing.URL,
 		DirectStreamURL:   listing.MediaURL,
 		Provider:          listing.Provider,

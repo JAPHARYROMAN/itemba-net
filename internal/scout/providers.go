@@ -63,6 +63,7 @@ var webMovieTitleBrands = []struct {
 	{"archive.org", []string{"Internet Archive", "Free Download, Borrow, and Streaming"}},
 	{"publicdomainmovie.net", []string{"Public Domain Movies", "PublicDomainMovie.net", "Public Domain Movie"}},
 	{"imdb.com", []string{"IMDb"}},
+	{"commons.wikimedia.org", []string{"Wikimedia Commons"}},
 }
 
 func normalizeWebMovieTitle(title, host string) string {

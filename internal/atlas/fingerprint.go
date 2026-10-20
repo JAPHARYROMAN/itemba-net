@@ -192,7 +192,7 @@ func (s *Store) objectBySound(ctx context.Context, listing Listing, candidate Ob
 		}
 		others = append(others, neighbours[i])
 	}
-	match := &lens.IdentityMatch{Method: lens.MethodFingerprint}
+	match := &lens.IdentityMatch{Method: lens.FingerprintMethod(o.Fingerprint.Type)}
 	describe := func(n FingerprintNeighbour) {
 		match.PeerURL, match.PeerTitle = n.URL, n.Title
 		match.Distance = math.Round(n.Comparison.Distance*1000) / 1000

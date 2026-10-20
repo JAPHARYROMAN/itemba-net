@@ -72,3 +72,27 @@ func TestAudioRecordingsAreKeptApartByPerformer(t *testing.T) {
 		t.Fatalf("a video lookup never returns recordings: %d %v", len(asVideo), err)
 	}
 }
+
+// TestPictureLookupAgreesOnMakersByContainment proves the index reads a
+// maker the way Lens does: "Van Gogh" asked for finds a picture credited to
+// "Vincent van Gogh", and another maker's picture stays out.
+func TestPictureLookupAgreesOnMakersByContainment(t *testing.T) {
+	store, ctx := liveStore(t)
+	q := lens.ParseAs("Starry Night by Vincent van Gogh", lens.TypeImage)
+	summary, err := store.RecordObservations(ctx, q, []Observation{
+		{Listing: Listing{Kind: lens.TypeImage, Title: "VanGogh-starry night", Creator: "Vincent van Gogh", URL: "https://commons.wikimedia.org/wiki/File:VanGogh-starry_night.jpg", MediaURL: "https://upload.wikimedia.org/a.jpg", Provider: "Wikimedia Commons", AccessType: "free", Year: 1889},
+			Evidence: []Evidence{{Level: lens.LevelIdentified, Method: "image_decode", Status: "decoded", Egress: "TZ"}}},
+		{Listing: Listing{Kind: lens.TypeImage, Title: "Starry Night", Creator: "Someone Else", URL: "https://example.org/starry", Provider: "Example", AccessType: "free"}},
+	})
+	if err != nil || summary.Locations != 2 {
+		t.Fatalf("two pictures recorded: %+v %v", summary, err)
+	}
+	short, err := store.Lookup(ctx, lens.ParseAs("Starry Night by Van Gogh", lens.TypeImage), 10)
+	if err != nil || len(short) != 1 || short[0].Object.Creator != "Vincent van Gogh" || short[0].EffectiveLevel != lens.LevelIdentified {
+		t.Fatalf("a maker named in part finds the picture credited in full and not another maker's: %+v %v", short, err)
+	}
+	any, err := store.Lookup(ctx, lens.ParseAs("Starry Night", lens.TypeImage), 10)
+	if err != nil || len(any) != 2 {
+		t.Fatalf("a lookup without a maker returns every picture of the title: %d %v", len(any), err)
+	}
+}

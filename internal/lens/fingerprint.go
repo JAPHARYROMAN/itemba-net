@@ -95,21 +95,38 @@ type FingerprintVariant struct {
 }
 
 // Valid reports whether the fingerprint is one this package can compare: a
-// known type, at least one frame, four bytes a frame, a plausible span and
-// variants, if any, of the same shape at speeds within a tenth.
+// known type with at least one frame and four bytes a frame; for the
+// acoustic type a plausible span and variants, if any, of the same shape at
+// speeds within a tenth; for the image hash exactly its words and nothing
+// temporal.
 func (f *Fingerprint) Valid() bool {
-	if f == nil || f.Type != FingerprintAcousticBands || f.Frames < 1 || len(f.Data) != 4*f.Frames {
+	if f == nil || f.Frames < 1 || len(f.Data) != 4*f.Frames {
 		return false
 	}
-	if math.IsNaN(f.Seconds) || math.IsInf(f.Seconds, 0) || f.Seconds < 0 || f.Seconds > FingerprintSeconds+1 {
-		return false
-	}
-	for _, v := range f.Variants {
-		if math.IsNaN(v.Speed) || v.Speed <= 0.9 || v.Speed >= 1.1 || v.Speed == 1 || v.Frames < 1 || len(v.Data) != 4*v.Frames {
+	switch f.Type {
+	case FingerprintAcousticBands:
+		if math.IsNaN(f.Seconds) || math.IsInf(f.Seconds, 0) || f.Seconds < 0 || f.Seconds > FingerprintSeconds+1 {
 			return false
 		}
+		for _, v := range f.Variants {
+			if math.IsNaN(v.Speed) || v.Speed <= 0.9 || v.Speed >= 1.1 || v.Speed == 1 || v.Frames < 1 || len(v.Data) != 4*v.Frames {
+				return false
+			}
+		}
+		return true
+	case FingerprintImageDHash:
+		return f.Frames == ImageHashWords && f.Seconds == 0 && len(f.Variants) == 0
 	}
-	return true
+	return false
+}
+
+// FingerprintMethod names the identity method a fingerprint type stands
+// for, as an IdentityMatch carries it.
+func FingerprintMethod(fingerprintType string) string {
+	if fingerprintType == FingerprintImageDHash {
+		return MethodPerceptualHash
+	}
+	return MethodFingerprint
 }
 
 // Words reads the frames as 32-bit words.
@@ -148,11 +165,18 @@ type FingerprintComparison struct {
 	Overlap int     `json:"overlap"`
 	Shift   int     `json:"shift"`
 	Speed   float64 `json:"speed,omitempty"`
+	// Type is the fingerprint type compared, which sets the threshold.
+	Type string `json:"type,omitempty"`
 }
 
-// Same reports the same sound: a known comparison at or under the threshold.
+// Same reports the same sound or sight: a known comparison at or under the
+// type's threshold.
 func (c FingerprintComparison) Same() bool {
-	return c.Known && c.Distance <= SameSoundThreshold
+	threshold := SameSoundThreshold
+	if c.Type == FingerprintImageDHash {
+		threshold = SameSightThreshold
+	}
+	return c.Known && c.Distance <= threshold
 }
 
 // OverlapSeconds is the span of audio the comparison rested on.
@@ -172,17 +196,25 @@ func CompareFingerprints(a, b Fingerprint) FingerprintComparison {
 		return FingerprintComparison{}
 	}
 	wa, wb := a.Words(), b.Words()
+	if a.Type == FingerprintImageDHash {
+		// A hash has no time to align: every bit is compared with its own.
+		errors := 0
+		for i := range wa {
+			errors += bits.OnesCount32(wa[i] ^ wb[i])
+		}
+		return FingerprintComparison{Known: true, Distance: float64(errors) / float64(32*len(wa)), Overlap: len(wa), Speed: 1, Type: a.Type}
+	}
 	best := compareWords(wa, wb)
-	best.Speed = 1
+	best.Speed, best.Type = 1, a.Type
 	for _, v := range b.Variants {
 		if c := compareWords(wa, wordsOf(v.Data)); c.Known && (!best.Known || c.Distance < best.Distance) {
-			c.Speed = v.Speed
+			c.Speed, c.Type = v.Speed, a.Type
 			best = c
 		}
 	}
 	for _, v := range a.Variants {
 		if c := compareWords(wordsOf(v.Data), wb); c.Known && (!best.Known || c.Distance < best.Distance) {
-			c.Speed = math.Round(1000/v.Speed) / 1000
+			c.Speed, c.Type = math.Round(1000/v.Speed)/1000, a.Type
 			best = c
 		}
 	}
@@ -359,12 +391,13 @@ type IdentityMatch struct {
 
 // The verdicts and effects an IdentityMatch carries.
 const (
-	VerdictSame       = "same"
-	VerdictDifferent  = "different"
-	EffectConfirmed   = "confirmed"
-	EffectJoined      = "joined"
-	EffectKeptApart   = "kept_apart"
-	MethodFingerprint = "acoustic_fingerprint"
+	VerdictSame          = "same"
+	VerdictDifferent     = "different"
+	EffectConfirmed      = "confirmed"
+	EffectJoined         = "joined"
+	EffectKeptApart      = "kept_apart"
+	MethodFingerprint    = "acoustic_fingerprint"
+	MethodPerceptualHash = "perceptual_hash"
 )
 
 // IdentityDetail says a match in words, the same words wherever it is
@@ -373,6 +406,9 @@ func IdentityDetail(m IdentityMatch) string {
 	peer := m.PeerTitle
 	if peer == "" {
 		peer = m.PeerURL
+	}
+	if m.Method == MethodPerceptualHash {
+		return imageIdentityDetail(m, peer)
 	}
 	if peer == "" {
 		return "Fingerprinted; nothing else of its kind has been heard yet, so there is nothing to compare it with."
@@ -391,6 +427,27 @@ func IdentityDetail(m IdentityMatch) string {
 		return fmt.Sprintf("Sounds different from %s (%s) although the tags agree: a different recording, kept apart.", peer, measure)
 	case m.Verdict == VerdictDifferent:
 		return fmt.Sprintf("Sounds different from %s (%s), the nearest fingerprint compared: a different recording, as the tags say.", peer, measure)
+	}
+	return ""
+}
+
+// imageIdentityDetail is IdentityDetail for a perceptual hash.
+func imageIdentityDetail(m IdentityMatch, peer string) string {
+	if peer == "" {
+		return "Hashed; nothing else of its kind has been seen yet, so there is nothing to compare it with."
+	}
+	measure := fmt.Sprintf("hash distance %.2f", m.Distance)
+	switch {
+	case m.Verdict == VerdictSame && m.Effect == EffectJoined:
+		return fmt.Sprintf("Looks the same as %s (%s): the same picture under different tags.", peer, measure)
+	case m.Verdict == VerdictSame && m.Effect == EffectConfirmed:
+		return fmt.Sprintf("Looks the same as %s (%s): the same picture, as the tags say.", peer, measure)
+	case m.Verdict == VerdictSame:
+		return fmt.Sprintf("Looks the same as %s (%s).", peer, measure)
+	case m.Verdict == VerdictDifferent && m.Effect == EffectKeptApart:
+		return fmt.Sprintf("Looks different from %s (%s) although the tags agree: a different picture, kept apart.", peer, measure)
+	case m.Verdict == VerdictDifferent:
+		return fmt.Sprintf("Looks different from %s (%s), the nearest hash compared: a different picture, as the tags say.", peer, measure)
 	}
 	return ""
 }

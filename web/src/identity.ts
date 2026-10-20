@@ -1,17 +1,19 @@
 import { IdentityMatch, MoviePlaybackCheck } from './types';
 
-// What the acoustic fingerprint said, in a chip's words. The detail the
-// server composed says the rest.
+// What the fingerprint said, in a chip's words: the acoustic fingerprint of
+// a recording or the perceptual hash of a picture. The detail the server
+// composed says the rest.
 export const identityLabel = (identity: IdentityMatch): string => {
+  const by = identity.method === 'perceptual_hash' ? 'image hash' : 'fingerprint';
   switch (identity.effect) {
-    case 'joined': return 'Matched by fingerprint';
-    case 'confirmed': return 'Confirmed by fingerprint';
-    case 'kept_apart': return 'Separated by fingerprint';
+    case 'joined': return `Matched by ${by}`;
+    case 'confirmed': return `Confirmed by ${by}`;
+    case 'kept_apart': return `Separated by ${by}`;
   }
   switch (identity.verdict) {
-    case 'same': return 'Same beginning by fingerprint';
-    case 'different': return 'Different by fingerprint';
-    default: return 'Fingerprinted';
+    case 'same': return identity.method === 'perceptual_hash' ? 'Same picture by hash' : 'Same beginning by fingerprint';
+    case 'different': return `Different by ${by}`;
+    default: return identity.method === 'perceptual_hash' ? 'Hashed' : 'Fingerprinted';
   }
 };
 

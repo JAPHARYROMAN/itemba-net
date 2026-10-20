@@ -63,12 +63,12 @@ func (s *Store) RecordObservations(ctx context.Context, q lens.ObjectQuery, obse
 		if err != nil {
 			return summary, err
 		}
-		// A fingerprint lets the sound overrule the tags; without one the
-		// tags decide.
+		// A fingerprint lets the sound, or the sight, overrule the tags;
+		// without one the tags decide.
 		var object Object
 		var match *lens.IdentityMatch
 		var peer int64
-		heard := candidate.Type == lens.TypeAudio && observation.Fingerprint != nil && observation.Fingerprint.Fingerprint.Valid()
+		heard := (candidate.Type == lens.TypeAudio || candidate.Type == lens.TypeImage) && observation.Fingerprint != nil && observation.Fingerprint.Fingerprint.Valid()
 		if heard {
 			object, match, peer, err = s.objectBySound(ctx, observation.Listing, candidate, objects, &summary)
 		} else {
@@ -159,6 +159,10 @@ func tagCandidate(q lens.ObjectQuery, queryObject *Object, listing Listing) (Obj
 	candidate := Object{Type: kind}
 	if kind == lens.TypeAudio {
 		id := lens.AudioListing(listing.Title, listing.Creator, listing.Duration, listing.Year)
+		candidate.Title, candidate.TitleKey, candidate.Year = id.Title, id.TitleKey, id.Year
+		candidate.Creator, candidate.CreatorKey = id.Creator, id.CreatorKey
+	} else if kind == lens.TypeImage {
+		id := lens.ImageListing(listing.Title, listing.Creator, listing.Year, 0, 0)
 		candidate.Title, candidate.TitleKey, candidate.Year = id.Title, id.TitleKey, id.Year
 		candidate.Creator, candidate.CreatorKey = id.Creator, id.CreatorKey
 	} else {

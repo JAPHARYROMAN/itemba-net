@@ -41,9 +41,12 @@ func observationsFromReport(report scout.SearchReport) []atlas.Observation {
 			ListingOnly: source.ListingOnly,
 		}
 		// What the sample heard goes to the fingerprint library with the
-		// length of the file it heard it from, as the browser read it.
+		// length of the file it heard it from, as the browser read it; what
+		// the picture probe saw goes there too.
 		if check := source.PlaybackCheck; check != nil && check.Fingerprint.Valid() {
 			listing.Fingerprint = &atlas.FingerprintObservation{Fingerprint: *check.Fingerprint, MediaSeconds: check.DurationSeconds, ObservedAt: observedOrNow(check.CheckedAt)}
+		} else if check := source.ImageCheck; check != nil && check.Fingerprint.Valid() {
+			listing.Fingerprint = &atlas.FingerprintObservation{Fingerprint: *check.Fingerprint, ObservedAt: observedOrNow(check.CheckedAt)}
 		}
 		observations = append(observations, atlas.Observation{Listing: listing, Evidence: evidenceFor(source, egress)})
 	}
@@ -54,6 +57,30 @@ func observationsFromReport(report scout.SearchReport) []atlas.Observation {
 // checks gets none here and is recorded as listed by its provider.
 func evidenceFor(source scout.VerifiedSource, defaultEgress string) []atlas.Evidence {
 	var out []atlas.Evidence
+	// A picture's file that decoded is identified; one that answered but
+	// did not decode is reachable; one that did not answer stays listed.
+	if check := source.ImageCheck; check != nil && check.Status != "" && check.Status != "not_checked" {
+		level := lens.LevelListed
+		switch {
+		case check.Status == "decoded":
+			level = lens.LevelIdentified
+		case check.HTTPStatus >= 200 && check.HTTPStatus < 300:
+			level = lens.LevelReachable
+		}
+		artefacts := map[string]any{"width": check.Width, "height": check.Height, "format": check.Format, "bytes": check.Bytes, "httpStatus": check.HTTPStatus, "evidenceUrl": check.EvidenceURL}
+		if check.FingerprintStatus != "" {
+			artefacts["fingerprintStatus"] = check.FingerprintStatus
+		}
+		out = append(out, atlas.Evidence{
+			Level:      level,
+			Method:     firstNonEmpty(check.Method, "image_decode"),
+			Status:     check.Status,
+			Detail:     check.Detail,
+			Egress:     defaultEgress,
+			ObservedAt: observedOrNow(check.CheckedAt),
+			Artefacts:  artefacts,
+		})
+	}
 	if check := source.AvailabilityCheck; check != nil && check.Status != "" {
 		out = append(out, atlas.Evidence{
 			Level:      lens.LevelFromChecks(check.Status, "", false),

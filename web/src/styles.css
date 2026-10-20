@@ -608,3 +608,6 @@ body {
 /* The search form offers movies or audio; the chips use the access filter look. */
 .movie-kind-toggle { margin-bottom: 10px; }
 .movie-kind-toggle .chip { display: inline-flex; align-items: center; gap: 5px; }
+
+/* Picture cards lead with the thumbnail at its own aspect ratio. */
+.image-source-card .image-thumb { display: block; width: 100%; max-height: 240px; object-fit: contain; background: #0b1220; border-radius: 8px; margin-bottom: 10px; }

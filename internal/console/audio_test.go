@@ -23,7 +23,9 @@ func TestValidateSearchReadsTheKind(t *testing.T) {
 		{"Sintel", "", "", lens.TypeVideo, ""},
 		{"Sintel", "us", "video", lens.TypeVideo, ""},
 		{"Kind of Blue by Miles Davis", "", "Audio", lens.TypeAudio, ""},
-		{"Sintel", "", "image", "", "Choose movies or audio."},
+		{"Sintel", "", "image", lens.TypeImage, ""},
+		{"", "", "image", "", "Enter what the picture shows, with the artist if known, using at most 500 characters."},
+		{"Sintel", "", "document", "", "Choose movies, audio or pictures."},
 		{"", "", "audio", "", "Enter a recording's title, with its performer if known, using at most 500 characters."},
 		{"", "", "", "", "Enter a movie title or URL using at most 500 characters."},
 	}
@@ -136,9 +138,9 @@ func TestAudioSearchCarriesTheKindFromTheFormToTheIndex(t *testing.T) {
 	}
 
 	response = httptest.NewRecorder()
-	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/scout/search/stream?query=Sintel&kind=image", nil))
-	if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), "Choose movies or audio.") {
-		t.Fatalf("an image search is refused until its slice lands: %d %s", response.Code, response.Body.String())
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/scout/search/stream?query=Sintel&kind=document", nil))
+	if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), "Choose movies, audio or pictures.") {
+		t.Fatalf("a document search is refused until its slice lands: %d %s", response.Code, response.Body.String())
 	}
 
 	response = httptest.NewRecorder()

@@ -16,7 +16,7 @@ import (
 
 // validateSearch normalises and checks the query, region and kind shared by
 // the search routes. The kind is the object type searched for: video, the
-// default, or audio; the other types wait for their Phase 3 slices. It
+// default, audio or image; documents wait for their Phase 3 slice. It
 // returns a user-facing message when the request is bad.
 func validateSearch(query, region, kind string) (string, string, string, string) {
 	query = strings.TrimSpace(query)
@@ -28,12 +28,15 @@ func validateSearch(query, region, kind string) (string, string, string, string)
 	if kind == "" {
 		kind = lens.TypeVideo
 	}
-	if kind != lens.TypeVideo && kind != lens.TypeAudio {
-		return "", "", "", "Choose movies or audio."
+	if kind != lens.TypeVideo && kind != lens.TypeAudio && kind != lens.TypeImage {
+		return "", "", "", "Choose movies, audio or pictures."
 	}
 	if query == "" || len([]rune(query)) > 500 {
-		if kind == lens.TypeAudio {
+		switch kind {
+		case lens.TypeAudio:
 			return "", "", "", "Enter a recording's title, with its performer if known, using at most 500 characters."
+		case lens.TypeImage:
+			return "", "", "", "Enter what the picture shows, with the artist if known, using at most 500 characters."
 		}
 		return "", "", "", "Enter a movie title or URL using at most 500 characters."
 	}
@@ -243,9 +246,13 @@ func mergeLocations(q lens.ObjectQuery, known []atlas.KnownLocation, report scou
 		// A listed title is read as a listing, so "Sintel (2010)" is Sintel.
 		listed, _ := lens.ListedTitle(source.Title, source.ReleaseYear)
 		relevance := lens.TitleRelevance(q.TitleKey, lens.NormalizeTitle(listed))
-		if q.Type == lens.TypeAudio {
+		switch q.Type {
+		case lens.TypeAudio:
 			// A recording is matched by its tags, performer included.
 			relevance = lens.AudioRelevance(q, lens.AudioListing(source.Title, source.Creator, source.Duration, source.ReleaseYear))
+		case lens.TypeImage:
+			// A picture the host matched keeps at least the host's own match.
+			relevance = lens.ImageRelevance(q, lens.ImageListing(source.Title, source.Creator, source.ReleaseYear, 0, 0))
 		}
 		if q.URL != "" {
 			relevance = 1

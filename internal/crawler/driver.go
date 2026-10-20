@@ -249,12 +249,12 @@ var (
 	listingKeys     = map[string]bool{
 		"id": true, "title": true, "url": true, "media_url": true, "year": true, "duration": true, "description": true,
 		"thumbnail": true, "access_type": true, "price": true, "market": true, "source_type": true, "provider": true,
-		"access_note": true, "resolution": true, "tags": true, "catalog_date": true, "creator": true,
+		"access_note": true, "resolution": true, "tags": true, "catalog_date": true, "creator": true, "license": true,
 	}
 	transforms = map[string]bool{
 		"": true, "scalar": true, "lower": true, "upper": true, "trim": true, "year_of_date": true, "year_in_text": true,
 		"duration_from_millis": true, "duration_from_seconds": true, "duration_seconds": true, "html_unescape": true, "html_text": true,
-		"url_query": true, "date": true,
+		"url_query": true, "date": true, "strip_query": true,
 	}
 	constantKeys = map[string]bool{
 		"source_type": true, "access_type": true, "media_url": true, "price": true, "market": true, "listing_only": true,
@@ -1033,6 +1033,7 @@ func (d *Driver) listingFrom(it item, market string, fields map[string]FieldSpec
 		Description:       values["description"],
 		Thumbnail:         values["thumbnail"],
 		Resolution:        values["resolution"],
+		License:           values["license"],
 		CatalogDate:       values["catalog_date"],
 		Tags:              tags,
 		ListingOnly:       values["media_url"] == "",
@@ -1251,6 +1252,14 @@ func transform(spec, value string) string {
 			return ""
 		}
 		return strings.TrimSpace(u.Query().Get(arg))
+	case "strip_query":
+		// A file URL without the tracking parameters a host appends to it.
+		u, err := url.Parse(strings.TrimSpace(value))
+		if err != nil {
+			return ""
+		}
+		u.RawQuery, u.Fragment = "", ""
+		return u.String()
 	}
 	return value
 }
