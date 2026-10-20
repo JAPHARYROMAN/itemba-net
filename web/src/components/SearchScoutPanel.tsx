@@ -800,9 +800,12 @@ const documentFingerprintLabel = (check?: DocumentCheck): string | null => {
   switch (check?.fingerprintStatus) {
     case 'computed': {
       const from = check.textSource === 'ocr_text' ? 'the OCR text beside the file' : check.textSource === 'text_file' ? 'the text file' : 'the PDF’s own text';
-      return `Text fingerprint taken from ${from}; the index compares it with every document it has read.`;
+      const body = check.bodyWords ? ` over ${check.bodyWords.toLocaleString()} words of its body${check.bodySkipped ? `, after ${check.bodySkipped.toLocaleString()} words of front matter` : ''}` : '';
+      return `Text fingerprint taken from ${from}${body}; the index compares it with every document it has read.`;
     }
     case 'too_short': return 'No text fingerprint: too little text was read, as with a scan that carries no text layer and no OCR text beside it.';
+    case 'unreadable': return 'No text fingerprint: nothing in the text read as prose, as with a scan whose OCR is noise throughout.';
+    case 'partial': return `No text fingerprint: only the beginning of a longer text was read (${(check.bodyWords ?? 0).toLocaleString()} words of its body), too little to compare fairly with whole texts.`;
     default: return null;
   }
 };

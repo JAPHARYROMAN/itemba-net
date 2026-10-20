@@ -46,8 +46,9 @@ const (
 	// dictionary and the first pages; the tail holds the page tree's root.
 	documentHeadLimit = 512 << 10
 	documentTailLimit = 256 << 10
-	// documentTextLimit bounds the text file read for the fingerprint.
-	documentTextLimit = 96 << 10
+	// documentTextLimit bounds the text file read for the fingerprint: room
+	// for a long front matter before the body the fingerprint covers.
+	documentTextLimit = 256 << 10
 	// documentProbeSlots is how many files are probed at once.
 	documentProbeSlots = 2
 )
@@ -77,7 +78,12 @@ var documentWording = strings.NewReplacer(
 // or DjVu), unreachable or not_checked. Pages is the page count read from
 // the file when PagesConfirmed, else the count the host stated.
 // FingerprintStatus says how the text fingerprint went: computed,
-// too_short, unavailable or none.
+// too_short (too few words), unreadable (words enough, but no run of them
+// reads as prose, as with a scan whose OCR is noise throughout), partial
+// (the text read is the beginning of a longer one and its body is shorter
+// than a fingerprint covers, so a fingerprint of it would be compared
+// unfairly with whole texts) or none. BodySkipped is how many words of
+// front matter the fingerprint skipped and BodyWords how many it covers.
 type DocumentCheck struct {
 	Status            string            `json:"status"`
 	Method            string            `json:"method"`
@@ -92,6 +98,8 @@ type DocumentCheck struct {
 	EvidenceURL       string            `json:"evidenceUrl,omitempty"`
 	TextChars         int               `json:"textChars,omitempty"`
 	TextSource        string            `json:"textSource,omitempty"`
+	BodySkipped       int               `json:"bodySkipped,omitempty"`
+	BodyWords         int               `json:"bodyWords,omitempty"`
 	Fingerprint       *lens.Fingerprint `json:"fingerprint,omitempty"`
 	FingerprintStatus string            `json:"fingerprintStatus,omitempty"`
 }
@@ -442,6 +450,8 @@ func probeDocument(ctx context.Context, client *http.Client, source CandidateSou
 		return check
 	}
 	var text, textSource string
+	// The text is whole when the file ended within the bytes read.
+	whole := int64(len(head)) < documentHeadLimit || (total > 0 && total <= documentHeadLimit)
 	switch {
 	case isPDF(head):
 		var tail []byte
@@ -483,21 +493,36 @@ func probeDocument(ctx context.Context, client *http.Client, source CandidateSou
 	// text layer, so it is preferred for the fingerprint when the item has
 	// one.
 	if source.TextURL != "" && source.TextURL != source.DirectStreamURL {
-		if ocr, _, _, err := fetchImageBytes(ctx, client, source.TextURL, documentTextLimit, false); err == nil && len(ocr) > 0 {
+		if ocr, _, ocrTotal, err := fetchImageBytes(ctx, client, source.TextURL, documentTextLimit, false); err == nil && len(ocr) > 0 {
 			text, textSource = string(ocr), "ocr_text"
+			whole = int64(len(ocr)) < documentTextLimit || (ocrTotal > 0 && ocrTotal <= documentTextLimit)
 		}
 	}
-	words := lens.TextWords(text)
 	check.TextChars, check.TextSource = len(text), textSource
+	if check.Status != "parsed" {
+		return check
+	}
+	words := lens.TextWords(text)
 	if len(words) < lens.MinFingerprintWords {
-		if check.Status == "parsed" {
-			check.FingerprintStatus = "too_short"
-		}
+		check.FingerprintStatus = "too_short"
+		return check
+	}
+	body, skipped := lens.TextBody(text)
+	check.BodySkipped, check.BodyWords = skipped, len(body)
+	if len(body) < lens.MinFingerprintWords {
+		check.FingerprintStatus = "unreadable"
+		return check
+	}
+	if len(body) < lens.TextFingerprintWords && !whole {
+		// A scan's text layer from the first pages, or an OCR file cut by
+		// the read limit: a fingerprint of a beginning would read as a
+		// different text beside a fingerprint of the whole.
+		check.FingerprintStatus = "partial"
 		return check
 	}
 	fp := lens.TextFingerprint(text)
 	if !fp.Valid() {
-		check.FingerprintStatus = "too_short"
+		check.FingerprintStatus = "unreadable"
 		return check
 	}
 	check.Fingerprint, check.FingerprintStatus = &fp, "computed"

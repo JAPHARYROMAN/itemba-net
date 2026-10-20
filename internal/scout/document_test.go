@@ -29,6 +29,7 @@ func documentSampleText(vocabulary string, seed uint32, n int) string {
 const (
 	millWords  = "the river ran past the old mill where the miller kept a ledger of every sack that crossed the bridge and the ferryman counted the lanterns on the far bank while the geese slept under the willow and nobody asked why the bell rang twice at dusk"
 	coastWords = "salt wind over shingle beach gulls wheel above tide pools keeper trims lamp before fog rolls in boats return late nets heavy with herring harbour master logs each arrival chalk cliff crumbles slowly into grey sea"
+	noiseWords = "J z i t fs Al y 4 tres sg iv tv Ih ies GE fits p iY Sots tet tse fe ede cf es NY s ate ifi7 i TAT dtet Yr fy ety ys diy Cie F fy ty qf Sy Kis ff bg My iy fi hy iY tf Hy Hi Ve 4 bys id ty LU WH eu th ae Mee Nese Li 5G yp He 3 Me Wy Ig 7 ep Loy itt Hie sii ON aN hh Wi WS j ae ialgs PY Kd 17 y TY ins if m4 Hee Wf ye ry Ds ibs We DK ay pe ie My f Hs 11 ii 1111"
 )
 
 // pagesOf splits a text into lines of twelve words, one PDF page each.
@@ -83,7 +84,7 @@ func documentFixtureScout(t *testing.T) (*Scout, func() []string) {
 		data        []byte
 	}{
 		"/0/items/alice-scan/alice-scan.pdf":            {"application/pdf", textPDF(pagesOf("scan text layer "+documentSampleText(coastWords, 5, 60)), true, false)},
-		"/download/alice-scan/alice-scan_djvu.txt":      {"text/plain", []byte("ALICE\n\n" + body)},
+		"/download/alice-scan/alice-scan_djvu.txt":      {"text/plain", []byte(documentSampleText(noiseWords, 1, 500) + "\nALICE IN WONDERLAND\nFOULSHAM S BOY AND GIRL FICTION LIBRARY\n" + strings.ToUpper(documentSampleText(coastWords, 4, 200)) + "\n\n" + body)},
 		"/download/alice-edition/alice-edition.pdf":     {"application/pdf", textPDF(pagesOf(edition), true, false)},
 		"/download/alice-other/alice-other.pdf":         {"application/pdf", textPDF(pagesOf(other), false, true)},
 		"/download/alice-gutenberg/alice-gutenberg.txt": {"text/plain", []byte(body)},
@@ -179,6 +180,9 @@ func TestDocumentSearchParsesFilesAndMatchesTextsByFingerprint(t *testing.T) {
 	if check.TextSource != "ocr_text" || check.FingerprintStatus != "computed" || !check.Fingerprint.Valid() || check.Fingerprint.Type != lens.FingerprintTextSimhash || !strings.Contains(check.Detail, "where the host stated 3") {
 		t.Fatalf("the OCR text is fingerprinted in preference to the scan's text layer: %+v", check)
 	}
+	if check.BodySkipped < 700 || check.BodySkipped > 800 || check.BodyWords < 800 {
+		t.Fatalf("the endpaper noise and the catalogue before the body are skipped: skipped %d, %d words", check.BodySkipped, check.BodyWords)
+	}
 	if !scan.Verified || scan.VerificationStatus != "media_reachable" || scan.StreamFormat != "PDF document" || scan.AvailabilityCheck == nil || scan.AvailabilityCheck.Status != "media_reachable" {
 		t.Fatalf("a parsed file is reachable media: %+v", scan)
 	}
@@ -187,8 +191,8 @@ func TestDocumentSearchParsesFilesAndMatchesTextsByFingerprint(t *testing.T) {
 		t.Fatalf("a PDF without OCR text is fingerprinted from its own content streams: %+v", edition.DocumentCheck)
 	}
 	gutenberg := byID["ia-text-alice-gutenberg"]
-	if scan.Identity == nil || scan.Identity.Method != lens.MethodTextFingerprint || scan.Identity.Verdict != lens.VerdictSame || scan.Identity.Effect != lens.EffectConfirmed || scan.Identity.PeerURL != gutenberg.URL || scan.Identity.Distance != 0 {
-		t.Fatalf("the scan's OCR text and the transcription are the same text under the same tags: %+v", scan.Identity)
+	if scan.Identity == nil || scan.Identity.Method != lens.MethodTextFingerprint || scan.Identity.Verdict != lens.VerdictSame || scan.Identity.Effect != lens.EffectConfirmed || scan.Identity.PeerURL != gutenberg.URL || scan.Identity.Distance > 0.05 {
+		t.Fatalf("the scan's OCR text, read from its body, and the transcription are the same text under the same tags: %+v", scan.Identity)
 	}
 	if edition.Identity == nil || edition.Identity.Verdict != lens.VerdictSame || edition.Identity.Effect != lens.EffectJoined || edition.Identity.Distance > lens.SameTextThreshold {
 		t.Fatalf("the same text under another title is joined by its fingerprint: %+v", edition.Identity)
@@ -247,6 +251,16 @@ func TestDocumentProbeTellsFormatsApartAndKeepsTheSameTagsApart(t *testing.T) {
 			return searchFixtureResponse(429, "text/plain", "slow down"), nil
 		case "/short.txt":
 			return searchFixtureResponse(200, "text/plain", "a few words only"), nil
+		case "/plates.txt":
+			return searchFixtureResponse(200, "text/plain", documentSampleText(noiseWords, 8, 3000)), nil
+		case "/big.pdf":
+			// A scan far larger than the head fetched, whose text layer in
+			// the first pages is a few hundred words.
+			big := textPDF(pagesOf(documentSampleText(millWords, 6, 300)), false, false)
+			big = append(big, []byte("\n99 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /Length 700000 >>\nstream\n")...)
+			big = append(big, make([]byte, 700000)...)
+			big = append(big, []byte("\nendstream\nendobj\n")...)
+			return rangeResponse(req, "application/pdf", big), nil
 		}
 		return rangeResponse(req, "application/pdf", pdf), nil
 	})}
@@ -269,6 +283,14 @@ func TestDocumentProbeTellsFormatsApartAndKeepsTheSameTagsApart(t *testing.T) {
 	source.DirectStreamURL = "https://archive.org/download/x/short.txt"
 	if check := probeDocument(context.Background(), client, source); check.Status != "parsed" || check.Format != "txt" || check.FingerprintStatus != "too_short" || check.Fingerprint != nil {
 		t.Fatalf("too little text parses without a fingerprint: %+v", check)
+	}
+	source.DirectStreamURL = "https://archive.org/download/x/plates.txt"
+	if check := probeDocument(context.Background(), client, source); check.Status != "parsed" || check.FingerprintStatus != "unreadable" || check.Fingerprint != nil || check.BodyWords != 0 || check.BodySkipped != 3000 {
+		t.Fatalf("OCR noise throughout parses without a fingerprint: %+v", check)
+	}
+	source.DirectStreamURL = "https://archive.org/download/x/big.pdf"
+	if check := probeDocument(context.Background(), client, source); check.Status != "parsed" || check.FingerprintStatus != "partial" || check.Fingerprint != nil || check.BodyWords < 200 || check.Bytes < 700000 {
+		t.Fatalf("a text layer from the first pages of a long scan is partial, not fingerprinted: %+v", check)
 	}
 	source.DirectStreamURL, source.Pages = "https://archive.org/download/x/book.pdf", 17
 	check := probeDocument(context.Background(), client, source)

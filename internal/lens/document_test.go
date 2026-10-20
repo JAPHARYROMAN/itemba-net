@@ -33,6 +33,60 @@ func noisyText(text string) string {
 	return strings.Join(words, " ")
 }
 
+// endpaperNoise is what OCR makes of an endpaper or a plate: short runs of
+// letters and digits with no words among them.
+func endpaperNoise(seed uint32, n int) string {
+	return sampleText("J z i t fs Al y 4 tres sg iv tv Ih ies GE fits p iY Sots tet tse fe ede cf es NY s ate ifi7 i TAT dtet Yr fy ety ys diy Cie F fy ty qf Sy Kis ff bg My iy fi hy iY tf Hy Hi Ve 4 bys id ty LU WH eu th ae Mee Nese Li 5G yp He 3 Me Wy Ig 7 ep Loy itt Hie sii ON aN hh Wi WS j ae ialgs PY Kd 17 y TY ins if m4 Hee Wf ye ry Ds ibs We DK ay pe ie My f Hs 11 ii 1111", seed, n)
+}
+
+// catalogueText is a publisher's list of other books, in capitals.
+func catalogueText(n int) string {
+	return strings.ToUpper(sampleText("robinson crusoe by daniel defoe uncle toms cabin by stowe the water babies by charles kingsley little women by louisa alcott midshipman easy by marryat the swiss family robinson a tale of two cities by charles dickens good wives grimms fairy tales what katy did by susan coolidge robin hood and his merry foresters tom browns schooldays by thomas hughes black beauty by anna sewell", 2, n))
+}
+
+func TestTextFingerprintSkipsFrontMatterAndRefusesNoise(t *testing.T) {
+	body := sampleText(millVocabulary, 7, 3000)
+	plain := TextFingerprint(body)
+	scanned := endpaperNoise(1, 700) + " " + catalogueText(250) + " TITLE PAGE 1898 " + body
+	words, skipped := TextBody(scanned)
+	if skipped < 900 || skipped > 1000 || len(words) < 2900 {
+		t.Fatalf("the body begins after the endpapers and the catalogue: skipped %d, %d words, first %q", skipped, len(words), words[:3])
+	}
+	if c := CompareFingerprints(plain, TextFingerprint(scanned)); !c.Known || c.Distance > 0.05 || !c.Same() {
+		t.Fatalf("a long front matter leaves the same text: %+v", c)
+	}
+	if c := CompareFingerprints(plain, TextFingerprint(endpaperNoise(3, 400)+" "+noisyText(body))); !c.Known || c.Distance > SameTextThreshold || !c.Same() {
+		t.Fatalf("endpapers before a noisy scan of the same text leave the same text: %+v", c)
+	}
+	if words, skipped := TextBody(endpaperNoise(5, 2000)); len(words) != 0 || skipped != 2000 {
+		t.Fatalf("noise throughout has no body: %d words, %d skipped", len(words), skipped)
+	}
+	if fp := TextFingerprint(endpaperNoise(5, 2000)); fp.Valid() {
+		t.Fatal("noise throughout gives no fingerprint")
+	}
+	if fp := TextFingerprint(catalogueText(3000)); fp.Valid() {
+		t.Fatal("a catalogue in capitals gives no fingerprint")
+	}
+	// A short text that reads as prose is its own body.
+	short := sampleText(millVocabulary, 2, 120)
+	if words, skipped := TextBody(short); len(words) != 120 || skipped != 0 {
+		t.Fatalf("a short prose text is its own body: %d words, %d skipped", len(words), skipped)
+	}
+	if words, skipped := TextBody(endpaperNoise(2, 100) + " " + sampleText(millVocabulary, 3, 150)); skipped != 100 || len(words) != 150 {
+		t.Fatalf("a short text after a noisy page begins after it: %d words, %d skipped", len(words), skipped)
+	}
+	if words, _ := TextBody(body); len(words) != 3000 || words[0] != "the" && words[0] != strings.Fields(body)[0] {
+		t.Fatalf("a plain body is read whole from its first word: %d words, first %q", len(words), words[0])
+	}
+	long := sampleText(millVocabulary, 9, TextFingerprintWords+2000)
+	if words, _ := TextBody(long); len(words) != TextFingerprintWords {
+		t.Fatalf("the fingerprint covers at most %d words: %d", TextFingerprintWords, len(words))
+	}
+	if readsAsProse(strings.Fields("The 1st of May 1859 at 10 o clock 23 pages 4 shillings 6 pence 12 copies")) || !readsAsProse(strings.Fields(sampleText(millVocabulary, 4, 100))) {
+		t.Fatal("digits and short tokens are not prose; plain words are")
+	}
+}
+
 func TestTextFingerprintSurvivesNoiseAndTellsTextsApart(t *testing.T) {
 	body := sampleText(millVocabulary, 7, 1200)
 	original := TextFingerprint(body)
@@ -65,6 +119,9 @@ func TestTextFingerprintSurvivesNoiseAndTellsTextsApart(t *testing.T) {
 	}
 	if short := TextFingerprint(sampleText(millVocabulary, 1, MinFingerprintWords-1)); short.Valid() || short.Type != "" {
 		t.Fatalf("too few words give no fingerprint: %+v", short)
+	}
+	if original.Type != "text-simhash-v2" {
+		t.Fatalf("the body-finding fingerprint is version two: %q", original.Type)
 	}
 	if (&Fingerprint{Type: FingerprintTextSimhash, Frames: 8, Data: make([]byte, 32), Seconds: 1}).Valid() || (&Fingerprint{Type: FingerprintTextSimhash, Frames: 7, Data: make([]byte, 28)}).Valid() {
 		t.Fatal("a text fingerprint has no span and exactly its words")

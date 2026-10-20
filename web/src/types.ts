@@ -152,8 +152,12 @@ export interface DocumentCheck {
   evidenceUrl?: string;
   textChars?: number;
   textSource?: 'pdf' | 'ocr_text' | 'text_file';
+  // bodySkipped is how many words of front matter the fingerprint skipped
+  // and bodyWords how many it covers.
+  bodySkipped?: number;
+  bodyWords?: number;
   fingerprint?: AudioFingerprint;
-  fingerprintStatus?: 'computed' | 'too_short';
+  fingerprintStatus?: 'computed' | 'too_short' | 'unreadable' | 'partial';
 }
 
 // One file of a recording with several, in the host's order.

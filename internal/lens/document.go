@@ -12,28 +12,46 @@ import (
 // says is a text fingerprint, which two copies of the same text share
 // across scans, encodings and editions, whatever their file names say.
 //
-// The fingerprint is a similarity hash of the first TextFingerprintChars
-// characters: every word and every pair of neighbouring words is a feature
-// hashed to 256 bits, each bit of the result is set when more features
-// voted one than zero, so texts that share most of their words share most
-// of their bits. Two fingerprints are compared by the share of differing
-// bits, like the picture hash; at or under SameTextThreshold they are the
-// same text, and unrelated texts sit near 0.5.
+// The fingerprint covers the body of the text, not its beginning: a scanned
+// book opens with endpapers whose OCR is noise, a publisher's catalogue, a
+// title page and a table of contents, and two scans of one work differ
+// most there. The body is found by reading the words in windows of
+// textWindow and taking the first run of textBodyWindows windows that read
+// as prose: mostly words of three letters or more, few in capitals, few
+// with digits. From there TextFingerprintWords words are hashed: every
+// word and every pair of neighbouring words is a feature hashed to 256
+// bits, weighted by how often it occurs, and each bit of the result is set
+// when more features voted one than zero, so texts that share most of
+// their words share most of their bits. Two fingerprints are compared by
+// the share of differing bits, like the picture hash; at or under
+// SameTextThreshold they are the same text. Weighting features by their
+// count keeps the common words' votes large, which is what makes the hash
+// survive OCR noise and the differences between editions (measured on
+// Archive scans: the same work at 0.02 to 0.11), at the price of unrelated
+// English prose sitting near 0.25 rather than 0.5, since every English
+// text shares its function words.
 
 const (
 	// FingerprintTextSimhash names the fingerprint type this file defines.
-	FingerprintTextSimhash = "text-simhash-v1"
+	// Version two hashes the body found as above; version one hashed the
+	// first 24,000 characters and is not compared with it.
+	FingerprintTextSimhash = "text-simhash-v2"
 	// TextHashWords is the fingerprint's length in 32-bit words.
 	TextHashWords = 8
-	// TextFingerprintChars bounds the text a fingerprint covers.
-	TextFingerprintChars = 24000
-	// MinFingerprintWords is the fewest words a text may be fingerprinted
+	// TextFingerprintWords bounds the words a fingerprint covers, counted
+	// from the body's start.
+	TextFingerprintWords = 6000
+	// MinFingerprintWords is the fewest words a body may be fingerprinted
 	// from; fewer leave too few features to vote.
 	MinFingerprintWords = 40
+	// textWindow is the run of words whose statistics say whether they
+	// read as prose, and textBodyWindows how many such runs in a row begin
+	// the body. Windows past the end of the text count as prose, so a short
+	// text that reads as prose is its own body.
+	textWindow      = 100
+	textBodyWindows = 3
 	// SameTextThreshold is the share of differing bits at or under which two
-	// fingerprints are the same text: 38 of 256. Two scans of one edition
-	// differ by OCR noise in a few; different editions of one work share the
-	// body and differ in the front matter, which keeps them under it too.
+	// fingerprints are the same text: 38 of 256.
 	SameTextThreshold = 0.15
 )
 
@@ -47,32 +65,120 @@ func TextWords(text string) []string {
 	return textWordRun.FindAllString(strings.ToLower(text), -1)
 }
 
-// TextFingerprint hashes a text. A text of fewer than MinFingerprintWords
-// words gives no fingerprint.
-func TextFingerprint(text string) Fingerprint {
-	runes := []rune(text)
-	if len(runes) > TextFingerprintChars {
-		text = string(runes[:TextFingerprintChars])
+// textTokens splits a text into words as written, case kept.
+func textTokens(text string) []string {
+	return textWordRun.FindAllString(text, -1)
+}
+
+// readsAsProse says whether a run of words reads as the body of a text
+// rather than as OCR noise, a catalogue or a title page: at least 55 in a
+// hundred are words of three or more letters, at most 25 are in capitals
+// and at most 10 carry a digit.
+func readsAsProse(tokens []string) bool {
+	if len(tokens) == 0 {
+		return false
 	}
-	words := TextWords(text)
+	long, capitals, digits := 0, 0, 0
+	for _, token := range tokens {
+		letters, upper, digit := 0, 0, false
+		for _, r := range token {
+			switch {
+			case unicode.IsDigit(r):
+				digit = true
+			case unicode.IsLetter(r):
+				letters++
+				if unicode.IsUpper(r) {
+					upper++
+				}
+			}
+		}
+		runes := len([]rune(token))
+		if digit {
+			digits++
+		} else if letters >= 3 {
+			long++
+		}
+		if runes >= 2 && upper == runes {
+			capitals++
+		}
+	}
+	n := len(tokens)
+	return long*100 >= 55*n && capitals*100 <= 25*n && digits*100 <= 10*n
+}
+
+// TextBody finds the body of a text and returns its first
+// TextFingerprintWords words, lower-cased, with the number of words skipped
+// before it. A text with no body, such as a scan whose OCR is noise
+// throughout, gives no words.
+func TextBody(text string) (words []string, skipped int) {
+	tokens := textTokens(text)
+	windows := (len(tokens) + textWindow - 1) / textWindow
+	prose := make([]bool, windows)
+	for i := range prose {
+		end := min((i+1)*textWindow, len(tokens))
+		window := tokens[i*textWindow : end]
+		// A last window of a few words is too short to judge; it reads as
+		// the words before it did.
+		if len(window) < textWindow/5 {
+			prose[i] = i == 0 || prose[i-1]
+			continue
+		}
+		prose[i] = readsAsProse(window)
+	}
+	start := -1
+	for i := range prose {
+		run := true
+		for j := i; j < i+textBodyWindows && j < windows; j++ {
+			if !prose[j] {
+				run = false
+				break
+			}
+		}
+		if run {
+			start = i * textWindow
+			break
+		}
+	}
+	if start < 0 {
+		return nil, len(tokens)
+	}
+	end := min(start+TextFingerprintWords, len(tokens))
+	words = make([]string, 0, end-start)
+	for _, token := range tokens[start:end] {
+		words = append(words, strings.ToLower(token))
+	}
+	return words, start
+}
+
+// TextFingerprint hashes the body of a text. A text whose body has fewer
+// than MinFingerprintWords words, or no body at all, gives no fingerprint.
+func TextFingerprint(text string) Fingerprint {
+	words, _ := TextBody(text)
+	return fingerprintWords(words)
+}
+
+// fingerprintWords hashes a run of words, every word and every pair of
+// neighbours voting as often as it occurs.
+func fingerprintWords(words []string) Fingerprint {
 	if len(words) < MinFingerprintWords {
 		return Fingerprint{}
 	}
+	counts := make(map[string]int, 2*len(words))
+	for i, word := range words {
+		counts[word]++
+		if i+1 < len(words) {
+			counts[word+" "+words[i+1]]++
+		}
+	}
 	var votes [32 * TextHashWords]int
-	vote := func(feature string) {
+	for feature, count := range counts {
 		sum := sha256.Sum256([]byte(feature))
 		for bit := 0; bit < 32*TextHashWords; bit++ {
 			if sum[bit/8]&(0x80>>uint(bit%8)) != 0 {
-				votes[bit]++
+				votes[bit] += count
 			} else {
-				votes[bit]--
+				votes[bit] -= count
 			}
-		}
-	}
-	for i, word := range words {
-		vote(word)
-		if i+1 < len(words) {
-			vote(word + " " + words[i+1])
 		}
 	}
 	data := make([]byte, 4*TextHashWords)
