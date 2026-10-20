@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/itemba-net/core/internal/lens"
 )
 
 // AvailabilityCheck describes an observation from one network, not a guarantee
@@ -29,7 +31,10 @@ type AvailabilityCheckCoverage struct {
 	PlaybackCheckedCount int    `json:"playbackCheckedCount"`
 	ProviderCheckedCount int    `json:"providerCheckedCount"`
 	PlaybackStartedCount int    `json:"playbackStartedCount"`
-	Detail               string `json:"detail"`
+	// FingerprintCount is how many sampled recordings yielded an acoustic
+	// fingerprint; movie searches report none.
+	FingerprintCount int    `json:"fingerprintCount,omitempty"`
+	Detail           string `json:"detail"`
 }
 
 // PlaybackCheck records a short decoded video sample, separately from HTTP
@@ -49,6 +54,13 @@ type PlaybackCheck struct {
 	DurationSeconds   float64 `json:"durationSeconds"`
 	Method            string  `json:"method"`
 	PlaybackConfirmed bool    `json:"playbackConfirmed"`
+	// Fingerprint is what an audio sample heard of the file's beginning,
+	// when the harness page computed one, and FingerprintStatus how that
+	// went: computed, pending, timeout, invalid, failed, or the page's own
+	// cause (fetch_failed, decode_failed, too_short, unsupported). A movie
+	// sample carries neither.
+	Fingerprint       *lens.Fingerprint `json:"fingerprint,omitempty"`
+	FingerprintStatus string            `json:"fingerprintStatus,omitempty"`
 }
 
 const maxAutomaticPageChecks = 6

@@ -2,8 +2,10 @@ package scout
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -161,5 +163,78 @@ func TestProbeMediaRecognisesAudioContainers(t *testing.T) {
 		if got := audioBytes([]byte(tc.body), sniffed) || len(tc.body) > 4 && tc.body[:4] == "OggS"; got != tc.want {
 			t.Errorf("%s: recognised %v, want %v (sniffed %s)", name, got, tc.want, sniffed)
 		}
+	}
+}
+
+// fixtureFingerprint reads one recording's fingerprint and the length of
+// its file from Lens's fixture set.
+func fixtureFingerprint(t *testing.T, name string) (*lens.Fingerprint, float64) {
+	t.Helper()
+	data, err := os.ReadFile("../lens/testdata/fingerprints.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fx struct {
+		Recordings []struct {
+			Name         string           `json:"name"`
+			MediaSeconds float64          `json:"mediaSeconds"`
+			Fingerprint  lens.Fingerprint `json:"fingerprint"`
+		} `json:"recordings"`
+	}
+	if err := json.Unmarshal(data, &fx); err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range fx.Recordings {
+		if r.Name == name {
+			fp := r.Fingerprint
+			return &fp, r.MediaSeconds
+		}
+	}
+	t.Fatalf("no fixture %s", name)
+	return nil, 0
+}
+
+// TestAudioSearchJoinsRecordingsThatSoundTheSame gives the two sampled
+// recordings fingerprints from the fixture set: the same sound under
+// different tags joins them, and the podcast about the album, which merely
+// contains the title, takes the album's relevance; a different sound leaves
+// each as its tags say.
+func TestAudioSearchJoinsRecordingsThatSoundTheSame(t *testing.T) {
+	prints := map[string]string{"ia-audio-kind-of-blue-1959": "so-what-album", "ia-audio-miles-davis-open-source": "so-what-reissue"}
+	s, _ := audioFixtureScout(t)
+	s.audioProbe = func(_ context.Context, source VerifiedSource, region, country string) *PlaybackCheck {
+		fp, seconds := fixtureFingerprint(t, prints[source.ID])
+		return &PlaybackCheck{Status: "started", PlaybackConfirmed: true, Method: "isolated_audio_sample", SecondsAdvanced: 1.2, DurationSeconds: seconds, RequestedRegion: region, Country: country, CheckedAt: "2026-10-20T00:00:00Z", Fingerprint: fp, FingerprintStatus: "computed"}
+	}
+	report := s.SearchWithOptions(context.Background(), "Kind of Blue", "ALL", SearchOptions{Kind: lens.TypeAudio})
+	byID := map[string]VerifiedSource{}
+	for _, source := range report.Sources {
+		byID[source.ID] = source
+	}
+	album, podcast := byID["ia-audio-kind-of-blue-1959"], byID["ia-audio-miles-davis-open-source"]
+	if album.Identity == nil || podcast.Identity == nil {
+		t.Fatalf("both sampled recordings carry a verdict: %+v %+v", album.Identity, podcast.Identity)
+	}
+	if m := podcast.Identity; m.Verdict != lens.VerdictSame || m.Effect != lens.EffectJoined || m.PeerURL != album.URL || m.PeerTitle != "Kind of Blue" || m.Distance > lens.SameSoundThreshold || !strings.Contains(m.Detail, "different tags") {
+		t.Fatalf("the same sound under another title is joined: %+v", m)
+	}
+	if podcast.RelevanceScore != album.RelevanceScore || album.RelevanceScore != 100 {
+		t.Fatalf("a joined recording takes the better relevance: %d %d", podcast.RelevanceScore, album.RelevanceScore)
+	}
+	if report.AvailabilityChecks == nil || report.AvailabilityChecks.FingerprintCount != 2 {
+		t.Fatalf("the coverage counts the fingerprints: %+v", report.AvailabilityChecks)
+	}
+
+	prints["ia-audio-miles-davis-open-source"] = "freddie-freeloader"
+	report = s.SearchWithOptions(context.Background(), "Kind of Blue", "ALL", SearchOptions{Kind: lens.TypeAudio})
+	for _, source := range report.Sources {
+		byID[source.ID] = source
+	}
+	album, podcast = byID["ia-audio-kind-of-blue-1959"], byID["ia-audio-miles-davis-open-source"]
+	if m := podcast.Identity; m == nil || m.Verdict != lens.VerdictDifferent || m.Effect != "" || m.Distance < 0.4 || !strings.Contains(m.Detail, "as the tags say") {
+		t.Fatalf("a different sound under different tags changes nothing: %+v", m)
+	}
+	if podcast.RelevanceScore >= album.RelevanceScore {
+		t.Fatalf("the podcast keeps its own relevance: %d %d", podcast.RelevanceScore, album.RelevanceScore)
 	}
 }

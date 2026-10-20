@@ -107,3 +107,9 @@ func TestAudioRelevanceWeighsPerformersAndYears(t *testing.T) {
 		t.Fatalf("a query without a performer accepts any performer, got %v", got)
 	}
 }
+
+func TestEditionLengthsAgreeWithinTenSecondsOrFivePercent(t *testing.T) {
+	if !EditionLengthsAgree(568, 551) || !EditionLengthsAgree(60, 69) || EditionLengthsAgree(60, 71) || EditionLengthsAgree(562, 210) || EditionLengthsAgree(0, 60) || !EditionLengthsAgree(3600, 3770) || EditionLengthsAgree(3600, 3800) {
+		t.Fatal("editions agree within ten seconds or five percent, and an unknown length never agrees")
+	}
+}

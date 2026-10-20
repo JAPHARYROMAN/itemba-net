@@ -43,6 +43,77 @@ type playbackSnapshot struct {
 	Source        string  `json:"src"`
 	Protocol      string  `json:"protocol"`
 	HarnessState  string  `json:"harnessState"`
+	// The audio page's fingerprint work: pending, ready with the
+	// fingerprint, or failed with a cause. The video page reports none.
+	Fingerprint      *lens.Fingerprint `json:"fingerprint"`
+	FingerprintState string            `json:"fingerprintState"`
+	FingerprintError string            `json:"fingerprintError"`
+}
+
+// fingerprintGrace is how long a confirmed audio sample waits for the
+// page's fingerprint when it is still pending, inside the sample's own
+// deadline. A variable so tests can shorten it.
+var fingerprintGrace = 4 * time.Second
+
+// fingerprintFailures are the causes the page may report; anything else is
+// recorded as failed.
+var fingerprintFailures = map[string]bool{"fetch_failed": true, "decode_failed": true, "too_short": true, "unsupported": true}
+
+// attachFingerprint carries the page's fingerprint work onto the check: a
+// ready, valid fingerprint with the status computed; a ready but malformed
+// one as invalid; a failure by its cause; pending as pending.
+func attachFingerprint(result *PlaybackCheck, state playbackSnapshot) {
+	switch state.FingerprintState {
+	case "ready":
+		if state.Fingerprint.Valid() {
+			result.Fingerprint, result.FingerprintStatus = state.Fingerprint, "computed"
+		} else {
+			result.Fingerprint, result.FingerprintStatus = nil, "invalid"
+		}
+	case "failed":
+		result.Fingerprint, result.FingerprintStatus = nil, "failed"
+		if fingerprintFailures[state.FingerprintError] {
+			result.FingerprintStatus = state.FingerprintError
+		}
+	case "pending":
+		if result.FingerprintStatus == "" {
+			result.FingerprintStatus = "pending"
+		}
+	}
+}
+
+// waitForFingerprint keeps reading the page after a confirmed sample while
+// its fingerprint is pending, for at most fingerprintGrace and within ctx.
+// A pending fingerprint at the end is reported as timed out; the confirmed
+// sample stands either way.
+func waitForFingerprint(ctx context.Context, browser playbackBrowser, snapshotJS string, result *PlaybackCheck) {
+	deadline := time.Now().Add(fingerprintGrace)
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
+	for result.FingerprintStatus == "pending" {
+		select {
+		case <-ctx.Done():
+			result.FingerprintStatus = "timeout"
+			return
+		case <-ticker.C:
+			if time.Now().After(deadline) {
+				result.FingerprintStatus = "timeout"
+				return
+			}
+			var response struct {
+				Result struct {
+					Value *playbackSnapshot `json:"value"`
+				} `json:"result"`
+			}
+			if browser.Call(ctx, "Runtime.evaluate", map[string]any{"expression": snapshotJS, "returnByValue": true}, &response) != nil {
+				result.FingerprintStatus = "timeout"
+				return
+			}
+			if response.Result.Value != nil {
+				attachFingerprint(result, *response.Result.Value)
+			}
+		}
+	}
 }
 
 // verifyFreeMoviePlayback proves only that a short beginning sample decoded and
@@ -266,7 +337,8 @@ const audioPlaybackSnapshotJS = `(() => {
 		playbackRate:a.playbackRate, errorCode:a.error ? a.error.code : 0, width:0, height:0, decodedFrames:0,
 		duration:Number.isFinite(a.duration) ? a.duration : 0, src:a.currentSrc || a.src,
 		protocol:window.__itembaPlaybackProtocol || 'direct', harnessState:window.__itembaPlaybackState || '',
-		seekCount:window.__itembaPlaybackIntegrity.seeks, rateChanges:window.__itembaPlaybackIntegrity.rateChanges };
+		seekCount:window.__itembaPlaybackIntegrity.seeks, rateChanges:window.__itembaPlaybackIntegrity.rateChanges,
+		fingerprint:window.__itembaFingerprint || null, fingerprintState:window.__itembaFingerprintState || '', fingerprintError:window.__itembaFingerprintError || '' };
 })()`
 
 const freePlaybackIntegrityJS = `(() => {
@@ -379,6 +451,9 @@ func runFreePlaybackSample(ctx context.Context, browser playbackBrowser, source 
 			result.Detail = "Video did not decode and advance within the bounded playback sample; playback remains unconfirmed."
 			if audio {
 				result.Detail = "The recording did not decode and advance within the bounded playback sample; playback remains unconfirmed."
+				if result.FingerprintStatus == "pending" {
+					result.FingerprintStatus = "timeout"
+				}
 			}
 			return result
 		case now := <-ticker.C:
@@ -404,6 +479,11 @@ func runFreePlaybackSample(ctx context.Context, browser playbackBrowser, source 
 				continue
 			}
 			state := *response.Result.Value
+			if audio {
+				// The fingerprint is evidence of the file whatever the sample
+				// concludes, so it rides on every outcome below.
+				attachFingerprint(result, state)
+			}
 			ownedSource := state.Source == origin+"/media" || state.Protocol == "hls" && strings.HasPrefix(state.Source, "blob:"+origin+"/")
 			if ownedSource && state.Duration > 0 && !math.IsNaN(state.Duration) && !math.IsInf(state.Duration, 0) {
 				// Native track metadata is useful length evidence even if decode
@@ -447,6 +527,9 @@ func runFreePlaybackSample(ctx context.Context, browser playbackBrowser, source 
 					// A recording has no frames or picture to report.
 					result.DecodedFrames, result.Width, result.Height = 0, 0, 0
 					result.Detail = "A muted beginning sample decoded audio and advanced at normal speed. The rest of the recording remains unconfirmed."
+					if result.FingerprintStatus == "pending" {
+						waitForFingerprint(ctx, browser, snapshotJS, result)
+					}
 				}
 				return result
 			}

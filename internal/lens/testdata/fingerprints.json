@@ -1,0 +1,459 @@
+{
+  "recordings": [
+    {
+      "name": "so-what-album",
+      "source": "synthetic",
+      "title": "So What",
+      "creator": "Miles Davis",
+      "mediaSeconds": 562,
+      "fingerprint": {
+        "type": "acoustic-bands-v1",
+        "frames": 297,
+        "seconds": 28,
+        "data": "AWX2owFl9qP/HQZa/x0GWv8C+2UAAvvlAALr5f/6GhT/+hoUADV1ewA1dXv/rExI/6xMSAggv18IIL9/996AgPfegIAAU0e3AFNntwBTZ7f/yxSE/8sUhI+d6+uPnevraFQYGGhUGBh2bv//dmz//1FigABRYoAAuLz4f7i8+H+nosdAh6KHQIegn0fh23+/4dt/vx1DAIAdQwCA4s3H/+LNx/8aLDQAGiw0AIXXywGF18sFdDQ4/nQwOPr0Kzj++dP///vT//8EMgAABDoAAGp0//9qdP//WUyAAFlMgAC5o3P/uaNz/4WbCgCFmwoAgpqF/wL6Bf8C+gX/+gX0APoF9AAFNXt/BTV7f/ysSED8rEhAB1euvwdXrr/0xImA9MSJgIvr19+L69f/C/vX/2gYMABoFDAA1jpweNY6cHgxqU9HMalPQgNWt78DVre/+sWEgPrFhIAFGzs/BRs7P/zYqqD82Kig/NAooOGrX1/hq19fHWLAwB1iwMDy5keP8uVHjw4UtGgOFLRoAAn2EwAJ9BP/+Qvy//kJ8j8Z6/E/Guv9Pxr7/aDWGASg1ggEU6vH/FOrx/zKYjQDSmI0A8X16//F9ev/NAwYADQMGADo/P3/6vz5/8r8+f8YhIUAOIaFADl9cv85fXL/p0NOAKdDTgBenr//Xp6//9GRoADRkaAALixZ+C4sWfgvIF0A4eNFBuHjRQb547r5+eO6+QUahgcFG4YHun3//7p9//8mRAAAJkQAAF+vHx9frx8fwIjQ0MCI0NDDyNDQB5cvrweXL6/0cOhg9HDoYMuT1h/Lk9YfOHIx4DhyMeCbtd//m7Wf/1gsIAAYLGAAKaPz/ynT8/8p0/P/5UoKAOVKCgA6tfX/OrX1/6YsDACmLAwAV0///1dP///EyAAAxMgAAIvVx/PL1cfz6/HH8zgxNAo4PTQKz47rxc+O68Uoahg8KGoYPDc2eF83NHhfsLFHoLCzR6BeWLnxXli58VfGgQ3BxoUNwcaFDQANMt4ADTLe/+suEv/rLhIAF0+vABdPr//0yGj/9Mho//QoaAAEd/f/+4g3AAR3yABrdlcAa3bXAGt29/9YULD/WFCQ87a9YfO2vWEKhYMeCoWDHv2L///9y///BXoAAA0aAAAefT+Ann0//559v/9SRKAAUkSgAC6x0/MusdPz4Y1KCuGNSgr44vX9+OL1/YaeDASGngwEWV6MBjlawH85GsB/JxY/gCcWP4BOLx//Ti8f/8mg0ADpoNAAF1Pn5xdT5+fwyiQU8MokFAH1i+sB9cvr/Qw6Gv0MOhj9DPoYAuTj+QL04/n+DJoF/gyaAQAdXbIAHV26/9MULv/TFCYALi5fAC4uX/+hoUD/oaFA/6exRgBXXq8AV16v/8TRiP/E0Yjji6/384mv95p5YBCKeWAQfXLH/31ix/9ETjgARF44AAOmR+Czp8f8s6fH/IqUNAOKlDQDBen7/wXp+//9GQoA/RkKABq6tf8aurX/1iYsANYmLAAuWdeDL1nXwy9Z18PgxUQ64MVkOjxya+U8cmvlo05YHKNOWBxWrr//Vq6//8WJgADFiYAA"
+      }
+    },
+    {
+      "name": "so-what-reissue",
+      "source": "synthetic",
+      "title": "Track 01",
+      "mediaSeconds": 560,
+      "fingerprint": {
+        "type": "acoustic-bands-v1",
+        "frames": 306,
+        "seconds": 28.8,
+        "data": "AAAAAAAAAAAAAAAAAAAAAIDz+feA8/H3gPPx0n6KCQi2qs0sAWX204Fl9rN/HRYSdx0GIqhC22VZgvulVPoKVKN6GlSrM30r5DV1e2Y1dVuvrExJ2aysTBswvFHOUL55YM6DqjMmkpWYU1cnJFNntlvLNIRXyzWFjM03lY/dy8prHAk4aBQYKCvU6Kl2buNNdm77ulFimXRRYqVNuLzqcri87XOHooZNh6KSUrHZebLh23q5HUMFhB1DBIbWQtTb4s22leLNZykaLMVXGiyoWsXXOu3F1yuMNDDIlHQwOGrrd5Uh+XNSzQTS6sYGkqU9aV1dS2p0xDBqdPLyWUybUolElue5o1OjuaNbmYWbKkyFmyKU0qTltoLapS96FTRZuiTUVtM0aKRFNXt6pT1rdbysSEK8pVtdB1euqwdXrrn0xIiEdcSJiovr14uLy7aMaDhxcWgcUDuVNmZLljp6dXKpWV1xqVVOcKVNdoNWtqoDVra6+sWEmZrFiYQFG7s8BRu7OPzYKSP82Ckp6ZvelumrXlEVYkXLFWLCzCYl0vXy52du0uWHjg4UlEkeVHhTmSnWswcp5TM22QUy2Tk78j0a+10/GuvVoNYIpKLWCCxLI5RsU6v3ktOrZyVKYgRrYmKkp8W1S5XF9XtRNAyoajQUiOzK5PHl6vz9yziMhTIYhIlUOXN2qTl5csqrbU6mp0deMKdTUtNenr1OXp69ZNGRorHVlIqdLShVti0sXaji40FO4uNFGtXiqd/547rXDQqWJQUajistbaZDun321bp90lYmRAuqRkw9cV+umJ1arp6exIlWUMWJU1NHTy/vhxcvarTw6WE0cGilexJWtcuT9erLU/VqOLISWTSycaSbtbyq27WgzFgsCzEYJNVLKdPjZSnT67TlShLa5UoSSxmVE0Q6te31OrWt3KYsfCiuJDUqV07Kk1fPtlPESdXixEpY2uuV56vrlcfrGHE0MhhxFDKNyspiz67qjWpu6s0oahl0Sao5Ljc0bTM3NnLRsLNFcqCiXa1aWLnRXlix8cHGhS3BxokZbQ82ycgNMt426y4WVOsuEocpUxEhF06vNRdObFr0ySmy9MmqtklLKszY9tNbdy71H1mVNVBqdNaIanb3t1hQkndZUJK5nbUc87a1WfOmu3EKhYsGVJiLGPWbYqX1q252DUqktg068SmaebQLnn276lJcKyZWXKazLWnT1y6x09susdtb4YVKImCOSpTw4vVt+OL1dY6eDISGrhwsOVrMujlayt4nFjclJxJh2k4vHXNOL1sryaISXcmhkS4ywZNWF1PntxdT57fxyiQE8MolVGHtyzth9Uur3Qw6mJ0MulmqrPXZAvTj+X4Mmin+DJopbk9yqmodXbpsHV0yt9MUpkfTFKJILi1ZQCwvXr+hokevoaBElFccrKhXXa9XxNOKd8TTieN20bXzia/X44ntt4o5YDKKeSLSfXLpSX1ymq1ETie9RE41a7MnV06zp8eUmpS0RoqUFK1z5bmwBen72UXp28r9GQpnvSpKFRq6tZkaurWp1iYkZtYuJHovWdabL1nWk+DFRELgRURqNGrntDpya+WjRllMpV5YFMWSSJRWrrbtVq6zb8WJgzbFiYUU"
+      }
+    },
+    {
+      "name": "so-what-vinyl",
+      "source": "synthetic",
+      "title": "So What (vinyl rip)",
+      "creator": "Miles Davis",
+      "mediaSeconds": 565,
+      "fingerprint": {
+        "type": "acoustic-bands-v1",
+        "frames": 318,
+        "seconds": 30,
+        "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQ89XtEPPRyVTLkUWumikjSqRuu2Fl1tOpZeabvx0mSp8dFmpKkvvldhL79eSqSlSO6gokOTV1hVQ1dXqrJFxaV6xMSKLMZFkKqL6CZSi+tPNWi27KTKNZ0NNXt6RTZ6cfyxSEZ8sVla7jKsqOndq6aVQpWWkUKUlWFNpQdG7UqnZs1VdTYKxrUVMVM7i+6na8vMZsg6KXSZeiq4vB2XG24dtisx1DCY0NQxWM0qKNVuLNptXizVerOixk1zw2CaOF18tJhZcbWnQwOKR0WqhFqSciaemzTLYWUsiJClJVW9di1VJ6dNqUS3zi7ElMpahajJojubNrTbmjYyqFmxKihZsarULMJVWiy6WpqlNUkkokxFZTsmZkVT16fawkWmm8rElK1sq9VYZXrbWGVqytdcWLhXTFlp7LW7ZTi7u1KWgoUpJoTFCz1rpRbJc6e2wwqUxJcalbWUlLfYZDVqemg1a3urrFhZRcxoathRs7u4Ubuzl82CimXNkpptnrVVnpq1lVNWLCyhViwsbporT68sZmrtalR04eNJVJKkQVdSmJ2rM6ieaTXbkpUtJZNXI+2ruVPxr71aFWKAyi1ghUkprVLlMrVrLbo0a0ymKlT2ojlaLF3SqxhdWq1zQM2VFULGmu6uzlmOrs0eoYlKUUGJStHTl1Wis5cXbap09O1adLSiXVU5YtXp+2lF6duprRkq0m45GhWy8sVdiuLlWkYOFJKuDlSVT106rV+dO22QUqhiMNCoptyZyYlrp1s6u+fetZJkRMlUJyiuparp1aW68dncSI11TMiVNVh9Vta4eWrmp0ceikdHFppapxqNvL07Way5OUpDiycmU4UnJa271EOdu9mS0YLKG2GSymy6nDM1ap02uy5UpSbGVKoqEpzaJpOrXdTKokXRKmLGzqVlzStFbPSJtWzZTTxUme5cXJqlwrtddLq7XHS1hRNKoY1SSqzSWm1c9O6rUoTiltKspY3OyuMRo3N2l0NzZuZbCxVJ/BKpKKW1Sp4VpUsdHFxoUhxcaNKaqNMo2qjTqeK+smUlXrJlJVbSqVrhdP7kjWza6ytMio5TVLaEaEUnWq1raJktvNFW1pydJUanTTwGp09I9ZUrBLWVKRKVS1O/O3tUnTpr1WCoSLErOVo2Xt23VN7ZulmhVqXaIdGipVnnU+OJ59sspWTC6kVkQpqZqt0VsssdPjaJlKquGNSlKl5lzi8MrVjfji1dWGniQkip5srD1Z7VQ9XpMuIxZJlycSPNMvJNqVTi5dKsmhUyjJoJJSjyIZyZdTZ6cXW+eXcMqkVDHKqDVB1EurQeXLy70sOhi1THpY6azlOSLk42W+FLqN3hyaCQ0cw7ZlGV2yVRldupvTFC6qtzUnaCotVWkuLlueoaBCtKPlSipXO60gV96tW8TRil/EUopDa1Tp40mstrOppLWamWFTrGkjln1+hpl9dpzjRFpRMkReUViztqbKo7dGq5qFVS2ahLXN2+mlzcXp2y59WVrSXRkqOq45DM4aur3VGrq1ZdYmJDLWRi2xr1HWi69Z12tgzUTi4M1EKjpm5Iw+emtFo1ZYpKFOWJREqmo1Vq6yrlautTzFiJFR"
+      }
+    },
+    {
+      "name": "so-what-radio-edit",
+      "source": "synthetic",
+      "title": "So What",
+      "creator": "Miles Davis",
+      "mediaSeconds": 210,
+      "fingerprint": {
+        "type": "acoustic-bands-v1",
+        "frames": 297,
+        "seconds": 28,
+        "data": "AWX2owFl9qP/HQZa/x0GWv8C+2UAAvvlAALr5f/6GhT/+hoUADV1ewA1dXv/rExI/6xMSAggv18IIL9/996AgPfegIAAU0e3AFNntwBTZ7f/yxSE/8sUhI+d6+uPnevraFQYGGhUGBh2bv//dmz//1FigABRYoAAuLz4f7i8+H+nosdAh6KHQIegn0fh23+/4dt/vx1DAIAdQwCA4s3H/+LNx/8aLDQAGiw0AIXXywGF18sFdDQ4/nQwOPr0Kzj++dP///vT//8EMgAABDoAAGp0//9qdP//WUyAAFlMgAC5o3P/uaNz/4WbCgCFmwoAgpqF/wL6Bf8C+gX/+gX0APoF9AAFNXt/BTV7f/ysSED8rEhAB1euvwdXrr/0xImA9MSJgIvr19+L69f/C/vX/2gYMABoFDAA1jpweNY6cHgxqU9HMalPQgNWt78DVre/+sWEgPrFhIAFGzs/BRs7P/zYqqD82Kig/NAooOGrX1/hq19fHWLAwB1iwMDy5keP8uVHjw4UtGgOFLRoAAn2EwAJ9BP/+Qvy//kJ8j8Z6/E/Guv9Pxr7/aDWGASg1ggEU6vH/FOrx/zKYjQDSmI0A8X16//F9ev/NAwYADQMGADo/P3/6vz5/8r8+f8YhIUAOIaFADl9cv85fXL/p0NOAKdDTgBenr//Xp6//9GRoADRkaAALixZ+C4sWfgvIF0A4eNFBuHjRQb547r5+eO6+QUahgcFG4YHun3//7p9//8mRAAAJkQAAF+vHx9frx8fwIjQ0MCI0NDDyNDQB5cvrweXL6/0cOhg9HDoYMuT1h/Lk9YfOHIx4DhyMeCbtd//m7Wf/1gsIAAYLGAAKaPz/ynT8/8p0/P/5UoKAOVKCgA6tfX/OrX1/6YsDACmLAwAV0///1dP///EyAAAxMgAAIvVx/PL1cfz6/HH8zgxNAo4PTQKz47rxc+O68Uoahg8KGoYPDc2eF83NHhfsLFHoLCzR6BeWLnxXli58VfGgQ3BxoUNwcaFDQANMt4ADTLe/+suEv/rLhIAF0+vABdPr//0yGj/9Mho//QoaAAEd/f/+4g3AAR3yABrdlcAa3bXAGt29/9YULD/WFCQ87a9YfO2vWEKhYMeCoWDHv2L///9y///BXoAAA0aAAAefT+Ann0//559v/9SRKAAUkSgAC6x0/MusdPz4Y1KCuGNSgr44vX9+OL1/YaeDASGngwEWV6MBjlawH85GsB/JxY/gCcWP4BOLx//Ti8f/8mg0ADpoNAAF1Pn5xdT5+fwyiQU8MokFAH1i+sB9cvr/Qw6Gv0MOhj9DPoYAuTj+QL04/n+DJoF/gyaAQAdXbIAHV26/9MULv/TFCYALi5fAC4uX/+hoUD/oaFA/6exRgBXXq8AV16v/8TRiP/E0Yjji6/384mv95p5YBCKeWAQfXLH/31ix/9ETjgARF44AAOmR+Czp8f8s6fH/IqUNAOKlDQDBen7/wXp+//9GQoA/RkKABq6tf8aurX/1iYsANYmLAAuWdeDL1nXwy9Z18PgxUQ64MVkOjxya+U8cmvlo05YHKNOWBxWrr//Vq6//8WJgADFiYAA"
+      }
+    },
+    {
+      "name": "so-what-other-take",
+      "source": "synthetic",
+      "title": "So What",
+      "creator": "Miles Davis",
+      "mediaSeconds": 562,
+      "fingerprint": {
+        "type": "acoustic-bands-v1",
+        "frames": 297,
+        "seconds": 28,
+        "data": "L99f/y/fX//oINAA6CDQAHRT7P8U0+3/FNPt//LKIQDyyiEAAXV6/wF1ev//TEaA/0xGgABDuIABuEd//7xAgABDv38Drrd/A663fwOut3/6iYUA+omFAAUXez8FF3s//NBIoPzQSKAPLp5fDy6eX+jpkcDo6ZHAFxXr+xcV6/vx8SoC8PEiAvDxIgKcDvX1nA719VPqDAxT6gwMqdPz/6nT8/9lMgoAZTIKAAK1PX8CtT1//iykQP4spEB+LKZAeN7eoXje3qFGwMGeRsDBnrlHc/+5R3P/hTUKAIU1CgDOy/X/ztv1/yoYDAAqGAwAlhkOAJefj/+X14//dFBoAHRQaAAKbnT/Cm50//lhUoD5YVKAALOvRwCzr0f/iok0/4qJNAA1dzoANXd6ADV3ev+sUEn/rFBJ51uwv+dbsL8Uwo+AFMOPgOr9///q/f//mIUAAJiFAAB5ft//eX7f/0UCoABFAqAARQK5/7H7e/+x+3v/jQMCAI0CggAC5Q3PAuWNz/4U7Cj+FGwoAevTlwHr05f9GDJw/RgycB0YMvAau4X/GruF/9YofADWKHwAL14fTS9eH0/o0dCw6NHQsNet7//Tre//smEgALJhIAB9xufPdcbHz3WGx88MNjQoDDU0KAAJ6dMACenT//kZMv/5GTIPOtr1Dzra9eimFgzophYMdl7ufnZc7/9STO//UUKgAFFCoAC4vX//uL1//6eDAACngwAAT6+f/0+vn//IiFAAyIhQABY07n8WNO5/8bKhQPGyoUDxsrFIAE8+nwBPPp//ySGQ/8khkADW2a8A1tmv/rDFYP6wxWAdPXLPHT0y39cjLjDTIy4A11F5+C9cUfgvXlH44MNNBuDBTQYAeb75AHm++f9Fgof/RYKHOLr5fzia+X+nlgcAp5YHAF8+Px/cLz//0C8//1OgoABToKAA7iAgAO4gIAAR3yAfEd8gAC9MX38vTF9/4MvAgODLwICvF5//rxef/2zQEABo0FAAaNDTgRes6/EXrOvx8GKiDfBiog0AHV2yAB1dsv/TFC7/0xQueO7uX3ju719GoKDARqCgwE6iocCtb3//rU9//4sJAACLKQAA1xc/ONcXPzgw0KCnMNCgpwAnV08AJ1dP/+TEyP/kxMh8asvIeGrr13hq+9dHWJgwR1iIMLy4/n+8uP5/g6aBQIOmgUAcXXy/HF18v9PDA4DTwwOALH9+fyxefv8sXn7/40FAgONBQIAGtq1/Bratf/WFiwD1hYsAC5vX/wub1//oWDAA6FgQAJYnx8+WJ8fP8+QUKHHkNChx5DQoD8vaFg/L2hboKBnx6CgZ8RY2bn8WNm5/8bFhQPGxYUDHVry4x1a8uDTHg4c0xYOHNcWHh8vHx//Lx8f/OjQ0ADo0NAAdmzv/HZs7/9RYqADUWKgAKOzd/yjs3f/mosEA5qLBAOdjLoAHd07/B3dO//UFKgD1BSoAaur3/2rq9/9YmJAAWJiQAJ0/X/+dPz//kyEgAJMhIACvU9//p1ff/6dXX/9kxEAAZMRAAPn7H//76x//BBrgAAYa4ADLnf//y53//yhUAAAoVAAA"
+      }
+    },
+    {
+      "name": "freddie-freeloader",
+      "source": "synthetic",
+      "title": "Freddie Freeloader",
+      "creator": "Miles Davis",
+      "mediaSeconds": 589,
+      "fingerprint": {
+        "type": "acoustic-bands-v1",
+        "frames": 297,
+        "seconds": 28,
+        "data": "5eT4+eXE+PkcHIaFHDyGhQwBfUIAAX1yAAF9cv/9AQr//QEKnA7y/ZwO8v1T6g4EU+oOBCw3f/8sN3//o7BAAKOwQABeXr8/Xl6/P1xevi/B0aCgwdGgoP/uICAAEd4gABHfIP/uId8BrdvfAa3b3/1hQkD9YUJAAvJ9fALifXz+HkVC/h5EQv4OREIIA7O3CAOzt/f6ioX3+oqF5wX16+cF5esU/BwYNPwcGIvt//+L7f//aAwAAGgMAABoan//dvb//3b2//9QkIAAUJCAALl88eG5fPHhhwKNHYcGjR0IAX0CCAF9Avf/Qv73/0L++cG6//nBuv/5wbr/hT2GAYU9hgF+8sH/fvLB/0EOvgBBjr4Arp1f/66dX/+KUxAAilMQAJevrf+Xry//lS8v/3Ro4AB06GAQyxZ/v8sWf7840UAgONFAIAMrt98DK7ff+uKEQPrihEANzcpPDd3KH+wUOeDsFDngbBQ54Hcv//93L///UKAAAFCgAAC501//udPf/4VKIAAFSiAA8vV58PL9efAODEUODgRFDg4DTuYIA67nCAOu5/f6ihX3+ooVAHT2ywB01sv/TLC4/0ywuA6tXXwOrV186YsTA+mLEwPXlS8f05Ot/9OTqH8ycmMAMnJmgOXlePjl5Xj4HBxGhhwcRob4+Ll5+Pm5eYaFhweGhYcHePL5g3jy+cF+8vkBBo6FPgaOhTcBc2bnAXNm5/8LFhT/CxYUDzXbyw8128vorBg46KwYOBdYbHgXWGx48MdjRvDHY0bwx1dOAAaurQAGrq3/9YmL//WJi8eLl9fHi5fXNHhwMDR4cDDLynjwy8p48Dg5Ro44OUaOGBmxfh8cuXkfHLl50NOnB9DThwcvK9PnLyvT5+DiShTg4koUDx3diw8d3Yvo1BR46NQUeBTr7fgU6+3/FOvp//KiIQDyoiECAWPm9wFj5vf/GhYE/xoWBAgFavoIBWr69/xYiPf8WIgB5rt9Aeazff0XiwP9FYsD/RWLAzpr5cE6a+XBplgcPqZYHD5fp8/PX6fPz8CUKCjAlCgoAeoT1wHqE9f9GfIw/RnyMP0K8vEC6vT5Aur0+f4YjIX+GIyFA813cgPNd3L6KwUO+isFDmW3y/9lt+v/XDA4AFwwGABMUHgPp0///6dP//+UyAAAlMgAAHp0//96dP//SVKAAElSgACuvV//rr1f/4mjEACJoxAAF1np4xdZ6eMXWenj8MUlGvDFJRrHhvr1x4b69TR2Bgw0dgYM62v//+tr//+YWAAAmFgAAHij4+d4o+PnR5oaFAeaGhQHmgoUB53N6wedzev0VCwY9FQsGAup1+MLqdfj+GU0GvhlNBoAOrt1ADq7df+mKEz/pihM/6YpXABc0bkAWNm5/8LNhf/GxYWPmXLij5ly4mhXDh5oVw4eFm84fxZvOH/RYKeA0WCngOCh0eMusdnjLqHZ4+GNRRrhnUUaAHLy5QBy+uX/Tgac/04GnACm728Aps9v/5YJCP+WKQgJi/cXAAv31wAL99f/+hQ0//oUNB8du+sfHbvr0NQoGNDUKBgvr1//L69f/+AgwADQIMAA"
+      }
+    },
+    {
+      "name": "blue-in-green-short",
+      "source": "synthetic",
+      "title": "Blue in Green",
+      "creator": "Miles Davis",
+      "mediaSeconds": 337,
+      "fingerprint": {
+        "type": "acoustic-bands-v1",
+        "frames": 82,
+        "seconds": 8,
+        "data": "AF1+vwBdfr//QQCA/0EAgAClAV8Avfl/AL35f/6CBQD+ggUAAVqevwFanr//FlIg/xZSIAAs7l8ALO5f/6KhQP+ioUD/wT9BCEE/fwhBP1/3vyCAIz8goONd3r/jXd6/msFBgJrBQYBl5uf/Y+bn/xoWFAAaFgQAzcv7/83L+/8sOggALDgIACw0eYDX6nn+1+p5/jAZRQAwGUUACAG2+wgBtvv3/YYD9/2GAwACCfoAAgn7//35BP/9+QQPjtkFD47a9Q+O2vXoahYM6GoWDBeU6eEXlOnh8HKlHfBypR3//3EGAACO+f//cQYAAI75A+N28gPjdvID43by+hsGDvobBg409WvwNPVr8KyMWA+sjFgPU2e3/1Nnt//LFIQAyxSEAAXry+YF68vmBevL5PwaOhX8GhoVAA2dmwANnZv/7FRY/+xUWA=="
+      }
+    },
+    {
+      "name": "blue-in-green-full",
+      "source": "synthetic",
+      "title": "Blue in Green",
+      "creator": "Miles Davis",
+      "mediaSeconds": 337,
+      "fingerprint": {
+        "type": "acoustic-bands-v1",
+        "frames": 297,
+        "seconds": 28,
+        "data": "AF1+vwBdfr//QQCA/0EAgAClAV8Avfl/AL35f/6CBQD+ggUAAVqevwFanr//FlIg/xZSIAAs7l8ALO5f/6KhQP+ioUD/wT9BCEE/fwhBP1/3vyCAIz8goONd3r/jXd6/msFBgJrBQYBl5uf/Y+bn/xoWFAAaFgQAzcv7/83L+/8sOggALDgIACw0eYDX6nn+1+p5/jAZRQAwGUUACAG2+wgBtvv3/YYD9/2GAwACCfoAAgn7//35BP/9+QQPjtkFD47a9Q+O2vXoahYM6GoWDBeU6eEXlOnh8HKlHfBypR3//3EGAACO+f//cQYAAI75A+N28gPjdvID43by+hsGDvobBg409WvwNPVr8KyMWA+sjFgPU2e3/1Nnt//LFIQAyxSEAAXry+YF68vmBevL5PwaOhX8GhoVAA2dmwANnZv/7FRY/+xUWAAU6+0AFOvt//KiIf/yoiE+OWXyPjll8qGnXA6hp1wOpaccDk9Wv/9PVr//yMWAAMjFgAD1+3//1ft//xEKgAAxCoAA8s2f3/LNn98OLFAQDihQEA4R1xMAFeerABXnq//xJGL/8SRiDxrb9Q8a2/Xo1hgM6NYYDHcvL/93Ly//UKDgAFCg4ACwR+fPuFfHz7hXx8+HxDQoh9Q0KMcL69fHC+vXNPoYMDT4GDDLzU//x81P/zQsqAA0LKgAavbX/2r21/9asPQfWJCwAFiQscC5cXn4uXF5+IcPRQaHD0UGABy6vQAcur3/04Yj/9OGI8cuvlnHLr5YNO2DxzTpgcc06YDHyvX9/8r1/f84kQEAOJkBAA1a3v8NWt7/6xYSAOsWEgAXHyo/Fx8qP/DQpaDw0KWg8CjDoQAs29EALNvR/+LCTf/iwk0AcXTiAHF04v9NDJ7/TQyeALJ9eACyfXj/jkNG/45DRg+euL0PHJy9DxycvejTk4Po05ODly+v/5cvr/9w6GAAaOhgANP3///T9///MhQAADIUAADFen7/xXp+//xpQoA8SUCAPElAgACzuX8As7l//oqFAP6KhQCNbfLBjW3ywWsMDj5rDA4+9ZX///WV//+RcQAAkXEAAJFxB4Z64ufGeuLnxgYaFDUGGhQ1Dx3byw8d28vo1Bg46NQYOBcvLD8XHyw/8NCjoPDQo6DwLkcnAC5fXwAuX1//oUBA/6FAQJxevL+cTry/U8mDgFPJg4CvDz8frw8/H2DooNBg6KDQYBZebAgWXmwIFF5s9/FBYv/xQXIPPpi9Dz6Yveihl4PooZeDNN9v/zTfb/+ywGAAssBgAF1Pv59dT7+f1yigUMMooFDDqKAQABdeLwAXXi//0NGg/9DRoAAn7k8AJ+5P/+QRyP/kEcjGC6/Xxguv1zXoYDA16GAQNehiEOvz5//r8+f/GhIUABoaFAAFxZrPBcWaz/w0WSj8NFkoCAgn+wgIJ/f39+QI9/fkDPPL6hfzy8uX88vLlwo6OHAKOjhwvXV//711f/8kTEAAJExAAE6en/9Onp//yZGQAMmRkAAVp6v/Faer/xXnqv/xZGIA8WRiAAK6/X8Cuv1//iiEQP4ohEAAT16fAE9en//JEZD/yRGQ"
+      }
+    },
+    {
+      "name": "so-what-expanded-mp3",
+      "source": "archive",
+      "title": "So What",
+      "creator": "Miles Davis",
+      "url": "https://archive.org/details/milesdavis-kindofblueexpanded",
+      "mediaSeconds": 568,
+      "fingerprint": {
+        "type": "acoustic-bands-v1",
+        "frames": 318,
+        "seconds": 30,
+        "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAnwpHjS5uklVq7rdVaqzFak0NWqZVU1pRstcbR3bXm29ElWTYiSlkkKkqZamXDiTph0121bVpVNT1akkqV5apKaWqiyIolpsiW7Ka7Ru3iKX4UpiqGLaZUnqQq3Pojzjo6o9w6ObpWpSVcEsGGTSbBJsQnXobK5s7GK6TCXn0qQ8L0aDbqDBq8RiWat14M2iyODNjMjqzYrIlxJasR1SLTEVUq03JTKVFyUSlS8VUbKvHVHxFSVSdU8dSnIPIM4zNRrJtdUqqdSVIzVy8ZVVsvLdVXLWm1p1HatacWblJZNq5SGVKuUlkpDtGrFJDRrlpgmezbfu1ok3dlcyUTEjMlLxbTJKVqMyWZclEtbzZRbK8yN2WrClMiIzazZisnq2cytEpGlFi0iEVKVIlMWlSJVNpUpUVJVKWNSUxsTUrMaVVKq2yNSKuEjNztjMzUrYx5QzKpsSlQsbFpVpFTa1KTEWtWdXFnNqVVay0ucWrKmpFmrq2zIvZZkqrpWZKrTq5bTU6udUUMvKU1NNSxNVTVky1TKRJKEyJc0tNObNKNVGO3q1mjp6tpmlbTTlzaFJVU2bSxa0kxtCTFSpJ1SEq25VpUkuxaRZZcu0WVbNbl3u7W7U7opQhpUWkxsREbDnFVSQ5xVKtSZlEpMa6VKTKtlUlRUZU5UlBVJzKXEzcza7I/K2eUqOpQ1UlSmVVZVKWVR1SJrUdUlKVEVLukRjSZbVVUuExFtYh1W6tIVUorqI3ItJiU2cyblEtNopqpzGma6bq1nKmytWVRJUZdMtVK1THTSpqlSlUj1j1t48YraiJGxFLcyry2nMmstaSJKbNPGs0siVLNObFjUlpW6TLWMqky1lsxk1VdMVNRUSVSSSLe1J5qyiymZs4tuo8ezaypUI0psWEWVncvclbT7XJPOmUSS2plFJNzJ1WxdClSkVTZUpK6G1KTXWs1k2zotZWUyd2WNUtdk3VpXJV1a121XOtVsu1Z5JQ0KOSRVNlsSEhKzYartorNq7aqzlYoq3NdudUR3blTWdolMmEizZy1bsq8tWLKJKZjUiTSu1IkqqWSWUqVpVlEFZVZVMGUSV12c6apMmKmq6pKuKKVnFlMRI1ZVVSES1VGtVtNRZRFVMq0V1SSlNU9C7S3XYqUKXXVrVlUw5S7TAuNKU1YlEt0SFUpKlcduRWXrctUi6xbVRm8WTlZvds+mb1bPJVFUlVmRpJHYk6myiZuVswmalSMJZKpE6u3q3e7t6t2qqQqV0zEVIlVS1WMVUtUjATImLGMkKkx67ercvu2q3dotLpZzNjVucvK1JqUybSbjEs1h5xJVLWc2c2bnNnLm5TZC5FlJjSk4yY2ZaMmKmarJspmbMrVmMza7ZjI2KyJFWlWYhVpVqSRJRKxoiYkomLqIerumq3ubpqtjspnIUszb1JzMydOMXNvTqFzZTZgc282a7cnNqlzJzb1dy9WznZvVu4VyFU0hZCpEduTqRvJlaq4mbWrM5mxmzFhQRTJatKaym5WK04qUqlKajItSSpSa0XpilrMrYra7K1q1I75tSUTUVUlE3L1JVCyVSUystUnMzJVFzSWVSZaspTXVPIU1lFWipaTUosmT1YLa0lyqyaLcq0nTw6VZ0EKdStXClUpU6p1Z1D2s2Ms9rVpEJaVS1U",
+        "variants": [
+          {
+            "speed": 0.97,
+            "frames": 309,
+            "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlmsrZbdHVlWrS1VdKUttqi60mrXRtKmj0nKJ1rNaiUVNlXaozLU0udW1NVMDhzNsI6aybnq0q1uayS2x88VMshxZTJQN2VR1FNjVdFRaTXYM2VSoLMlUkSVHrHplRzx2alYtUhu4o4KVuM+KXZnLnbylS528Vs6tjNrUlWwr1Wt8uzRbtck1XZ0ZMVqdGTGb0tmpWeLqzKYiqlWsZOrWrWWmUqNjKiajo2quHWWqLqPjKtZSainWLKVZNmSrXTVULWqunSqqql1Tpqpd8mLNJ7JryqRdpTKoXaU2q1WktlQTotZbKWLVNalTWTXVmlWlTqpmyWYsbtpWrSJalqyqSq4sJknWTGrbXkzqyoZNZs2GTVTJ5k1Wy7loptMbtGlRCpSrVTmVqVEZsKlJWpKZWjq1mNE6tFbSCpNW2hmxUxEZLVsRWaptWurSrWLq0q0iJtatJm7WrOkqzq1CYtZbUW7VnTZq1VVOKkVlNq1NVWIpSprcPpKY3FKSmltScikz4lKtdy5e4oWppWKokaWkWNStFmLGTlbWpU1WnbWNKKkpkiknSpJpJlqq6Sg5qqdoSrSlaVm0iSk4tJspmU3bPZFN2p3ZqRCdarIhYmqyXWJqkhzlKLIszWq2I1pqdmVaKrKmomqypKFqTmUuZk5kzmR1VM45s5bie7Knckq2qVI6jqs2WoqrNlqoqVWajWtxC46pMQqKZTFYlVaVOJFnUjuSWTLJkplWJXGYyjUS1fIxEmXTyVNVm7pkqg1eY6YkqWumrKeKatrHjFSV1K2G1TmVeWo5kmlq2RNVZh4lmlWSpZph4satrClSZajlUmW5LkNkurZqpqqiqqZqSZypLEmcWVzevVpVHiWaVdKhm0bmzq2p5k5kmqfKZJplyiyqVMqpKmhWqSZpVqUqKDalGikyiSpp1Wkm6dGpLSq2qSxo1qlja9KZKurUSSUplasqOFO5aiuTqXU5ljoSl08T25ZJU9vocVTlNnOlYrpipKopWqSrWZopMkmcWdVFlUqVVqRpRWqkKWeTKZKUkymSmJsqkqmbKpaqbMdJZESVbVVfOZabiTqympkalqqZKpaqj2quqJt4jqm1CY5qtStKqptYdqqFOJYplWmSqYs6cqqxKJaqsSiSyo0qkm+OWzYpllkyqJZ5FmKyarZrumq2a8qbNrLEnSaMzJ3JmsrUqZpsnKmcTStSpbZvVq20b1at1aiTZVq1qRIKlKlSaJKpGkkzUSVTb1blt29W6dVrVu0ZsWs1G7WrMxuxq3aYs2s2eLarKjizuyY5s5c3KbIXN0baqchGTGjKxkxUzcZNlM1Ztas1GbVbNVm1WRZq0qzKKtKtaiJKrWpEzMhMTdTN3d01W9UVtVIVZs7kqubOraru3pzmbsrsRObObdnmTm3U5t5sRO7WrZ7O1K2aKJqpWisrUmWzY1IlcydRszNjVWOyYzZlMysqY9WtLpVUrVaUVK1SlNRtWpRUrNaTwhS1m5sVNVtb1TmVY+papCuqWqJsqkqiZapKYmWqTmxsqj5b7KrMkmUpLqKlWSyspRUtVK1WzpxtFlaVbVbNlCVqzpWVas6lrepWrL2qSupNac6zRmXWIsRqsmLkKtZt"
+          },
+          {
+            "speed": 0.98,
+            "frames": 312,
+            "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAnktSlaJuU1Uqa1VVaWtFqmy0mqixlaohUlKZ1ndSmWWtlWa4iaQmmtmlJYkChzJEg4cyVXu0q1ra1K2r21dNoRxbTKIM2UxhFcnVZVxa1XZMmFyKJYhUmX1JzJNkxyxoakcsalM4q1KVuNOCVZhLvJQlyr28RsutnNbVlYy51VV9OzVrrLg0Vb0ZNXmdGTGbmBkxWdPcyF5j6tWmIOrVrWVmQqctKsKi4qomHWNqPqFlKtZja2lWQuQZTiwqWTVUK1k2FG2qqpzipqpckmaqVKJizmY9YzKo3aU2qt2lNiKVpJp6U6LWOiFimSWhU1kl3Ztktk6qbtp2bGbakt1i2qas6squrCbJnkxu2p5M6sqmTGTJpkxUyedsVslZMabRWpSrURq0q1U5tatZCrOpSSqzmNI6tZjRWrRW2hqTV1oZsVMRGSlbEVmubVLq0q1iqtKtImbWrSIu1qzpbs6tRmLWW1lq1Z02atXVTmpNpSZpSVVmbUqa2a6SmJm2kppbUlYhcuZSpVduUuanKK1qqbGtrHjRjRpCzs5W1oaOVp31LSaZeVIpZmkyaScLFGloOaqnSFs1pylLNKlpOTWJaZtNmz2ZTdq52alanWqqlUJq8ktiapYc5WqyLM1qtqtZarZlWioyptZqsqalalJlKWZuZO5mbFTONVEWyruSp3FbsqkSO46rNjqOqzZKqqlW2qlpcamuqzE7imlRSLFUsUmVV1I7kWsyOrKbdlGSm1IlcpDyMTLlkyk6pZPa0podNmVqZH5jZmyrSyZbz4xqk8eMRpXUtZrsObT5ajmSmULdMZLVGiUa1NKlWqph0iUtLVLlaGRS5RsuQ2W7tkslasKLKmLJvKqNzZza3B49kvWarRrV5sFbCuxObSmmzmVa58plmmXKrSplzqlmaNapZii2pWootqVaarKJK3lVaSarVbltaxapTHlWqUprUplO+1RLRTlTq2I4UblqK1epNSlKKhqmTxKbpktSm/ByVNV3cmViO3Nla6lKpSrZmqmzWZzZlcWUyNRAhOpUauVqZldxFISTKZSYmymVqYsbFKl8xkqkZNVqVl85VJWbOpWZkTq0qJEatamVWrSpmxiMqpVIjKmVC01qrVpMqpc4tWuXaZWrmSp0qLk4taixSJSpiUqUzI47NWKWOTUrpjk1rLJqtGs6YqRrq1q1c8SdJY7MnU2UyJSpmsyUqZpNa1Kt129WpbZvVq2VaVbtWamrVQiUqRIolKkSaxKxa1kjUmUXb1bt929W6XVpcuUZsak1F7OrMpmxa1ZasGsuerCraimzmzY5s5c3rbqTu9bc6MrGTGTIxkxUzdVNls0ZtWsxGbVbNVa2qVIq0qzKKtKtaibarErE3MnMXXRTlR0lUxVVvVKd5t6s6ubenabu3pzmbs5sROZObdnm3mzUqt5sRM7crZrMlK2aKtqpWCtrUmU3Y1Jlc2dRczJjVWMyYzZls6sqxdWtJpXNrVaU1K1SlFRtWpTUrNaTwhQ1mpMVNVsb1bmdQ+5apCuqWqJsqkqibepKYmWqTmxt6j5T7KrMkmUprqOtKSys5RUtZKUWTpRtVladbVbNnG1qzpSdKs6lrWpWra0qVm5dqsqjVmXSktYqsmrsKtZl"
+          },
+          {
+            "speed": 0.99,
+            "frames": 315,
+            "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAnMtSlSpu01VqavVVSqqVqkydGqp1VSphktKbRnbSm2eMkWT4iS1smrktZauHByRUh0d2VfdlZ1Z6tCmq25apqTSaiKIMmpqrHZnKbZy6mXX8ethiGJrYmm3Zyonkx3ho5Mc4alskK1IdOCGC3RnKnJ05j5WcJ8u9PMbSjQ2T05WteLVzrLgyVTzaMF28OzGSuDkxk5O5pVtDxNmsZc7dpGru1q1rTtqjY8Ymq+fuNlVrbjajY0rWUupp1ivsKa5tYjm1VWrMtpxqoiqctyIqXbJW2md2QtpmWeUkqJmtpqu9pCY5W+a+WmNmuiujYpMtu5MSrd6ybspMauzSdW1s0pSVLNKkjOXWrMxk07Ws7NauJCzMjMxk3KzMVMzMSVbPUXFncRe1q3U3talVMaWpVRKyu1kws5jRMbWY0VG1VOozs1dSEXETERFpWxnSvO1W5papYuyWrSZl1u0mbJas4WbOrUZk1ltVJMydLmyVVUpsjaUmakmVZmrKmplukpqZtRZS2pT2Y3Lm0qNWbNqspEusLKlTDS17sR2bYo7anOaOikyn7UsquXFkoVJRMuVHq3RlSFObKUgTNStZEXUzCbE1V1kzVRNVs0mSuZtJEpnSjFVGZLbDZmQ2VORlplTNYralWWa261pkNK1KZLSqpSR2rKVkzG06bmxEzm5TVs5xE5dxcTOpKjWPqxYxjqs2WY+pVlWLKXWxnKtRMY67ITWqZSlRkVSRUbJ1UjcuW2LVJ5lmbOWYjmsyorIzuuKbsaKWk7TVPVVWR21kakNnLC8a7LOPjOi1zY2KpFO1k0ozsvNa0zKXWh0xsrUcKSrUxMNLbGPWxW3r1tUoZkbFG3RDRSokU1Vqi5t4JYu8ut3brJrVHDky9ZYhKpXFhUsa7M5Nee/OzTrtzs0qKc51SijWVUbw1pVOcaaNSmi2jStyVpVLMVRxVvOzNUrTdLVNcVW1RXH3lVbz9XdVMXOTSzj1mUMLd7ElMWs2GqbLArquyoq72LJMzXZ3dUN2Y2UrKFK1Cru6+pObrLqby6ya3M3Ei0TtxKtmllV1tBb5VJgWGVS7ixk1qdmGiqjthKpGaTX1lZY7VJmyOzSoUhM1uR5LNKk2myyqKktNqA5KzGguStyqMnE1axYxdbsOatSoKhkUqCFVNKkxSpTJHnJ1Zh47dSo2OTTsJnq06yJipupyUrTr1Zs1jZ2dRUyIvUkayL0pGk0cqVxXStZl7k5WzaxOVt3ZSRNlUaWrMBC1iRJJsKlaF0JxZxLPVuWmz1bp5EpW7TEme2Uzk6lzF7OrdpGxaRZwtasqNba7KjMzlydzM5clUlrb2oTM6dqMTKTcjExU3ZENW2UxtWsxEzFbNUa2qdpmxi3KYoItYsyazEqM3IvanW2TlRttUxXVvUqZ7J6s6uyenObt3pzl7c5txebebd7u1GzV7NxspcydiZrInamaKRKuTFdjVmV2a1aldmdR8yJDVKNyYjanU6qqxZ0Np1WNrVdU3Y3TFdzN21VNjNdTxzw1MpY1NTKbkbXdW+xaxGXO2ubtStrq7WrKYu1qzmztyr5S7cqu0m1pLqvtKWylbLWtbWw2SpXsNl6VrJTJnWwqSrScKs6lrUrWrCla1ko9ycqj1mXCsvbIskpMSFJt"
+          },
+          {
+            "speed": 1.01,
+            "frames": 318,
+            "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAjBrFTS7OtuVqrqT/ap7kmk0ZGyRNUVpRsuEbTXbVEy9Ul07SiSpslKkqZZCTKiyuBw1m1YdtdNX1aVaqFZKLKqWuiy0YkosnG7Ka6nuzqOmYcIiqGDK5SnuSqxK5l4llyo947eaPWPWVcE6FGXCrBasQn1kZK5s6WK+TGjmsqwoZUqrqqVSq9tgyZupbsmj6ODNjNTqrYyMlspK2xVSbXUdVq1jV1K1KyUylVsVUbVZVVXwqRVR9VkVUnOXW04zV2LKtSUaqZalKzVSoRVVcOpVVbLq2xZwvRtWbT3lWbVG5SmTWuUplLbtMrNZjRqxWQuazagLns2v7FapK3VXMkmxJzZS8WUSVlUjElWxYRZWc2US3vYrdtCzpTIiMmqmYrJipnmrRTRYVYtajtSlSq3NpVqNTa1aTNSVSl7UlMaNVarEj9SqttDVirrUzc7Yjs1K2M9UNWqTUpVLF1aVaTU2lWkjVrVnT1Z1ahEWstrJdqyps1bq6lEyLyWRKi6XESo06uW0lOjnVFDqWlLzTVkTVU05EtcSvSSpMkXNLTDCzSyTRjN6tbo6erSZom025cShS1VNm0kWtJNbUsVVWSFNhSlmVaVLTsWkWWnFpNlEy27Zzutu1OzMSITpVpGbE1WyyxNUlOcNVZFmaVSxGu9SkzrVUZU3sVWVFQtVkylLMnMlMzLztnErCrZRXZUpj1SVWpVVdUiVVHVLttRVSrpVbUuqxHNJjtRdSIzVmqePRKq1odSrO5VcusmRTJTakiuUxlWqmq8RqpsrXkqSK13VJFRrUxVUofMdNaEqUqVWPGO0qqVuJqrFrEcFzKvLUUySy1bRitKs8SzSqpUs06MOlS3lbpMtQyqTJV3THTVVk1UlUjRVQJJs6UlmLKJKbvXu2qjxrNqqlQjTMzZxZVdy9yTRPlMk0yZRJVamVUk3QnVZNUqVKVddtSlRIZVJV1aTWXbOi1lZTLVLYVa02TdWlMlfVqbJJ06zWyvFnElRQpzLVUyWzpbMutlqunis2rpqrNlDirctk5VRFduVNVECUyZSTNFLHuyry1YsokpqtSpQK7UrSq5ZJZSgWUWUwdlUlUgZRJVXZDpm0yY6ar6kq4qo2cWUwEjVtNDI1JVQ6VWVVFtUVUyaRHVJKU1TUSlbdVS5Q7dVStSTSDnNtUg4Q7FVqUS1VY1EltVtVZNQeti1SLLJtUmTyJVRm9WzSZvVO1lSVbOWZGm0dqTqLOJm5WzWZuVM1kkpUWaberUro3q3artKtWjNRUmtRKVYlUSlSJRclUrWSRqLKptqtyu7ardoq1q1SM2LWa7drVuMvY1btUWbWLbFtVtz1Z1JUc2cubHNnrm5TdDaTlapSlayYqZGsmKmaqpsxijNr1mMzarZrtWRSpFWlWZRVpVrURJRalImYkpmbqIurumq1K6tapCvNncvUzZ1JVM29Os3dlUqJzZzZsty826rMnNqpXL1bTd2tWzVZoVu11jGk2pZKpEpmTqTCZtai5mbGbMpkxmzGq1ZdA6taayqZWq0oqUq1KKjZpSqpSa0HpitrNjYra7alqlMrxdSUSVVUlUXJVJVFy1SUxMtUnMjJVFzW2VSZJkpTXUXaUllbSip6yUosmzlaLa052i2bKdqsmTs61Z1qKtStSClUpW0pVZVG"
+          },
+          {
+            "speed": 1.02,
+            "frames": 318,
+            "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAznnmaS7Opq9ujqyrSpbqmksRE0RtaRVTs2lTTWTFEyxGl1ZamSpk0alqaRCrKmqmBw5m3UctZN31aVSQNZJbIqeOiWUosokhG7KY6juzqOq5sIqt2DK5Ylmyq1f6kYsCSo947caPUPW1bF6VGXBvRqswmyG5Mps6WQ+bOnism0o5sakqGVaq1ulyaJZbsmi6eDNqsTqzYycqq2KzpVScPEVVq1nL1KtayUyFRstVpVRG1Ww6RVR9WstUnEfG0oyl1FOsWUqybblGummpStVcOkVFVLq3TVS5psWSTkTXlU05WmXQuUptVrtIbCkrRazWY0WtZELms2p7NrNLvRTMisxU3ZNsWM2VvUhElaVY1ZWs2UyTvNnUtb3L1LRMiM2IjJqpmqyYqZpy0U2mNWrWozVpUqvzK1ajE2LWk7UlMpV1YTGjVWixo1UqrbQ1Yq61MnK2I7NStjPVBVrE1KVSRdWlWk1NrVpK1a1Z29Wc0oVVrLay3as6bNW6qpRMi0tkTpqrxEqVNLltJTS51QQytpSs0lbE5VtGTLXNrlkpxZFzS8iys1sq0YyarWyMnq0uapqtsmkoUtNTZlJFrSTSxZVV0khzVU7RlWlK0rVpEtNzaTZVMpu2eiqbtXuzUiU61RQqhNWl1sTVZDnC1STZmlVkVppU5M61VOVKvVVlRULVZMlSzJzKXMycyZxK4q2cU2cu4tVlVtUNXVKldR1WbZUVUm2tEVKqlVrW4zMdUmM1FNJj0S6pYvMqqqY3KtZlV2U2bJMlNpRqrzGtaibq1mKmyte1pK1bVMlVKnTHTShSl0lYjxT1NY8YrSqpWwmrcyrS1XMm0tSTJKrVPGO0qiVLNKKFjVVp26XLeVqky1JMpMlXfMdNVUTVDSSFFVQnkzjSmZM4spu9e7SqPUs0qsWSN13MndlTzp3JNE+UyTTJlFlVqZ1SVdKtUk3SpUpV0G1KNE5lUlXTpNJN06LSVlNtUljVrVLO1aUyVdWssknTrNZKc2cWVFCnUtVXJVKtCy50Mq6eKzYumqu2UOKtS2zlVEV25U1UUrTNVLM0UseTOPLXiyiSmq1KlCrVStKrlEkjLDZRJTAmVSVSFlElVVsO3TXJjpqrqWqqqjZxZTQSNW00MjUtVDJVZVUWVV1VNrEdUmpTHdRqUtXVKpDdVRZxbNJK8yVSFlLtVSJxLVViUSUVUlVklBz2bFo8tm1TJJJlVWz1bNZk9W7WdrVs1pkWbS2ZGo0ZmTkTNZm5UzXZKVM5klKkSmjerdpo3q3artEtW7NRViFRKVIlVSFStZYkYtq2TqTK7tqt3u7ardIi1q1KM2NW6y9vVuUXYtbtsWTWXLFtUlRxZ3Zsc2cublNkLm6VtVKVrLrRlayYqZqsmKmas1tWqzNq1mOzarZr1aVatFWlWJZUhUrEiJSanYm4l7G6arcrOmq2K6tapTvNnUnUzZ07XN29OM3dlMiJxZzZsty826nNnNqJ3a1bTZ2pWzVRNVK11lakypZOpMpuTqRiZsaq5mTGbMpm1mzGq1ZdK6tabyqZWq0oqVq1KKjZpSqpSa0HpitrNjYrYralqncrxdS1SVdUtUXZVJVFy1SUxMtUnMjLVHzW2VWZJMtSXUXKU1lbSipa2VoqmylaLK052i2bKdqsmzk61Z0r"
+          },
+          {
+            "speed": 1.03,
+            "frames": 318,
+            "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAy//Af2zOtqtOnq6qUpbqslsVFURNaTVbo2lTReTlE61utVLKmyqtcZFKbXOzSmsShw5m3UcNZN31aVaUtepbIneOm2K4soktG7KZazuyqOoptYqtmHK45FkyqVP5EqkiSo9Y0cuOeO3UrFqlNXFHBTlxnwW6M5d7OUqXOnisn1o5rakqGVOqqrl2atZZUmiqerJq+joyYzU4ImMzpbOStsfVu01FVKtYwdWtWspMpUZHVE1GxdVcOtbUXUbKVZzF1lOs1UiynFlWsmqpWpRtKFVVVTqFTVS6ps1cqETFms9416VRu0plVLtKbVarSWypJ0WstkbFqmpCpzJquzarS71UzZLMWN20rMjFta1axJVFWc2VndhMk7iYVbS8GdSMDJrJkEyaqZrM2K2WMuFNprVq0qMVaVarcylSozNo0pM1JTKVdWkxozVqtaNVKq20NWKutTJqtiOzUrYz1SVaxNSlUkVFpVpNza1aStWtWdNVnNaFxay2st2rOkzVqqq0RItKbFyaqsxSlTWxXSU1sWUlMbalrNL2jKVa5sylza5ROMVZc1vMM6NLKNSNmqysjJytrGnarTJrClJTUqRSTbdk0k23UdJQc1VO0ZVpTtKXaVJSs2sSUzKrNkkim7V7Mtu1OtNUKoTVJdbE1SQ5xNUkOYpVZFma1WzGtdTkSrVVZUVK1eVJQlTcylzMnMmcyLipnHLnLdT3ZU7jlWVSpXddVm11HVZttRVSrLVa1uMzH1ZjF1VSY7UmqWPzKq2qdSLSJXcktmSTJTakSucxlWolK+ViJcunUrWrNzVK1DusylTIdMdMWFaVTbWPGMkkr1iNKrFrNdtzKPLUcyXS1bJlpus8SzSqJUo0xsWNW1lapctQyqXLc1yFSXVsxk1URNZN1Jc3VkuTObK5uzm2qzx7JKolSjaqxYLXFdyd21NNnMk0y5TJNMuFW1XJlVJd0K1STdOtSlRQbUo1SW0SRdOi0k3TotJeV21SWNOtUs/SpXJV16yyS9Oo1kpyZ1bUUqdS01YnUqsqjHU1LJ4ntiyWpbbS4qnL7udaxXTlS1RStUlWkzRSR7M502WbObOrrUmUqtVK0su1SiLIJlMlMCZTJXIWVS1VMhStVcmO0smJauqqNnMtNjJ1JTQyNW1RsnUtVRqVbVUWcR1SKpMdVCpWlNVOlpVVFnFs0grxLVI+Fu1UNnVlVWKRLVNi0SWVHPUsyjw2bFIkMm1VLPIszWTVbNZk1WzWVzVtZYk6TR2ZOpsplalTNZm5UzWaVqVKrt6tSmjerVqq2q3as1FWqxUpUiURKVKl0yVSVpZGokqm3q3Obt6tUqrWrdozYtZrN2tSYy9jVu0TZtYtsW1WXPFlUtRzZyZsc2aublN1NpONuVGRjJjZlYyYqZqOmy2as2tWYzNqtmuzarKt1aVZlFWlWtRUlUrEiJWQmZmpl7m6arcrOmq2K6tahTDNnVnU3b07zN29Oc3NlNiLxZzbssydWanVrNiJ3a1bPZ2pWzVRNVK1VlakylbWpEpmTqVmZsaq5mTGbMpm1mzGq1ZdK6larSqZWq0oqVq1KKjZpSqpSa0nhCtrNDYqara3qnUrx9S1SVdUtUXZVJVF21SUxMtUnNjLVFzW2VWdJstSXUXKUllbWjJYyUormylarK07"
+          }
+        ]
+      }
+    },
+    {
+      "name": "so-what-1959-aac",
+      "source": "archive",
+      "title": "So What",
+      "creator": "Miles Davis",
+      "url": "https://archive.org/details/miles-davis-kind-of-blue1959",
+      "mediaSeconds": 547.76,
+      "fingerprint": {
+        "type": "acoustic-bands-v1",
+        "frames": 203,
+        "seconds": 19.27,
+        "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMnHhzfKT1VXamtVV2trZqyVlKqp05SamuJSmVSCUplFLZVmqnWlZphUpGSqo4UyXaNFMl1atKtaGtrdsh3KVaKketWgrdlNZeTaxGMVStVxPQirdlyZzI2lSVzlZccsbmzHLHZbOKuSlTirg5UYy52tVdatXMZUjZU21F2kudF9rTjTrZ0pNqSKGS2UmRkhUZ0VIVnW1c5e4qrVpiNq1a4tatau7KbSkuTmspJlKiKqq2q2YqratqJimk6qbBo2ViseXmSjFa6souGpbNRmvlUUYslSO2oiisulNprkpaaspam+Uluh0jMB0pklqcJZJfwqVrZ+bGbKlGxm2qpd5dKmpWXZZiRlyi6MrlqWrOZVycxmzMZMVMnmbFbJF2mnURa1qVVVlWk1GbRpURqzq0o5tKrSWZSa0hqyVskak1bJGTFbWZEpWxXctV1RatKrYmrSqSZq0m0iJlZtQm5OpEoq1q0pYtasOi7WZMruzpTmakqdVR1KlMlVpJS44bWU6qJ1aVIqUqlSalrmpU6OpqyVjK3pgc2eUobNVtKGjla39Sp0qStKqUZJdqlGGXRJWWuxSUhbrOtKGRSpSCqVm0oRTZs5kU3audktmrluqbVGZrJbQiYSlMZqlmTWarIrWmqya07uNq0q6pasrRqyrK1mdmXF5nZUzbdSVsbzkqtyqJZpUqmSqTJKiqk0WoqpNRqKqLVbrZrVemppUfpuVOn4TVkyuZJrMrWSm1IrsZdSd5eWsnG3pbM5MqWSrBCVXdpCqm1eY2ZsoUsma86MSLfHjES1Ua1apHmymUo5trlavTGRWd41GvXSoVqtadJtJilS5Vak0uUaakJ2q8dLJiqHm6ZsOp3JdS202dUbPZrV2j0S1dWlWo3kzG0mrsplWufOZKplzmyqWVKpSmlOqUpptqtZa7GtSum2nU5rqp1TGdKZWltSm0phVblGK9WpWlvSqxZbVZlYqVK5SeQ2qW0tJblKx0sSnsbLUruk6lajMHRtQjpTZVurUqUrybSJrHm8ybW1vImUeqRKVFzGamQ=",
+        "variants": [
+          {
+            "speed": 0.97,
+            "frames": 197,
+            "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM93R3KlV0ZypVdK8zyqu43IrK0I22yN0+NqibcVSqMuNJU2SLi1Vl3LlzJpSyezanqko2qy2EyVjFlclRQ7RJC12k10tFlVUx3b1XOMiKxwRNlNlxVLzHR1R6x8dUesZkq4L4KMuCuLrahKnYTE1Z1M11WNnLfVbbRZ0X2VWDOdmwk1lNoZuZScHbFRFVUpWWKmTqaiqtWuJKpWrqRmUpaspjKSZKYiqmWiNmqjmr6qqprWqmwaPqYlVn7ko1WmLKqpKS7Zpi51nGLNNjVqVspCpTbK7KWypK2hNm65mVY3CeNdtUljWaV2GuIrNixmStUsbspGXKFYaqRlySKs6VqWXOpazu1myOZNZsbmT1TOlmiUyRqxqxEWtKtVKbRrMQmQq1o6sqtKSZSa0mqxmtkqs1bJGbHbWZ0tWxXRoVlRatKpYirSqyYq0m0iZlZtQipOpEoq3q0pZtatOirWbErq1pTjZlKcUxVSnc0apJ0uaa0Y5qlpabKmSqmzJkqmRVaWpkzZlJXpxUVUscZNVJO2TlbeNI6rKlmqq2ZasmsqKbJJbDqpSWxatatqSbWralqJiSuZLcs93S3avZLJFVIi0hFCZjKUwiqyVMYqcmtealJrTqqSrSrqlqyuWrKsrWZWZOXmVmTNlnKWzqqSqzKptqtSqbKrUmqKqWRaiqt1Gomq1ViqW1FqblTZqmlWqemxaxLplmlSJZaZcmaxlTI1lZVqOZVla6lSVWraYmqVSmOqlK1jppLHiFSTx41W1VSsSNU5lYlqOZG5armxmWveNZpd0qGaVWHCrJYp0mWuplJlqipitqrCSqay1ojGFDmdydSllFlU3T3bXVotmlXSoWyV7sqspudOZJolymSaGMKpJmjWqSpkzqsqa7GrKeqyrSpotp0mKsqZLlrSmyprVplqatWpLmvWqyUZ16tkqtCpKupSqShsp9kt14VVm9dNVZukaVWTKHIqojpzpqorUqYq0ZRJTTmdWWwtlElNfqVJjUqnSZU="
+          },
+          {
+            "speed": 0.98,
+            "frames": 199,
+            "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9nV1OvV1VTp1tVUzVqqq1YpKqs2aSJ2sJqibeKS6sqLJV2SLS1VF1TlDRbQ5czbkuks06y2EqpnElMsRwpTJKUWUW1tNlNU2xK1XMd2LxwTNStlxTZTK2lR6x0ZUcoblq0L0KeuKeTlfjMm60kzZ1MVFWNnbdVbbS5VV20WlOdlSkzpIsarYSZGbGRnVWxWVKVTl2iqlWmIqrVriRqVq6k5tKSpKYqkmWqsqqjajZio9q2qmqa1qJlWjZWo17eZaKZqqyjpSlsnGZOFbRqybYrqTLKQ6W2yuylNiyroVZSmZPVtUnj2bV9ClUlthpmSrYsZkrVLGXKZl2lym6kYUkmjOVazpym2q2s7qnmTWbM5kxUyZdopMkasatRNbSrNVm0a1EakKtIOrKqylmUmtJas5rJOrNWyRm1W1mVLVsV2bFZUWrSqWIq0qsmatJtImZWbUJqTqRKKtatKWbWrToq1mzKatac6q5anVsdSpTFFqSUpOm1GOphdWmyokqpMy5KosVelqbM0ZSVaMVVlNLGTVSXpk5W3TSOq2lYiqkmWrKrKgmwSSwqqEksWrSrakm0qWpasokrmU3LPZFN2r3ZqRQdarIRQmayVUJqspTGKrJq1ipSa05qlq1O6pasrlryrKlmVmVm5lZkzaZyVsWrspdSq5KpcqmyqVJrqal1WoqrZVqKqrUaiarVKq5ZUapuVOnpaVsQaZJrEumWaXIktZUydZOU8jmTdWs5knVqqlJXjVpiqpVaY6aUhWqmUsaMWJfGjETVWK2a5TmViWqpkrlqmjWbbVolmlXSoZpVIVKtjq3aZaouQiWqKmK2usJKppLTjMoUOZ1J1L29WU1aPZtV0qUaVeWhbJbmzuS2505kmiXKZJoY0qkqaNapKmTOqypqsasq6LKtKmiunWYoypkuWtabKmpWmWZq1akqa9KrJxnXmS2q1Kkq6tKpIG2lmSnXzRWb101Vm6RpVZMocqqiOnKmKitSpirRlElNOZ1ZbC2USW1upEmNSqdplQ=="
+          },
+          {
+            "speed": 0.99,
+            "frames": 201,
+            "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM5nx1eqV1VXq1tVVy1LYqxVpKqs1aSJ2spSiVWKWqlmLY12qrWldLlVtFSqg5cyTGM0sk56pMurnMtMsQxpXJKcWUW1tdlNU3TK1FM9StxxXZSttVTbTKulS0x0ZccsfHxGL0ZauLOSlLipgqUoy51NRVatnfZWjby11V2kSNOdlWkypZLZNKRbGSmQnRUxUZbVKVni5s6moirVpqVq1q6sZtKW7KYykmWmoqrtJiZqotq2oqLazqpkGjambVp2ZKtWrq2iqamu06WuZJRmzRc0asmSS60yik6ltqzspDZkm6HWUgHz2TUBwpkl/SpWpT4sZsqWbGbKnWyhymbNIclqpGXJLoxq2s6sqlqlbGal5k1WzOZNVsmXaKbZGrWpUXW0aTVJlGlRGrKrSjmwqtpZlJrSWrOayTqzVskZtVtZkS1bFdmxXVFq0qtiKtKpJmrSbSJmVm1Cak6kSirWrSlm1qw6KtZsymrWlOLqWp1VHUqUyRaklKrltZjqYXVpcipSqXMuWuaFnq6mjNWEhWXFxZRSxk1W1pZOVtW1rqipO46pJBqyqSZJsUkpOKhJKFqoqylJtKloWrGJKplNizmRTdq53amQuW6ylUZmMldCZrKUxmqybNZqciteKpJrTuq2rSratqypanKk7eZWZM3mdlTNt1KXUuuSq3KptqlS+bGpNUqqqSRaqqs1Womq1SmuWVEqblTZ6m1UqemxaxLpkmtSJbaZciqxlzIxl5XyOZNlk6lSVZLKYmpNWmOqbD1jpmrHikbrxoxEldWtWtU5sZloOZSpKqmSlRveNZpVWqUaZWOhrK4pVqWWpdJlni5CJKpKYiaqxkqmKlqMyyQpnVnUnb3bVVo9klXWpVtN5cltpubOZJrnTmSaJcpsqljSqSplzqkqaZarKWqxrSrosp0qaaqdJhjKmSpa1psqaVaZZmvVqSpq0qslGdeZaKjQqSrqVqklZaU5LcfPE9/WT1PbpGtW0yhybGI6cyUqK1KlKsGUyU05nEm0pZxJlX6kSlVKp2ll"
+          },
+          {
+            "speed": 1.01,
+            "frames": 205,
+            "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPgH8cPKbs1VSqrVV2qqt6o1VSqpk1UampLWm1ei0pNVDR1kqH0tbKlVLWSqoyYmUaNHJlXTZWVXU7LZqhyamKqdepmoqJirZuyKymscs5pluRKtYt2oWa0om4ipaM9YaGyOeG7bZWtCG3krixzaTZKdBY2VRMySlZ2mkpU8a9F1LLDVtZ0SNrWmmTKMuztxmhkzYVMWs6VZRs3OpmZM3aRtStatakzSlmrGUpZtxiKq7Wyuqma8ZmIivKaq6hy+pmy++mRivU6tRzUlrKdBNmSY1lpVXNLbUkdppoqtbS6urMomrFOiulJTh7otg8KTLeszEql8JMzSXGzs1p1obNaqXWJSpazjVWSsolasnORSnMzs0czM7MzMzMTMrNqG1TkxY1FFJblRVyDbNTMk+1Qzo6lWEaGY1nGlGNJRI1zZMSJXURFzmxGTaxsR0nNZWmS0qyZllOskZNZtLmydZUZFjKVIZIyNK+7erDgktmXK7JyV7k6MnUdarJLJFTWauaN0lW7iUWtaTNVjdkyS5KRNBOyItS2oqKNsnESO2IyyjIzIpu0KyrkxHbdFUW11RBFk1VlTMVFZUpTzW7N1MUkyJzFYtRcRWbNZmzmbW1K50pslEmSkE0ZtZFzERKbczmS24t5kpGNW5CXlTsSkrK4UpKSxZNTtbuz25M0s9kbO8SUXatd2uXLzNLsSUzO5FjUPu2UxDWktMZGqlVOcmRFQ3MTp0NlW6XMzayL3JOtqTyUbakm1lTJzq4K6e7LimnOkkpqUUp1FlEdtZVrjZGSPWvQqjxzopcmMyqVxJZLIczMzWnMxE1q9cbbZnGM04ZdjKW1DtU1WapTFWmzGRStMw2UjpNNVarMdmGxTPbs1ayya3J55stWdezLRpUNLFe2eTWbOnM0664zMrnGMUWshlRVKyYtVSWGjU0nwtZ1K0Gc1SmGPNVIxpTVekfa1SuXhlU73o1NKE6dXVzGjtVnRpJlZyHWZaWlLsUqni4K+rpqKu+jSiqN0ZXVGdONlY3LyZSODOLaIWzi6uTMsmpC9TNlc3c6LbA=="
+          },
+          {
+            "speed": 1.02,
+            "frames": 207,
+            "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADKrs1lSq6NdWqstVpVUXqKk1latJbXG5fi11tPLJVk2G0oLLF1aKS6hy4k06dPZtXXTWbVdbCZKhqymSqYdpkgqbCpYWiSiurqs4qiORG44ZkqWSUps5tPateY6OqPWNnarVqclXBnJhtwWWYZVJU5CImrG5uuq1k5aqq7Kregq2gwpVs4U2sItDNbKLkzY7I4q0KzJqqcpUdVq0xVVKtNSFSdXUjMpSVZTFUlyVRlXVtUbM1HtW1VRTWNRcq0fWxKrd1dVqtsnFVSYt2zTFyNOsyabXrUlVSFSm2UjUtlyMlIZM1zYqy2U8a7a4PGs2nqNaJJbDnElrzo3Ja6WUKW3LlCtVRIwpNFm9S0rLnElNva3DPMmM2MzJytnKzRKRI1Y1YjDSlWpdNo0mUzIFaylWVWknMpVaM1KzWl1WatkTUmrpIzc7YzO1K2I6RqSqTVpUbEVaVaRcWk2kTMrNqM1J1IlVWtSkPNrUpkVazJlMWtOdbMpSlnKqU6mTVZOrnTWjnc0lLSbEyU03ZMlUSGbS1MqbUpSJqzKSSIipqpsoycqaZonK0ocR1WRbNVVsUyZNZVUWWS2XVSstm1azbVkys2VZUTMlqzW5Z7u1u1eyKSIjJEpCKFTWWqhdWkKYRUrNGsVaTWvEQkVpzVJVldNSVZW1RsSdrM7MnIzOypmmilLRTVJVJl0yVSJ9NrViNVFVLLtRVWbbVTVa0xGrYrVJTJpdTYrVXSorYiUyTSJsstMuRNYyriaycpZmsq6tZzqsrUVKSLEpTC1Su0x00pSpVpJY1YsaaPGK2osRiRKnMrUlJzIzLWUyUi1bxrtJqlSjSqw0JZLVKly1xNpMtcbMRtRcTHTWWklUgks1uUKlM4s6lbOLaavHs2+qVKJKrFQtkt3b3ZXd68yTRJlMktMYVSTaGtUlXZnVZR02NWS9RjWlTRbTpN0Z0yVbWlNk20pTLN1atSzNetUlwzbVbPNaM209SlElHJZZJByWqyWq+aqz6umqs7SNKrI3jlVUV0501lUqRMlasokppzOrLZUyiS0P1MlRq9TpMr"
+          },
+          {
+            "speed": 1.03,
+            "frames": 209,
+            "data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABKrozlSq6MpWqm1ZJRUVtak1kaVbbJE6fG1VNvKpVKVGkqbJF1aqy4lSqstocOZtWXTWbV9amVGjmymSoYcqkgKLSbIWmwmu/at6qmOxW64BmJVWGpsosOKpeY4cqPWPnqj1jtlXRfBRlwVxYbUJU6W0mXOoisqxo5bqraeXOqumiwpTo4UmcqFpVrCbQzYyE6q2KiJ6pUs0VUnU1XVKtcSVStXEjMpSxZTG0kyU1FVMlMbVRGVVxFRzVtVdU0bVXKtH2sRq2sy1UzWl1XSkLZuMxcKirVmmVGVG2UhUttlNlKZUlbQmytIzKsNgPGu2qTxrNq7DWkT2xZxJSsWM2VrDlTldyKS5NVScqWZTnUtLw5zLVbWE1ZzJqtnMycqZQu0UmSNWNWo+tpVqtTaNZjEyFWtXVlVpWzKTWllWs1s1VmrZM1Iq6zO1u2I6tatiLVY1rE1aVWRVWlWkXVpNpEzKzahVSdSJTVrVpSza1YdVWs2ZTVrSnVzKU4piqVK5s1WSp500s5XdJa02xEltN2TJVUjm0tTbm1KUmQsykohIqaqSKMnKkqaNittHEdVtWzVVbNtWTWVVNlktl1UpLZtWtW1ZNrVtGVYxJWMhuWe7obtXuzUiFyRaQqhEzkqoRMZSmE1WTZrFTkVr1VLNacVS1aVdUtWVO05VHazKzLysysyZos5K2cVSU25NMs1uVTZVKl11NWq7UVVs21FVXrNRNVq9VcsqNUnKnzUNK1Y9Nm0iVTLNLlS20y5fVjK2VrKyvVcyrK11KkqtWUxJUqtMdVKFzHTS2KlCyljRitKo0YiaqxYRHRcytS1FMlctU0azbTvGs0qqVDNKrDpVktU7TLXEyky1VUxW1VhJVNZK2VjChzO5IpQyiyqTt7tpq8ezaqpUq0qs2C2W3dncl0zpzJNEmUyVUxpVJV0a1SVcmdVlPTY1Zb1GVaVdVtOs1VlTJdta02VbalMtXVq1LM161STLMtVklxqzJVVKVSUdll0lHLajJer5qrNq6aqzZI0qtlWOVVRXTnTVVWpEzUoyiSmnM6stlbKJLb/UiVGp1Okyo="
+          }
+        ]
+      }
+    },
+    {
+      "name": "so-what-202512-mp3",
+      "source": "archive",
+      "title": "So What",
+      "creator": "Miles Davis",
+      "url": "https://archive.org/details/miles-davis-kind-of-blue_202512",
+      "mediaSeconds": 550.99,
+      "fingerprint": {
+        "type": "acoustic-bands-v1",
+        "frames": 157,
+        "seconds": 15.02,
+        "data": "yFVlh8UmKaSqrK4qtVbJ1CJ11uRGmUU17J6bAVcTNtjlSzbxuuVJTZyqRC6lF1S2rK6RUuqut3VKrsVqVVVqgnVRarRk1pNnYtaTZ0SXbFidKSyYlSglrbdqJaGnT2ZVt21mVUW6iaoZlpmqmbKZJIiymyursohruLeVZFiRKSYTsKmSq5DKK2iPWOzqjljI6o5ayJdxZ7JXcVNTCTCbFXkpqRQZKKbsKS6nFStRpzU8lZMlFdJUjL0zWNS5M2MzOKtDsydKnDxXVKlNRlSVTUjUrEXVxK0VSdV1pcnUXE3LJF1FSrRJRU00SstKrP1FSs2dZcc1arzVUmqdxFydVUrUm2dm1lqUnUlkmL0obKyVKm3WQyaqUlO2u22z17NtijUiacw5xJasWNSWndlD1rKpQ5aaqUKJPbjdzLzYxJK8Wkyy7M7NlOycrdyK0MkUFSNSIVNjVsVVatY1FSDOtVUlVZU1I1XJNSFVEVVkrtM1IzaqM3O2M7NStjOjaiqsUq1GxkWsW0xErNVMRIzEjUWcRpnFjVhNRa1JbMW1WppNrSmGTK0tRlS1MpnVUDK51VC03tKWU1ZKlVNWSrXMpq1pTKm1TVyZs2pdUo6aqWaMmqmmaRzNOVEdVhJRVVZV0SUWSRNlMklTUSLZk20qSL1hMkktJxJ5u1sXc7ubNXOikiJMQmTCjExkRYVFrVGUTaTRkkSs1p1EJFaeTS1ZVUWlWcVM7OqKTOzNrUzkqY5MpSoi1WVSUlUk1qrVZVJuVS1OlrUdUdUVFVEt0Rs2qTVasrLVGrJhdSjSajUi1vrRY0pmVS0pLnOtM85zpurUcqSK1A==",
+        "variants": [
+          {
+            "speed": 0.97,
+            "frames": 152,
+            "data": "7Lyk091TKTX7RVat0dbSzgLmlWaqXW0V7TpbrWPbskqq0qpQlSXUzdqrTifRE22ylVdXV6lbVV1pW6imNqSqqrakmbqqaolWqkqpJU2tctlWtVRNVpVVSbu2s0wrNLNOQqVNq5TJTLEVy1SUTUlVk1XbTHZUyda1VEmUlTpZFJhM2s2ZJccsZmVHLGZsVC9CWrizmpq4qYuMW9WNtVXVjJy20nWUtFONpEjWnbuZSq2auylMnRmpUZ1ZMZFW1bmZUqrOoqKqVa4kqkauK6rWnmyqklok6r6iZKouYmVarmZsmjSqrVZ0ai1qVkRp2qqdYqWqnqpmyl2iYsknKmqxtE2kNtrUtTbMU5W24iOT1RMh4pm1oeIZpN4sVilOLGZLzmxiylatpcpRrOlJ1SwlR1ZM6krOTO5Jpk1myuZMVsnHSFbJlnGrUTqxqVFZkatJGrBnVRqya0k6larVKrCqyQqzmsoas1taGS1bURmtWxVZsZUaadajJmrWrSJq1moiasZqUmrOq0oq1q0oatasamrSjMqmVp1Dq0qdS2rKlrz2tJa2YqZZa6FSqXOpWq13LZzizUqkIplSpi061W1U8oZNVta2TlaZeI6rKVmqqSYakqkiSrOJKCqgiyhZtIcpVLaJK1aWiymRTZs9mU2aud2plTVhsi1GbpKqxi6yqMomsmjOavZrSmqyqWpmsqyhZrKsxWZ2ZcZmdnTlJlJW1jZSq1JqsqtqapJpciq2pWZqjqdFSqmopXmIqNXajltJeotbOSqWaTFasWs6qpOncju1pRJ5lZj2ORN1cilTZVY="
+          },
+          {
+            "speed": 0.98,
+            "frames": 154,
+            "data": "rLysk9VaaSnrpVYp01aS1CJ20WaqWW0b7bqZiVOTsuirQqpRlKXUTdyrLibVF02ynS9VVqlLVV1JW2ikNKSqqLbkqrqqcplGYlKJZwWdYrmVpXa4VqV1aaOlM0SjNLJNWqTLitrLTLKdyVS0TUtUlS3bTHMU20J0XEnVtVpZFZh0mKSZTMtUcWXHLG5kxyxCWjirslo4q0uUmEudlTXVjLR21WSUpFKVnLXSna0ZzK27mitknRkpfJ0ZIRGdVTFRVuXemuKq3aamqlauZerGpu3qUp8k6jKSZWo2YiUapmZpWqymaZokqq1OVGIpWlaU4pGqvCKmqt6qZspNomLJZg2qMrhdpTa6lrU2TGO1llJjs5UzIeKZJa1CWSXeLFbaTkxmyrZMZsqWjaXalawl2bY8Jse+XOLajk1uSeZMZsrmTFTJ12lWyZdxqVEZsalRWbCrSQqxZ1Uas2tJOpWq1Xq1qqlasppKGrNbUhklW1UZrVsVWbGVGmnWoyZq1q0iatZqImrWalIqzqtKbtasKC7WrGpq1pzKLk6dRqpKnUdu2pK59rSWtGL2WWqhUqlaLVKtRy1e5qXKrCq51KYsMNVtWlKGzVbWto5WnTsObSlJCqkmS0ypJVsxiWk7NItpWSSHKRF0hSoWNIkpkU2bOZFNmrndqZC5xbKlRmqya0ZusqrOJrJoxmq2a0pqsqtKbjasqiayrPVmdpVGZnZkzSZ2VMU3UpdSepKrWmqWaxorlqlyapanRVqNqOUriai1+YybWVqIW2k6slkxapRrUuuza2qasqVWubSWlikVsbI5E2WSrVqVlg=="
+          },
+          {
+            "speed": 0.99,
+            "frames": 156,
+            "data": "rDVlo/UquST2rKYKu1bC1CLn0GTLKW15/RqdEVKbtpqlSypxtLXZTdyqpybVF1S2tS7RUqoq11dKqqWoVdUqiPXVernm0ptGYtKTRkVVZLmdrWy4lallrbMmJVWjRSZVUyWnVlK6yaqd2tioHNpbpEXKTKusmspmfLnapVRJrbJZ2KqYbYnYK2XHeE5shyxOWiSrclt4oyoSWEmrlTXTnL1l0YycpFFlnaZWnY1Zzq2yikqsk0qsXL0ZKVGZGTGR1pG5mdZl3qZiatWuZOrOrmtu1pbp7lKSZO42ouVutmprHqZmbB6sqmgetGpqXpRmap6unOejKpwrRlpc6kbaZWZi2WYNpCaYma0mmrWtJsRjpbpSY7e7K6PCEy2LKlOpXizc0m1MLNaWTWTWspyj0rGsLck+LW1KrlTkUr1crVDuzOTS7MxUzYxJVs2XcatxUbWpVVGVaVUTkWVVEaKoVTO1qtVxtajpUrNVUjOzW1IRIVtREylbVVO1lVJj1qMmZNatImbWaSIkSmtSbM6rSmTOrShmwqUqLJadymzOnUZqyp1GZtJSufXUlrXk1FXK4tKjUmrSs1ZqvmyljQysqZVKLJmTyZpShsxa5syISqU5K20ZKQqlElFPtVQTNJVJa3VDWFNVi1kRVI9KLXWRSbtVkzm7SZI5m4mSvdGtVUZlNmVGZraiyiaSpM4utuVOZLZjSmQ2pW5sNqSlJJaUxWz2ZcZsdlTFLHJW1nVSq1pxsqtaO7OpMnm2pVZRraYFM4mopXGLuNWxjFtJU4pbOVGTeTFxtXtSs7KnclG1pzbxtZbyczejuisy45q0OpNa"
+          },
+          {
+            "speed": 1.01,
+            "frames": 159,
+            "data": "yHttp8UkGSTyjK5qtWatVid1csRE6dq16BqJJVc1MthVSzSxuklJCbqKzS6pN1ZmqZ6RcequpmVKrqSqUxVLGnVTSVT1URKtZtWTb0LVW1idKiyQlWrkuJVqraUnb2bVJk1m1cWpkRqZspsqO7KbJJi2myersrjqObKk6bhTqypVsqkyuZZbc4i1qONqz1jN6s9YzZUoXyWVcWK1GTGTMgktqxkbaaKZKSilKmkurxoIUZsqVpKVSRVSVJm4M3KyOrNjMiqqUjKlSp1FRVWrTEjUrVzFVK0cyVSlPFlUXVTJVH1ESrRczFo1WVRFJWlUSsy9zUqt3KjVM0o41V19acTEnWtC1ZNLJVRslL1KbLS1KmyJlyotVkMmqlZTxrNpg8czabw5pFLNWMSWrFhFlZxZW7WzaUuzumlDi7y51bWdWtSyvMpdtsyezZTsnKmaLtDKMjVjViNTa1aTlWrWozUgzqpVJVWTdSlVq7UpNRVVZK6VNWM2pTJTtquzUrYqs2sqRNOtRk1VrVpF1azURFWM1KVVnUaVxY1aVU2tWFXVtViUzK0phEytLaZUtToZ1VgyedVYNdbSllNWSpVTZkq1xKaNaUyYtUxMUbNMXRSKmqlmDJqpZmyczbnRHVaRk1VW1ZUlFtW1ZRZJVVMS2ZNrCkqRaRJWrWk20zsbNnu6mzVzI1IielNkSozNZNeEVKVVlVVk0YzV5NadVKzWlE0lWlTNJVnCVKU6jMzsyY7M7KmKTKUupFUlVrTVZNK1VWVW5dUlTgjVHU6KNVVRy1MRUKs1GrKS1Vq2clUo0uM1KNZlVSbSbdUjTqVzLSmkc6dq3Wum6tVSpKrV"
+          },
+          {
+            "speed": 1.02,
+            "frames": 160,
+            "data": "SXlpp610WyzSjKxKs2ytlCelIkRFWdrp2BqbM0tXI1hVo3Sxa2k4ibrazUqVVlZmJKaZdCqupq1KtqSqy7FbU3VLUVX1SRM1ZNUTbWbVU0qZGmWwnWqskLVq6qInLmbZZm1m3cVJRJaVkpkiO5K7YBiWqyWbkpluKbKU6riTq2nYkiki+bNpMZm1urNLj1jVys9Y3fioXoW1cW8lN3Valgm0mxp5LqtZOWmm6SkqpxppUa86WrGValcyVtkYM1q5OrNjIjqrYrKlSp0lRVSbTUVUrVxJVa1cxVWtPklUZTRJ1G1Eyyx9zkq1WMxVNWlUQizo1UrcrK3CtV061StVeMVMlTtExZZLRNWTTbtYZbG5am2VtSpt2VMjrEZDJ6pkQ8Uza5pEs0m8eKyW3VjMlqxYxZW9WVu1k1nKs7o4TIutmNW0nNnMkozKzZTMns2SzJipki7TSqI1Y1ajEyNWkzVizqMVYM6qdWVVk3UrVasVYTWVlWSutTVjNqUyWrYqs1K2KrNjKlTTrUZN1a1aRFWs1ERVjNSl1Z1WlEWdWlDVrUhV1bVZlUytKoZMrTqGTJUtGdVoLXnVSDHWUobSVkq1WmZKtc2ujSnFmrVMWNOzTFqVipqpbgyaqWxsnK2xsR1Wk5NVVsX1dVZNlWUSSVVhFln1SQ5Ts2kKVq1pEtI6qxZ7Kps1c6tSJXKzUiqMQ2TShd2lVZRVZVGNVWRSnVSs1pTVJVrdzWVZQtUlOYpMrMqMzOzJ2kzkrahspTak1WVS1dUk0qVVbUps1SVOirVXVUvxE1Gr0Rk2s/UUspJVFLJjdSzWpVUu1jRVZ0plc2kppfMnMexzJurVSqSK3Q=="
+          },
+          {
+            "speed": 1.03,
+            "frames": 162,
+            "data": "2XlJp6q2UybWiq5Jo0zluiatJMxE2trtWjqbMsslJ1jHl1SheE24q7hbqV6lVp5mKibbYSqurq9Ktqq60rdRTW1JVUFtSSV1VMUSrUS1Us0LOuVymUqtMq1qqpqvSmqpRm1kmcVJRpy1kpt2O5KZYhqWqSGasosnabaY7KmTrWq4k2lqdLKpMJm1WzOZl5jly45Y3cqOWM20cVcltXFWthi1lxoqK6sZaemq2SltpSopSKc6WpGZOnUylVk09lLZOjNSojoyYyKtqnOypUudRUVUq0xJVK1cRdStXNtVpDxJ1X00yVR9RMo0XMzStUlM0TRpVVq86MVa1Kyq1yVVOsVLVT1UzZS7RMWSTlTVU2i7WG21uWptuKUqbc3HJ6ymw2erbUPEM0s6VKtJvFjMtl3YzJQsWcWUrVlKtatYw5MsWEqNvLnUkJyY3LJMms2UzJitks6YrZIu01aiNWNSozMjUpOVYM4rFWTOqnUlVZN1Y1WrlWs1lTVkrrU1YzalMlq2KrNStiqzYypU061GTdWtWkTVrNRFVYzUpdWdVrTVnVpQ1a1IVNWlWZVMjSqETLU6hlKULTvtbS155UkhVMLs0vZCpVLmSrXLjp05xRqVSF1xo0xa5ararOUMmq2sbJytOvcc0lKzFVJJ9VVSTZcjElRXYRZRVVkO07NpDlatbRJSKysWaSKbNXM6mzVzu1MqrMNk0o3dJVWMVWVRnExk0Z1VbNaU1WVWnc1lWVTNZVni3O0qjMzsydpM7KmKbKUupHUlVrXVJNK11S1S5dVtToyVGU2KtVNRS/MRUqu1HLaT9Ra2clUssmOVatblVSbW5XVpSq1zay0kci9r7XImy6VatKst"
+          }
+        ]
+      }
+    },
+    {
+      "name": "freddie-freeloader-expanded-mp3",
+      "source": "archive",
+      "title": "Freddie Freeloader",
+      "creator": "Miles Davis",
+      "url": "https://archive.org/details/milesdavis-kindofblueexpanded",
+      "mediaSeconds": 593,
+      "fingerprint": {
+        "type": "acoustic-bands-v1",
+        "frames": 280,
+        "seconds": 26.41,
+        "data": "qBqNKjETDjOxLU51zpVKtVLqypUxYz5yFRU2c5arcpOS6xITE2EaUydi5CUppmSiZrQkosRtGsVNqliVWZHq2latKsxmrh0sWbUbE6mWVKUujmSkxixqxNq1K5NaRarlWm3tTeVWLVxqjCyk6ottouqKfKVktE1FJZSMRWksnylZjJqxaZmi0Ztm7U6qJtkus1rUVo7Y8c7O2OHOKVKNKjIjDjESpS51ypVqzUqlYs6tbV4xFRVe1fTdSrWW7VKXEGMSExFjo1MlTmSs4r4sIsK9aexMdSvkVkW4ZeOyNKVUjRvlIYqWId0UbCbmZizs5q4cZGZ2VORm9Fxt5IZtw+dWrNRquixpqpstKqqbdKNGrHxjZTWCpKqomzjpqpU5ScuVMbUV6so6JKrOSuya1mpcl87KTpeOz2zl6I2o+OmMixszzY6aMcyJatOsryrSK2rljVe1aS9Vs1q2NbMbMTGzGzFCNFpGUlWRRhFTlbYSzZ7SVlXbUmlCaUpB1GUp0rWiOKZSbOVSRSlSKtKo2kle3V7JXZNKrdKkVllFaMoiWm3dYtJt1mLKbqamZHLjRzRjRkZVhOTqvJyo6dKdOOnKrSCbJaLLMiWizi6UWUqOmJHMiJixzm5SrSppa04xTiLO9dLtQuxOpUa0qVNGKYsnFXWuLUb0tG1WtzJjFjM7YpczY4JU69Wta9zUrevUWGzr3Nlkmk1blRQjWJUdI8VNFFXllZ1sKlItpuquZOwqqpzSJptTU26OLSXrrizs47ZtJGuTrTa4mnSjpox8x6VsisTXjYa6OdOHO6caZbemnHDXVuVa5Erlq2gpbZsoy+2a68vummvaNSVSIrXlFCyw63QskKWTStCjkx0wIXRVdS10dS29bKyLs3Vq0827kzxVglUURIR1l0aVJZJElKRcUJfXbZtpSSWLKEgkiQhItMmuTKzJrG1TTtc1UVbXkU1k29C0jc5yxrdVC0uxW2k7mSrJDpkt7o61bTIqpQxt8KkKzrSZKdYtXrU00yYzGdGnM1s1u1hWNFjVGU1q3dZdg1niRoVqY7INpqGXHKWVkTqS1J1KkhivOparoj2ia3Zcra6mpGGuZpSiHlZ1ql+iHKbTii1e0ZqKVJhaq+QYcXIr55VUoeGUbmZerS2PZqZk2SC2dWGqWj2q76ZVXuqaLa6gkjyqZSuUpiMsbMpkvF1JZbQcsSWTJsImgyVCogzlTssNWM3ArArtDrJrMrcxcTSz0LVdE2KMRo3qnuaN2rnKaZCximlgzSzyZMlsamdN7dbrVe2TEtaskirZbPWs3eyWbVqxNmdWMzNjFjNhTKhVzG0oxEStaMXRuxqtpVSRqUW9Y9I2XKTS2nNpc1m1KalpRKVKOpVqxoqVGM7WlRssaJUbqZxqpeEkumrNGwtjPiKLZLJm7HVH11RsxZcViLiqvZ8o2fKdqSnNnSWtLaJaalri2hYy4wX2nuXRztiliY3QrY4pIIloCiVN5g==",
+        "variants": [
+          {
+            "speed": 0.97,
+            "frames": 271,
+            "data": "tI1Wlbi1jxlJtqc6VWprWilya1k6lrUrio61KJtRmxlatasZUrWtGiK2tSotVpVpbTqVYmi6jWoUyXQTHMW1ZytWjSYkyUzYZMqs6G1StOJlVrUqW1WS2ZUq1WYdLlVmbZq0milSlOopQbXh60U1WOJapGti2sWibJbKlCzOStogydLYzTJVJdU2bScZmm0ux0h4xuXJcMe2LVa1uzeHOEtulzU3SpM2pJKlK9q2rTZKTq0qmnarWhq1qxlatYsZErayGikylSHpTpVhLTaF4mIivS5qyr4qLNaMaizGqmgkyvQrYzaUb+s6jOqrOqziqyasIiNGVWFjqpXGJUpUZqVJtGKUSTRrY1I0YyuywW5k3Vqc5O1PnBDtz9lbkvBlpRJQJyVWCG5iLgOHZydDx0WlevRW1Xy4ZsetOlbWTXtZVpVrpldzZKbZVKaYWbSLmMmNGprZjRqq2q2qqWpUqZqpip2Y5gyrnyppqa6q8C2o4rScZVpzXWcl1KyZJrQpGyr1q+iiTaum6glr5uY1YSmm1GXrKramqWE2k6thMuFjLjRjKw61a+sy12ys/k6UrO3OnEyW0yVVEtFlJTbwq89IaObMyHjEpw1WtLc1VzkktWc7OVZjOjVWo3pWaaVa15GteicytLpaMatZGjGLGRs1ixlr1qvlWtSzRhVaddodNm3WbalSbmzJlikc2qypqrWsmmLKdGptOpVjpVKUpuVWitGjTauZLUaU5mvKtG5lWdVi1VE0UlR2PCNDTqVr04rCbJzF0pzUzVbZ0442Syt2qWotcq00bbLNtHVmzKVl5kw1bRrZua268oqWqDO6plhW2aVI08meqFGtqlqWurq1nraWYdm6lUmm3am6Ykl6qmJKuk2iSpJJJkuKqqhLJLbNlCWSxZQkUkyEBF5k1ySfZJcoqZcoGKGa6HlUlqmYZpslKKGJKlWYoRl0la9UdudPVJsH02Qm+FUnZ1pMl2VWrRhaaYMZmOmzGRmZsxqpGv3qqSb97uouzSxzKkI1MdsG0rHVltLKyLVJjE6lSQnVFlF30R7TsrsOttVXarFVJ0JRr4sW1avRLtJJRU6uymlFUogtxVITtroVdcpy0mjSnaevVyrNlXNKMQlZFpLzrTbK8U0GLdVVHlE0QRpTVq5qYzKqSqSy0g5SFNWq4VVFkqVbDjWlZYZtZmhWrFSCGjWZtVq5ipvqWqwboVt2xPRK5+bMWMW06VKFFTVm9hk2ZPb3UqL291GulhkpaVYLNmz2KrZo9Vs2qxlbNasZGrWrGWa2tWotWpXqKFmNQqrajVZkyvCpaUqUa20pVTssyo3YpMqxSb1TlGLFSJRK00iNzr1XjZVdM1axRUo2qhWFsp5jRTHTIlY7Y/OKpGramsVM7NrKVNz9zdSUxc1iF65SLVUqcK2bMnCm5U1UjcXNUIWkqVSFFzVm9g=="
+          },
+          {
+            "speed": 0.98,
+            "frames": 274,
+            "data": "pI1elKgUnxjTZ6V7V2trW3lTa1kqlrUqip61Kptxk1la9asZWrWrGiO2tSot1pUZbVq1YmCqjWIkyW1aXMUypytSjWYiykyYZNqt6C1WtOJvVrWi20mzWZVVk1lVLlRmFTq1meVSlKorQZTmqkU00eLOLGti2sVrrVrMFCzOStgo2crY1TPVJZdmfSd1Gm0ux0hoxsdIcMaknVSUui2XOZsulytWqpMlNFeTV7U2pTrbqq0q+EqnWhq0qxhatYsZW7WzWWmytKbpSrVpqRqV4iY2tS5qpbwqa9qc6mzWiuokymoo1cq0b6s2tGbrWkxq4zqsqqNGrKHsxtVlYyqU3mVKlWWkSbXqFNY0q2tSt2prUsN05OtaHKTpTdAS7e3hWxJyLyVSUK8tdq1nVm5HhkcmQ8dFpXr1VtW8uHZVpRhUpU17SLSde7ZVdHSniZS1icmci5jJjRqa2Y0aqtqtqqkq9u2a6cqVmWaMo50qaaUqqnAloOI0nGVaEt1nLdSomS61KZki9W3ook0vpuoLK6bmNeUoptJtaSoyrmNhNNcjaTLhYy4wY2sWtWvjUtdsrPbOlKz6ztSshVGlWwVyLTc28SstOOntzsjpzMjI2cy3LVa1NLFmszU1Zzs2VqNaRu6nOseppVs1Np76CzGjSRoxqxlbtYsZWzWLRWrGs2ZTWbPaHTpt1m2lUWZtyZJrXNms6aq2rJqiyawqZUqVa60SlK8lVozi410qUWpOlSktRpTuo9q0omXR1VJUNTRTUpY0Y6tKxmqaqsZcnEXTndONNNnTTjhLKvKrYi1yyaRdhtys5ebcLWlGHS1tElO1Fbjzkraot7ot2NPRlTjRyZYYFLae1pS2nqWZPlKJ0ZmJSSZVoromwl6SokqSXSNCmkgkW4qiokolts+kLbLNlCSaTJUknmiXNF1klDlrnygYoZrreVSG6Zhum2cqo4NqRJipGHSFr1R2ps9kmwZTZGbZUZd1OUyXZVetGJj5gxma6bMZWxmzGqkqfa6pVt3M6i7FbHIqQjUzmw6Ss9We0urKrcvMzI1JCNU20XPTMtNzsw629VNOsFYnVtGvqxbVq9Eu1+hFLqrKSE1SyCnNUhG0srV3xnLSaMIdt6tXLs2VU1qxSNUWENMtNsrzTSav1FEWVZRBGpI3peqSUq5qJXLaTqK00qrSFVGy4VMFk2VjBnVmasaMZqoaJNm3GLGbuWjSrJvoWq4c8Ms2zIjcxeSIWMWW9WK3FzVitnVypLb3Ua72GqljdgkxWLZotmikCTapKBs2ixkatasZYrZlauU6leopSpVqqEmNWHKWadZk2rDjaSqUaz0qXRgsyJXZbNe1ab1ZlGrFSIzu01GtFD1XybFUqldXZUkyrlUBspamYTDTom4zY1uepWrbEslc7LLLHFTezdyUxdVmJypSrVsacaX7CvSk5U1UzcSNUMUkqVSkF3Vm9w=="
+          },
+          {
+            "speed": 0.99,
+            "frames": 277,
+            "data": "qBzNpjEUjSvXL1Yxzqta1VBq6tUxVrUqNpelK5dpUpGTaQoZUnUKWit2dGputnSZJrqUomVqHKYtzY2aXU2y7VK2bKZiqkyqLbqsqC1WraImRrVq4sqzmprZk5ksLlTmVaqVm+xStOoqipSm6ok1keLWPGNm1qVrp17MbCyOy5xo2srY6RHy6Zcm9SZmKk0ml1hsps7YaMbM2PDGKBSVKfMvlznWj1b1xqtS9WVXZzq1K18VdVMqu5brkysSoYsZWyWrWVllslpmLpVl4rqVJS06heIqZr0ua8m8KiSWnKpkxRoorQrka9lWtOeitozu5lpMbmJqrKJihkwhpUaVZmc6VJ7o27WrvMk0qkLuPGtjEiNiaZLDdKzq3xTsys3QkRVqqxoW0i9uavDnLnynjcZ+R47ObkfOzYxW6LSJWDPqr1kxSJRpUki0qVK3a3atN7Goj1W1q5UZmYsQGZuJEikSqaJabeplGO2qFZrmruNWpkvlaUpQb6VadVTpVlNV5y2U5FomkKEa0rHrKtptK+XuCyvtpjXhauby5WLKEuYiYzQXI2kyq+MsMOtjFjVr41bVbGy2zpTs2s6UrU7W5VsF8y82JdCvJrjpK87YqczO2LHOuxTWM62tVrW2KVa1Vm9S9sbvlzrFKJU3tStc2zYupykScoc7GnGTG1tli1lj1qulWqFznlS6ZZUdNnWmTUGSKiyZnClkWoxpo6WMqmlKtKpserVvrKZUpu5VipFinVUpbsaUrqWKNOqsk9UWnZE0FpSWNOMjTiVjgy7GbBjJ0pydWUSVlx10U6LuOmpq9qssVTbLrN3u3K3r7pqpqk67MWo0LTWRuNW2LdjTtmnU29VdFFs1VTpUMnXm1aacKbI+WtGhWZJ9JUWiviRCfZbbhrTZaVKW2iVSgi6ibU0kxqxMNs2MTL5IpCS+aKY1KUqVcUuXWRnVtNvZtY7ZuOeTVy9TsVtFLIl6Zc1vdMTPr2SaJlNUadBtl0w5TKfWLI0pGNmDGZn5sxtbObsaqjpd7GlU6c3qXaVp4mrEbmOzTrLzpxqx2aktitytCYoKlTKSK1K2kmNShnVlst5xJkYWso+qWravWh6yiNcuasipTUyIao3SK7Fyt7NVEpFUrV02TZaejfdSKulQt1pR61o2krenbq7gUQ6W1KEakxchYtIzTipmcL5OJCTSjJI1E7LhEwGzYcsMtSZjRkxuSLYsZYIaJbG12bKem0razRtiy2aN0r3NrZj5zm0Q5JXm5FL0NmdGtm5zbufW6VVFmqyRZlouiOY052q0FjeZCRIzAxsTsWIb7Va8bWRenexky5yosNyNVGVWYOJUSrSrtnrUa3yLjZltTLXJPbdja67JtOraSIzO9tEKrRxSVakUqlTWLQkzHlNJMJYq7TNjYqY2Y9MWzXKqstpUTLbPnd3azdWFZfIqaijyrxoadaXyDNSl7kxQhYyo0I0uoFCGV3Vm9w=="
+          },
+          {
+            "speed": 1.01,
+            "frames": 283,
+            "data": "6RqNKjETDjM1LU41LlVWtFbs1rWxJWpSlRVqVTbrdrO26xYztWtWM0Vs6EVNbSrSWqUq0sJ1GcXJtRq1OZLmqjqNasxGrRnNWasZMcmVWt3KlWjEQm1rVLarJ7Ma1SjEOkyqzds1aTVK1ShVRotr0sKLarVGrGnWxLWJRcs1mi1ZrJWxWZGStY1jo0qaJO1KokraHi5Q1czOmuGO6RKhjjBqjnEyrU5xlpVqq8qVIm1pZUqylS1eTbTdXdW07Ua1tGNWszFrFjMlayUkUlUqTlKdaMJSfUvEVGU6XdSTvFVQpRnVWYtU1UmV5lTdRSjexm1YzMq0mURWZVjMVqxaUcuVqdLHXSiVS5kpScqbac4apnjGVyVtRuVlgtzJupc5yZKdOSXbnba3NaJKWiSq3krkktzqXJeOyk7Xju9opeitqOjxzKtbMeyu2rGsjSrSja8q8E1y5Q1RsWk3NbMZNjWzGjExs1o1UvRb1jJVnVoh05yyMsya1h5V0VJJ1GlKUcVrOdq14jmuSijRMkwpwiZV4s5R1Nle2d2fTsnaItJdTWLSYkxlyWJSbTZWy2a2xlRgxkY0YUZWVa7YSrWcqNn7nTnJ2q0omSWiyjIlot1OLGFajpDRzImS8czuWq0qaWsuc0sqznVSrMbtzq1C9C3TSjUrI171biR59LVrRrOwaxYzNmKWM3erVtNVjWbMtrtntCp0y6zZYrLNW4MkVViTOVPVbVk11ZNYRUmUqsZabSrWSq0YxKq7VbNGjWtCSq0ozMeVatVKsqk0uiNoNrq8escnlUjVpVWO2Dibtjq5G6W5pxpkl1bdcNZa5VptS2WraOktmwnLzJprmm2yS9s1pVIrEeU0bbDrdEqwpZMbUKuTfVQtVFTtrW11a7NtrNOrM1KyzaoTFEaSvVRGlXWTRJUkkkSWlVxQl8ltmylLZYsoSKSZCEi0ya5IvMkuSVOOUTFRNtHRKQ3T0J0tynDHNk1LSxIUKT1SLO3OnqmqjybJMiqmzc3wiw7KtNku1q9asTDTJjIxU2YykjMiVFY1+9VRTXvd1lWSWWdGhGpjkiym47sspZWVapLUnWqSEK8KluuiPaZjckwuoqaUYa5ulaIeVi2iU7ZcptuKXBzQmotVkFqLpBVpcmtnRVSp6ZTtZVytPQ1urnTbLJa1Y5JSbSXnplwe4ros3qqSLKJsorSm52zExiVU1UllpBwlLY1WoS6LJUqiDCVCwwzozNEMGM2EtGm2bjFzMrPVtVs3Uq1ZOWqWZY3atc7NmrGKaWKtKnJizWzyLMnsTuNF7Yri1iy2Ytos9izNbNXs0qq2bVazNmsWMzVrJjNNbWjUWrUr1FGzGoVVtRqtTZThUVKVKNb6VqpSWrMZsSmVIbJ5jStSOpUozIqRGpx2pVstyoabK6myrUVKkm1NKwtlNkaqdKdG7HVHtRVK1rc1irrZvJcp2eudqSndrcWvZKJaSnTi3ja041XOnq3bzpqhiklSpYosIslsqqtJ7A=="
+          },
+          {
+            "speed": 1.02,
+            "frames": 286,
+            "data": "bRqtKjFbHjMxbU51q1VWtFbk1rUxJKpTlRVqVTatNrM261YztWtWM0Vs2k1VbSrSWqUq0tJ1ZsXJdRi1KZLqojmLasxWrRtNSaqbMcmVW8HalWjEyq1rVKarJ7IqsySjSlyozLtzaTrLdSpVVosoxMKLa7PGjGrVxLVJVtc1imVZrJUpWZiVtUmTpdOabOpKqi7abjNUmFzOkPHMy5LhjmxSjSp2aw5xMp0q007VJk1KpWaWjS1adbVdXlXQ3Uq1tO1WsTVrFjM1ayYyUWUpTFJdKtLSvWvEXG1LxMRTOF3VlTzVWa1Z1VmJVFFZlalWxm0o3sZtGcTWtNnEVnVYTUas6FLLlSnWR3yqrUuTKU0qk2jS1qR4xldlatTnaYZ4ybKXOcnanTElW97KtyWiSlokot5KrJHdyFwHjspMh46rSPXprar48c2rWjHtqprzsq0q0s6vatRNduVLUbEpMjGTGTQ1sxo1MbNaNVLUmVY2VZVaMdMcsjLMG9I+VdBSXdXpWlHEaTnatOa5zlsqUSJNaVI21arOUVWZXknVl1rJ2irSGU2qylZFZUlCNGk2VstktsZUYsZGPGFGVlWq2Nq0nqhZ/J0pSdudIJklotqyJaLdTm1lWoqQ0cyJkPGMbhqtCm5qqnPpasp1UqrG9VKtRrSs3Uo1rVNKtWolOVWWa0bztGNWMzZrFjM2axaz1Y1qzLarJrQ6dMulOWT6zNuTJNRakzlTubVZU8VrWTVFlOnUWlUqxkqtKEzKrRSjRptXMkqNKczbjSjNxrVq1VqjqTS66nKnprx4x8cVitU1FY6YOKunO6aabbenHHSWVOVSxdrlm2krJZto682ZS9rMmmubNbNSWzXlFCtQ53RMsKe0SpCjkj1Qo1NdNC111W0rbCxrO22sky2yUrLMskMUxpT9LUSFZJNElCSUTJYVbVKlS22bKVskmylIpJkICLzJrsk+ySxRUy5RMUs10dCprdPwzS7KUccWVytJUjKJL1aoyc6eraoPNskWKKbNzfCJLsq02S7WK1qxMNMGMjFTZjK2M2ZUUjX71VFN+9XUXZpZZ1aEamO2DKbjqy2llZFqktidSpIQryqW46I8pmtyXK7iph1hru6VohpWLaJftj2u04pdnJCai1WQWoqkFGsyamdldKvrlu1tVKU7b16uVJso5pRjFpItJedKXZ7mqkxeqposoiiKNKLtbdSmJ1TVSmW0nU0trVShKoMlyqKLJUrCDOlM0w0azdSsSK0OMWsya9V1WzdWtdk3YrbtiWKVT82ascpp0q0KamLNLHIsyezupUVtUuNdbbNS1qw2ItlsVSzdSpZtUrO2bVYzNWsWM0Us6tXKdSvUUrUq1VCzGqVFNVO5SZVh0vJVKtbaUqtyWZUZoWmNZdJ6kyjGipEqlLaRGpx6rxshqqapa5q0rc1bGmc9swtlskyqdSVGlH5FtTWK1tU1krrZrp0pqYudqSXLptmOVKJaOjTpWnY0403Kmqlby5qhim1SqQouKslsKqtN7A=="
+          },
+          {
+            "speed": 1.03,
+            "frames": 288,
+            "data": "aRqtKnFbPjMRbU51qlVWtPLU1rVVKKpTVR1qVDYlJrE24xYztWtWM8Vs2k1FbWrS2q0q0tp1JsXBdRrVKZLoJjmLaM5WrRrMRZSZsUmVWdHatWnE2q1qRMatZryusyazSkyqzDpTazrbtSlUVKUpzVKDaqPVimrVxbVJVUe1iUXZNZUpWZyVtUGTpbGaZKpKqmzqTuIy2lyOkNHMy5DhjGkarQp0ay5zkm0udZbVJulolSYtSSVKcrVtWm2SnV2VNK1G1TVrVjO1axYzJ2tkNlJ1KkzSnSrSUn0LxUxtelzUU3hU0bUZ1VmtFNVRjNVVqZVoVtZtKNxStJlU1nVZRFaNWVXFjKrCx1UqjFa0qt1akyrNKZJp0sWseVZWZYLE2tmWecm6nTlJ2p8xtVPWyrYloE5KrKTeSu0fzIxchwzKToeMq0r16bWreXHNi1o1rYza87OtKtbOrubxTHKlSVKzaRYxkxkyMbMaNTWzWjVS1OnSNlSVOjHbHSYizFtGXlTQSl1VKVpRxGk5yrSmuc5bqVEyXWlSNkXrVtVE2l5J1BbWzdpqyilNasLWXaVM0iRtJlLDZSbGUmXGxnxqxlalqtTW5aapWf2dKUnbnTmZLKZKsiWiympt4VZO8dHJi5HRiY2QoYluWq5yaWrOdnIqznVyrUb0rN1O9a1Syq3OZT31TmVKdLRjVjM0YxYztmsWM9atVsu1q2asKrSrtTps263bQqTM25Ms0rmzWVNVbVk1xZLZVNuVJtZapSrOSq0Zxaq6VLJUnWtSWo0pzdaVaM3Ko6q0qyJopKjseEdHnUrXhlWE2DmbpTk5m606phpttlbddNZU5VLlW2WbaagNmUnLzZjL2qw6a9o1p3IzceU0LXJrdEywrZIKEaOTPXAjXRS1LXR1aTxMLUOzdaqTRbpS9NySRVTMlPUNRoVkkkyUNJRAllVtVqVLbYspW2WbCUi0mSpIvMmuyTrJKFFXPlExQxXX8qmtUzDfNkpRRxbVq1FCsskvXqntzp6pLg0myRaqps3N8qkOyrTZLtKrGrM00yYzMVNmMjYzdlRSJfvdUk372dRdmllkVqRqY7YNpWOrLaWVkWqSmJ1alhCrapLnoi2mZXIdruKm3GGqroWimlasol+2Pe5Rml2kkpqMXZDRiqUQe5LqZ210quuU7aXRpTtOXq5dmypmlOMQsqwh5VptlOaKXF6qugyqKII1om1LxCSmXNTKZbSdSW2sHaUpo2XCposmSvYc6kzKDdrN0K0YqQQ0azJrsXM0MtS1WTdCtU0p6NZtyZi5isnQsQop4sUsNmrN7O4tQezuo13tq2LeLDJikaxWbN1s1ezSarZtVjM1axYzNWtGM81taNTatSvUULMahVW1Gq3ttOE925Vh0tpfKlZakpuxWZUpsmnNatJ6tyjEipEYlLahWyl6rxsjqUat4tqUbVQrG2U8xothI0ysdsfHHUjWtzWKmNk1lqnZ7p0pqambqS1KpFrKVKVaNjTrSlYU4UnKmqkaCRqhik1SrUqu6s3s"
+          }
+        ]
+      }
+    },
+    {
+      "name": "blue-in-green-expanded-mp3",
+      "source": "archive",
+      "title": "Blue in Green",
+      "creator": "Miles Davis",
+      "url": "https://archive.org/details/milesdavis-kindofblueexpanded",
+      "mediaSeconds": 342,
+      "fingerprint": {
+        "type": "acoustic-bands-v1",
+        "frames": 316,
+        "seconds": 29.75,
+        "data": "euSOzoKTA7NHGykxiVsZMI07MzHMpxGThKVRsoiXEwuNNwmtlzqJMasq0XF65IzXRLUqxoUXazF3CykwlwdJaZKHcWyJtDOSTXkXklS5DVWDeKmLrXbxl6lk1625b9WttUrUqUWJVqpCiRdSypEXUdqTa1ZSsusqQbVrXba1JVaqVSjVSlTZslK1GjIitSpNu5Tmzd2QZdZLVCjSPVSqyUxQxrlEUeU1pXFqNkKzOXZLszFxO1PGkb1b1WrhUvU9Q5TFkkSlSpI6lSqCPKRKpr2rKoQ0aUrMpJlWikapKYNEmbjRXq2qVUKVOsRTqFpVW5hKXd2euZXMnbmTxdSp2kRvRuxMb1buW4DmMTGg2nG9p8qSOntHsjo7R6ZCpEosxMSZVcXEmNPVRIhQU9KU1NXFvCRlzJhMtNyUyZNcllfTXZrZzFyJyYrUqTNL65Wxluv2tbTKNrVztAtCsZSSSrWiFspzIlZJtGxaT5VMOsuySjRbMkOnckOVxoTFnEnM3ZtJlEWaSoLTq0nT06VJjMKkSKtVaStLTWktLVRpJL0+arYtOmrHLUOc29HFg9i9xIvYuVS6SyZZtCtKzbRbRE1SRsTNWkRNR1xGJkZ9pczmfK3ORFSt2lWlJVenqUZVia1acZmlWmO5pVIruZFSo5uZUWO5WVlLG2s1TbetNtW0rTbVVYq6LJl00m2bdVp1uXVaddty2TWYcNE1iLLWM2qw2VNLsTHTqqE10zrl7PV65er2SRYTRFk2MyhLKlEZmppLHJdaTwSdWlUnnVrVJ71arW2dGq0tkxrLK5LZ1LuiybTZWqlK6UsGSyejRklqgqYxdIKmMXtrWrdLfVrPmnzKS0pUJsqMc0ZUrTrHNnE616d0QhTFrEUY0YbNWEhTjKhJlcumKZWDpCmFlaiqUq2oyVmkqE2LjKhLhSykUFVEpNRWVag0nVQdLauUHy2rq/CpVKnltnyipzJ9iqk2a5tYwoy0WtJSjW5TKo1azauJUM2yWqNVtDapNdQOpTLRNqM6wxWiuswtrPFSMqTRUxZTVktOXVbLtp1KlHadKiTunTY1dlQkjVZFTaIJV9l0EVdadLRk5krmZa1oVaepcFSaKbLyqi5k06tGdC6oyZquqUmPUbipj1J6trxKWKKN4lUpXaFfuVqhVzlaWaRVqh4k1qUepWakPqtK5W2oykdtmMpqSqdNakqW1YxOmta1tltGgzZrVquiYlQ1wqTJ1MakyobCpWqMTqipnKy2+W05t01rUUpUo8pbNqPW2SmTVlmqg9Vhls3VaaXNsmW2zLJEms3WRJZNoky2zDqJJc02uSpVtp2mSTaM5izSpKo3E4s6dTKTOXNTVKXJ1GjFjdSIyFJUtcaWObNXrik6V7FJhFm1zsTZ0czMmNLWw6rK0oOmTNaEpDS2jKi11pyqUcqdqtLVnarSUYyZtFGFWtC1hZjTtpOaMVKjZSpWrWjSMoxq1zWSWJG2tVkqNp1ZZtaFqtM25arKeOWs1kq1bNZHFjMqYwqzKYtKNSyJGrUuSpozE5Kq01WFKjEnixp3JIsaiaq3CsiVmxpJuYq6LO60usrSlamSdZWaMSmIqjFahpU2W5i2z6acqsulgqVJJoqkyiqJBr5Vu7U1NrL1Uy+USldJtHrQlbRpUq0jiitqo4o4StoJtksNilSNDErVtQ==",
+        "variants": [
+          {
+            "speed": 0.97,
+            "frames": 306,
+            "data": "OHNHd+Wdq5gjjZSYRo2tmEeNqJjmQ6jLxkqpy8TbqYVDm6Xaw51lmj2FRCg9UsRjwlq3e8KNF5iqhZS4ykOaPEV6qbckvKnLrVyHqsOcJNVCrWnbRbNpxlyzStZYtUpWYsSqVaNEkynnSKuoZUm1q6tZ9ZeqypWmW1q062c6tGqlKkyZq0qtWpMqlWR12FIlZVhSqa+6FWmeujVlpjhzWtw681tZOJU7aUiVO5XImjmebWHUmilSvuGqat9mUqtJ11KdSdlSbUNa1ZVSGrWdblZMq2ZnVJzFJkyUaStWnWopSh0iKdRlKiWsbS7uTVSqqk+UyeaqmM3qN6NWqjdjVjXA6zlW0K05XtGlWR05q5kdGSMTZVakVmbizOhq5kwtYaXEKCnqSmpm4kwmGuZOZlmuymRpqssqZi5ErOcuRJlF4FbZpuHbXMph21051iGbWd4tKtpWS2QZVatkOhGtJcquHWGZKhppmSFTOeWS44Zm3mzmZsyk7qbNpEnp1a3p4dKtRuFSqNUitJ2mYjSanj40klYZNWMWUaVrlmLObOrqwexW6kHkVSbWJZNk3i2prt6t6mItq2rdraIm4j6Sl+MuVuajLlblssqWmTLSqyrU1qMq3dKtOUzSrRJc2KkRXMyoqU2srKVNrZqmWtebalpUG0prxt0WXbtpNk26rTpdu606PTlsulw4aLpEWGk5tdhsqTXZmOnUSKrZvUqWc71KtWuskwmULpVZlEVVKYxUZSWKOqUmkk6lapNWrVazVo1WtlqNZZRNbSddSGTabFVUpm21lWSSyaNllEljGapJUxm9LZVatTatZtUybWWpPnMkzjWDalaZY9o1mXuTvqWa69omrGjA5qwsqMLVJcrt0xTKxdJVw07UJCVWVCbkQlRkyUrUKeI6UmorJtQqKiqMls1KjxTNQc+U0VXy1rZZc5k+SXUbNU2NWyRWjOlGRrJrNcavZtfUqWbdtUKjWEtVuMrXVJjqV1GdYUrVXWZW1nkoGVZoqQktqyUXKqtlS06lSitOtRJ3TptWKyqS5isnpOIVgy0yCTJlOvoy5iVyG5ayqtqUqltEWcs5XDcqXNUjOpddJN3XXOrNaaxTQ6klV0vFKplMssuYq7DJnK/Mql7NzzJrUs9So1JfUqV0NlVlJTbUZSUnc6azJSsqwjcMq0RbbeNVGzWrU1ExKpxl0mTCa1LtQ2FUtUJvVFTKjtt0tZTbprXl5KpEZyyZVWlslN1rbN1JarTbZmi00uYZMEtmaSJNKmsiSyZXJttmW8STZJtK02qbTnNWqVZTWmnV1TpZVZw5rSaUqaau4tXqxWQpqtJlWpTZq1WUmavaZNos2mVCbOhmZsxpa2LVZ2lN02erQlIb20ZUWutOVWnjTtUpasLVKijGTFqowq1q2sDMqltBzVkrUTNVq160WpjJNVlYTqyoW06sqptejXtrV9WnMnLWazxytmurmzWXO41ZlVmlW5RNrVqWpcVYi0pVSZrJRQmzRY07gkSNNIbbnURSS50kWUJFJGZVTUdaxNTZJMTdOZRFTTmMykq5aUxVRq/EVMamQ1rVt83bJGVNkxlS3bqZk94s6qRKpWiaWjUoU1HUmm3RxRwleQUeJW4VaVaGVWva"
+          },
+          {
+            "speed": 0.98,
+            "frames": 309,
+            "data": "OntGd8VVq9ijnbWYh62dmEadqZhGSqiKlkuZysVbiYXHm4Xbxp1lmj2FSSk8QkRqQFq3c4OdN5i3hZWpy0uaLUVLqbYnsqnSr3SFy5OcpsXCpWXbxLN52pwzS1YYJUpWUdSqVKLUsymnWKup51mzqydZdZuhypWWmsq0q9NatWlvOpXZq0opmrNqtWKdWtYlbVhSqWcaFGmcOhVprjijVu44c1pcOrRba8gVO2HJFTm9UdLVvmlhvtApUp1BkmrBwlKtQd9SjUFc0m1SHtWVRl40rW5iTKpFZlSUwWZMlGkuVp1uY9ZVIiHUZSptrW0uqk+UyaZKlM3mouL27jcjZq8xYxUx0Os5VtKtGR5RrRkdOSOZH10jFmbWrOYspszoZiZELGIlxGgh6lJabOZcZlJG0mcCLtItayrdaG2uRK3v7kyp5eFSue7h213SadddOVYp6ltWbWqW1VNlG1WrZUo1rWa0rhVhmCoSaZkpUz3VkuvGZtas5mbN5ObmXeTJ7dXk7enSrUbh0urVIrSZpma0m54udJJWHHViFhkla5Vmjm1prsns1ubJ5JViVilSadYtaq7WrepmParqqi2ipqc2kpLmLlbm6i5W5bvKlt0z1Kqq1NSjKs3SrTld0q0yXdipFUzIqXlcjKilXK2aplOWk2oS1RNaO1abZkm36SZUuq02NbqpOly4aLpUeGiqDdlquWxYbIml2VjJzNGY6TxKxnM0atRrpLq5cr2zGZQ5FSmMUlUrjLTVZYJMlWqTTo0rk9WNFbRUrRaUSq0nlUpMqk1MVNhtNLancXOTJ5LJkyW0yWsZrclzGb01lVq1NpVntX5VZa22MyXeOYNqVJprUjWRe5OaJZTqwiasaOXmbKXi4VRly63SFMrD0pWjTtSkJFZU5M1C1GXJTlQq4l7SaCM23KpKLo1Uzc6PFM3Ba5aVUXLUttnzGzbJ1Rs1xQzbRtas6TbOMisnzC9ux8mpas220qLYV1Sw2stUkUqO0ZVhUNVVVkjWcNoTVmjJEi2jZQsqo0VSTqVKNUq1FmpOmxZyKpKmGiek6gmHLXIRNmVq8jTiYqtzmji62pStckrVrTlcUy1ZVTOtNkUl27bc5tdJPFbXyqRTSccskdaqS5musM2Yrc2rWM3esm7S0lLnUl9St1EtdWMmLNRnJmT1pLEnM+rRJ0trRlssJ1IbLaNUGzWq0sOSLLli0qVFYlK1RWtUVUkuG1yunJsottXcqtLmZNNGZ2yU2WtslUlgNNVleDTS5hu002YaIk1m6yJLJoumU2YXRLLmV0zVKpJKWzWrxnNVdVZVW1vZnTgR1xSprSTS1aasYrXuTGwqlFGjVpyZK9WUnSvaaUas2iZibGlmZs1pa2XVZmtG0mvrQlJam0ZVSqtOVWjnTtUpZMbUWyjGzFn4Qo0plsHMqlPB1Vl7VrIZm04021DJNVkZSoyqUs7MqtfejasnQtOsNGLGazhytmtDmzUWu4VZlMmtW5TJpTuVbM04q4JFWZrJTRmyxZU7hMydZKTbjURVy51kXcpVJG7VRUZaxMzZJcTdObXJRTqMwkq6Sc1TRabETNWmwkLVt0jLRXSNkxlS2ROZktYs6o3apWiJ2rVokVOcmmxTxT5hW4U+IW0VTVaEVUnW"
+          },
+          {
+            "speed": 0.99,
+            "frames": 313,
+            "data": "ONbO1YaVq5pDOyc4zTkXOY0YuUnGhRlKlKUTuoqXEReVFw0ZhRrJSasK0Tl4YubqZNUsp4cXTzlzCS1ZmocTaYSHE3UhtDGSfTh1qlV5DbSDOO2WjWS5m50n04a5a1WWsUpc2EaIEmtGmQ+jzpQmqEqS6LFJuukVRZVhIbaUJWGqUKl3VnRZkkKTMpYqM6blzZBWJcWUpWlVVipqPXSybkx05lq8UWdbs7E5OUu7OTk7kLa1vGvDur1bNT/DVlSdRqTFQwakqUM6pFrCPas6RDyrGmwUWVrlRqmozUaduWlOpaVlSq1aZlOqWqIrmG02ySg5WuhftZnE0rnVxCdWbsxvJmYrSOYxM4DkMRWiWpk8cW05OjtlszqqQxZExMjGTcSIyEVEiOxDQ6ToRcSUWm3EmmYV3LZko02WS0NEmW3NXImlj9yIqarjttmO69cd1Ou2mXOUK1qTlAFqlaoW5DGiNSV0YXsnlUw6QbBjNumzQ7V5w5TFQsWcSo5MmMmmxZrIzcGrSa3CpEnOwmTKVWRsm2JNaTucXCg31jprphY7S0dURYzN6cWLyLbEi9iVRbIrEkm0CUrNlEnq1XJL6qtbRipHXKQqxmz1xuZ87cT0VK3U84UW6oulRioNrWspOalKKbuhUiUZmUopGdlppTlZSacZaSlqN60WWjasVsZbKrsmG2qrJjVzSpo7dlKqWHCpqxiw0qmosNMpSbCpmSmxEdm6rdTVOuXW5ir1KubJNjsUWzrRGkq4UxiU2ktGNVptNo1Y0SedWtcmnRqtLJUaz12a2Kpbitm06Jrp1KlzKktVjQZPOpOGsXSCpjFpC6oxOXNa5rpcSt8pXMYqSnUGSNq7R1ZVvUc2V7JU57pEmMXCRBhIooVoaaWL7EnFkmS5xoLkqGWNaMxqtGhNiQToy6Y9alamRObQJ3To1KZ8jyzJhJ8pyZNSjZa5Zqk2q6cyPovhNjmiWKaKtJLCNowmK0+tf82HiVrMleqTRtgWoVXKDqU1ajajGmFVorpGDYShWjKM0ckSUldlTl1GRVaVStp2nVqmbpU2FnZUJuZWR0zqKVdabBVWW1h2ZOZi4me9aPWkqGhWmjqg9qo2Z1OoZ1Cmi0m4NrrYr8s4todaaDKRylunj6NbKb+hW7m8uVs5vdmqXYJWJubCViVmQw6l4kVtqOolbZhOqEqmxaBuktXKVphGSLZbVrE2ZVZbokZFEsKKyaLCqtrDRqQpRE66ea6tu2mnsarFI8rclkpKzSrYVk0q2dLcm0XVJLNmNWWi5jJFlGbWTJpr0nSTdqpUpTY2lStmlr2q6baNonRmRORL0aqqKRNbNTlTdzU5zKzKhdRJxDXUtNqqPFNFxri7W5kpJlTay0TUSsysmOlGhZrpQsqnJ8aEphuWxaTatlytaMZErWjStav1VYS7W2mEWCm1hRtptrqY+Dar6xdWpWSoto1t2zXSbVmyVVSqst1VYlbNrKs2xaLMMMWs+mjVbO5LFisGdyqTEMtKt1yJKrENqpoxK6Kq0xWVChEmmRoxZY0aKdKTCsjVizpJlYqaKO60utbahamWpYWYMSmIijFqkpUyW6yyz7aEqc2kgpXNJoqFTiqtJKtRmbc1EpKp0qyWKHFJlLpwlZO50qoTyr9q0864au0MXGssiNCNDMrVtQ=="
+          },
+          {
+            "speed": 1.01,
+            "frames": 318,
+            "data": "eOSOzpqXB7NHGykziXsJMI0bEzHMl1MXjKVRsoi3EwuNFwuvlzrLNY8q0XF6pIjXaqWqzoUXS7FVGi0wlw9peZaHcGyJ9BOSSXkTllS5S1WHOCmLi3rTt4lm0425Z9WtuWrUrYWJVKpGiSZSyrEXUcqTK1ZWkus2UZVrLTa1K1audWnWylWpslaUkrJGtSpWIjTsydmQ5cnZkCnSOVQq0SVw1qlMUOexqFTsNjKxKXZCsyl2K5Gmezxb0yo9UrV9w1TFuc6lzpKspSqTsqVagjWjOqS1qzrcJFlGzM6pOYtMmajTVKm4VValKlRTpFrEW5haXdsaWl3YnrmTTJSpkkVmRezEb1bsSmDGK1OApjG1oNrzPaPKkjo7R7Iqu0amwqRILc3EmdHVzJha00qIUFPSlNTVxJhMdcyYTLRclMnTXZZVzl2a2c5YiVmL1KkzS+u2sZTLtr0yoicyc7RLUrWUkkq1olbKcyJWybR1Wk6WXDrLsko0WzJDp3LDlUeE1ZxJzM2bSpRVmsqT06tJ09OlS4zCpEirRWkrS81pKTVUaSS9PGqmLTpqxi3DnNnRxYPYnNSL2LnEqksmWbQLRt20WkRNM1rUTVtETTNcRiTGfaUsxnytzGRcrcp1pTUzhalGVYmtRnWbpVpjuaVaJbmxUiO5mVHTu1lZS5tbNU23rTbVt602lVSMuq2JbtItm3Vabbt1WlWrcts12HDRNZiw1jNosNpTW7C5U6mjMdOqnVTVepVs9kq1qsZZJpMoUyqxKYqqUxiUyksEVUpVNp1K1SedWq9nnVqtbZUayyma2s67ssm02aqpdNtLKkllhUbLKqNG0XyCpjN7gq4xa3tat4p9WstCXMpLanUmzJwzRlStKsc2azr3pzxTGNWEVVjZws1YSFWLqkuVy6YphZOkK8eNqEhavKjNyYSoz4uVqEvVbKRQVkSkVFRViS2ZVB8ti5QfKZur5KlUq+W2bKKnNnuKqTJrnVjWjLVq0mqNbtOujVrNqylUzLNWo1WElqk11I6pMtM2ozrjlaq6za2s8VIypNFTllNWS05VVss2nUqUVpVqJG6dNiXWVCSNVk1JxMlXWnQTV1p0tGTmWuRkrWBVp6lQVJkpUPK4rpTzqkZULalBqK6pSa/RuYmfUlqmkFJaoo9KVSmPoZe5WmHXOVpZVBWqniTWpR6lRqW+p0qnbKrKR22oykNJp01qTqbVjE6a1o22GUaTNmtWqDJrVbXDpMl0xqTLgMalSoTOqKrMTKT5jym2yW/RG0VjykiWi8rZKbNWWSmT1lmai9Vptc2xaaXMsmSWzdZEmlXSTJbNrk2mzTaJJs22kaZRNpymKFaspjXRq6ozMqs4czJ3OXNbTcWJ1UjJS9WsqlY9s0asObNXsimyV7XKhNm1zMTY0tbMmtLWw6bO1pSkVdaEpLa2jKi01pyqUdadqlLVjapSWYyYtlWFWtG1gpnRNpuaM9aiZCpWpWjWM4Zqk7WQWTG2nVlkNpVZV9atq1J25azOeOWs1kq1btZXFrMqcwqxKZNKlSyLCrUu2pqzE5KqkxWFKlEliTr3TY8ayUq3GoqVm5pJuYqqbO6sqoailamyUZWaMUmMqlEqhJU225i2zyaKqokVgpXJFpS1yuqJJqqkqyU3NLL1N0uUSdFJpUrRFbRpVLsjqixqo4o6StoJtErdKtSt"
+          },
+          {
+            "speed": 1.02,
+            "frames": 318,
+            "data": "dOSOzpq3F7NHGykxy3tLMIUbczGMl1EXjKVTlIyXUwuLF0mLlzpLNY8q2XF6pIjVaqWKzoVXbrZVGikxlQspeZaHMGiK9VNGSXlTklq5S1SnOU2NhVrLt6tm05SpZtetuWqVraVJVK1WiSbSTrkXUs6RJ1NKk+tWVbNrLVWVK1a2tWXWylVp115Um7JWlTq2JlWqSduw5EvZkKVWUXQo0z10aspMcOa1qHTmNatxaDbCsyp2KpEiYzpSx6s8WsNtqVL1PcOUxZLMpUqStpU6grSkWqa1qyqMNGla3KyZVozOqTmLzJmo01atutVSlSpGU6xaVVtYWl3dmilV2J6pk81UqZJVZ0asxG5GrEpA1nNzpcZxvafaUz1rSrI6M0e2KrJGrMaEmc3NxJnR1UyYWFNKiFBT1JS0TcSYTHTMnMyyXJRJ01WWVc5di9nOWIk7i9SNs0vrtrGUS7a5c7IHNnO8Sla1tJZKtKpWynMjVsm0VVpOklw6wzJCNFMyQ6dyw7VHjMWcydzNm0mUVZtIk9OrSdPTpVuFyqVIrUVpK0uFaSst3GkktTxqpi06asYtwxzV0cWD2NzUg9i5xILJrFm8C0bdvFpSTLNb1MVbVEi7XEQsxn0lLs58rcxGXK3KdZUtM3WtVlWJrUZVuaVac5ulWiW5sVIruZFS87sZUUubW3FNu2021berNtVUjTatmW6aLZl00m27dVpVu3JadVhw2TWYsNEziLDSc0uw2VNrszHTiLNVm3qVLOV6lWr22SaTLFkqsyhLKlMZqOpDHKdKTySdSlUnnVrVJ61ar22dGq0tuRrLKZLZ1LuQyTTbaqlMy0siSSWTRk9qksazVJKmM3trKjVrfVrNrHzaS0Jc5kucc07UrDPGdGksxyZuMvXHtFUY1YRdWFlSjLhKlcOqS5fbpqmFi6QqRp2oSEisqM2JhKhLmpSoU8VspNBWRahU1VWZLZuUHy2bhh4ps6vkrWSi5bJtoucya4qqtkudWNaEvWnSao1u1a6NWs2qKZTMs1ajVYSWqTXUjqE601ajOuO1qrrNraz1UjKk0VOWU1ZLDlVWyzadSpRUlWokbp02JFZVpM1WTUnFiQdabBMXWnCUdOZS5GelYtW3KUpUmSlKtpqugnKqJkqpqkRqLqvJtbW5zZVSSqaSUkq2lcpVKZVllztcYZs5WhlWtZqeZNaknqXGpR6lbqhuqspFbajqRU2rTWpO51WqTtZWjbYZVpO2W1aqNmtUtaNkRXTWpMmC1qVKgsKoKopOpKmNLbbpbTE3TWXTSdaLylk2s9bZKbNWWbqb1Wm2zdVppc2yYbbMskSa1dJElk2uTLbNtoklzTaZKk22lKZKNozmqFKsqreTizpxsqs5c1pFpVNdXMWr1YrIUlWk2pQ5s1aoKTtXt8m0WbXKhNnRzMTY0tbFmsrWg6bN1oSkNraMqLS2jKrV1p2qUdaVqlJVjKkySY2aslWFGtO1g5lRtoOqM1akZLxWtWiSsYpqs7CVWVG2nVlUNr1a59auq0J05azKeOVs1ta1atZTFrMqcwqxKZNatSyLGrUGkpqzFpTqk3WVKnMliRp1BY0aSUq3Koq1k7pJtYqqSM60mo63lamySYW6MSmUmnMqlJVy25imj1aKqo1dhpWLJ5a1SsqJJirgqyYzNrJ1NUmUWdVZpUrTNbRpULIjqixb"
+          },
+          {
+            "speed": 1.03,
+            "frames": 318,
+            "data": "dMSMzpq3VbNHOzMzS3tLcI8bczCcl1EVjIVTloyXUwuJN02rlTZLtY86y3F5BIrVeIWKxoS1bvZnOi8xWwsrcZSHNFiK9VNuS3VTrll5D5Y2uU2JhVrLo7t207apZtaNOWqVrbVLlK1HiRbKRqkXUs6xZ1HKk2tWVrPrLkWVK1S2tWXWrlVq1cp1mTJWlVK1JlVqzSo0pErasKVSRrQo0jh0KtIscEatTHDmtbp1aLaDkCp2wpEqdjqxtbM828NpPFKlfcNU1b/PpVaSrKU6k7Kk2oK1pUqkNas63LRZVszOiV2LTKko09SZONVWrTrcUpSqRFuoylXbGtod1J6pU1SdKZPNVTWa1G9GrFxuxoxDgdZzo6FWc72n2jM9Y1szOjNHJqqsSqzNjZnV1cyY09VNiFhTSozQVdSUtE3MuMw0zZTMsl2UWdNVllXMXIlZzliJc4vMrbNPw7axlVO2uXKqRzZzrFrWtLyWWrSrVshyI1ZJtF1aTpJUOsMyUjTTMkOnasulx4zNvNlczZtJnE2ayZNTq8vTw6VahMKlUa1FaTdLpWk5LcRpNLU8aqYtMmrGLaNc1dHNhNnU3ZPYqcyTyS5HrFu23bxbUkyrS9TEU1VQO1tFLU19JS7OXK3MRlytynWVLTJlpVVVralGVamlWvO7pVphuaFSK7mRUvO5mVFLm1lZTZlrNVWlrjaVlog2nZetum2rdtJtu3Vadbt1WnX6ctk1mHDRdaiy1XNosNtTS7KxkomjMZMolUTlepUo9kqlSsZZJpMoVyqzKYrqUximyksEVUpVNJ1K1SetWq1nrRqtbbUayymbWkq7kNk02ZqpdNtrKstnV0bLKKNG1WiSpjNbkuYze2sKtWttWs+idMrLUnxGSbx7BtStO8e0azL3J3RDNde0TVjVhN1YWVOMqEuV06Yrl4ukqZWLqCpCnahJSKyozZuVqEuVlKhSxeyk1FZNqVSVVRgtm5UeKZuClykjquWtbKPnMn2S6jZrmuq2W60Z1oyladZqjW7NrolazasplMazVqtRhJapNdSuqzrTdqM6o5Wqsk2trPVSMqzRUxZTVkpuVVbLtp1KlNSdamxunTas1FUkzVZdTcWtDljkEwbadJRkzlrkZyxoVbcpVnWVKVa2mKKGcrpORKm6QnYuqkm7dLmVi9JYrofSSq6XilkymWWXMVphmzFaGVa9mppk1aSWpMalvqVqpD6rQkltqupDTZlJag5nVaZq1tWNthlWmbbbxqM2a1ajomJVPcOkycTWpdqGwqVKhF6oq5RctulrKbZNa8GZVavKyZaLztkpu9LZKZPUWZrL1Gm1zbZrpcwzZJbN0kSaVdZMls2uTbRNsokmTTaVptU2nOaoUqzmtdCtqrWzuzpzMq8pUlpFpa3VWsVr1ay4Vj2zRqwps1arKTpXtcqcWbXOxNjRzM2a0tbDqs7Sm6bO1oSkNraMqLRWnKrRzp2qU9WdqtPVjJk0SY0a1rGFm1G3k5l1tqNmq9asabA2lGi2sYpqs7CdWVW2nZjVFr1a11auo1xs5azfcOVs1pa1aoRXGrMqcwqxKZtatSyLmrEWhKqzF5TKk3ObClNHixr3Ba0aiQ+3Ooq1l7pJuo6KSM2qmoa1jYmySYm6UWmSmjM5hpV205imj0qIqo1NhpWrZ5aVyFqbJm7hqyYypbr1NUqUWdVZ"
+          }
+        ]
+      }
+    }
+  ],
+  "pairs": [
+    {
+      "a": "so-what-album",
+      "b": "so-what-reissue",
+      "same": true,
+      "why": "the same sound under a bare track title with no performer"
+    },
+    {
+      "a": "so-what-album",
+      "b": "so-what-vinyl",
+      "same": true,
+      "why": "the same sound two seconds later, quieter and noisier"
+    },
+    {
+      "a": "so-what-reissue",
+      "b": "so-what-vinyl",
+      "same": true,
+      "why": "two editions of each other"
+    },
+    {
+      "a": "so-what-album",
+      "b": "so-what-radio-edit",
+      "same": false,
+      "why": "the same beginning on a file a third the length"
+    },
+    {
+      "a": "so-what-album",
+      "b": "so-what-other-take",
+      "same": false,
+      "why": "the same tags, a different sound"
+    },
+    {
+      "a": "so-what-album",
+      "b": "freddie-freeloader",
+      "same": false,
+      "why": "another track"
+    },
+    {
+      "a": "so-what-other-take",
+      "b": "freddie-freeloader",
+      "same": false,
+      "why": "two different tracks"
+    },
+    {
+      "a": "blue-in-green-short",
+      "b": "blue-in-green-full",
+      "same": true,
+      "why": "eight seconds are enough to compare"
+    },
+    {
+      "a": "so-what-reissue",
+      "b": "so-what-other-take",
+      "same": false,
+      "why": "a different sound under a bare title"
+    },
+    {
+      "a": "so-what-vinyl",
+      "b": "so-what-radio-edit",
+      "same": false,
+      "why": "an edition against an edit"
+    },
+    {
+      "a": "so-what-expanded-mp3",
+      "b": "so-what-202512-mp3",
+      "same": true,
+      "why": "two MP3 editions of the same master on the Archive, different encoders"
+    },
+    {
+      "a": "so-what-expanded-mp3",
+      "b": "so-what-1959-aac",
+      "same": true,
+      "why": "an AAC edition from a master running two percent apart, found by the family and the scaled lengths"
+    },
+    {
+      "a": "so-what-1959-aac",
+      "b": "so-what-202512-mp3",
+      "same": true,
+      "why": "the same two masters the other way round"
+    },
+    {
+      "a": "so-what-expanded-mp3",
+      "b": "freddie-freeloader-expanded-mp3",
+      "same": false,
+      "why": "another track of the album, same edition"
+    },
+    {
+      "a": "so-what-expanded-mp3",
+      "b": "blue-in-green-expanded-mp3",
+      "same": false,
+      "why": "another track of the album, same edition"
+    },
+    {
+      "a": "so-what-1959-aac",
+      "b": "freddie-freeloader-expanded-mp3",
+      "same": false,
+      "why": "another track against the slow master"
+    },
+    {
+      "a": "so-what-1959-aac",
+      "b": "blue-in-green-expanded-mp3",
+      "same": false,
+      "why": "another track against the slow master"
+    },
+    {
+      "a": "so-what-202512-mp3",
+      "b": "freddie-freeloader-expanded-mp3",
+      "same": false,
+      "why": "another track against the second MP3 edition"
+    },
+    {
+      "a": "so-what-202512-mp3",
+      "b": "blue-in-green-expanded-mp3",
+      "same": false,
+      "why": "another track against the second MP3 edition"
+    },
+    {
+      "a": "freddie-freeloader-expanded-mp3",
+      "b": "blue-in-green-expanded-mp3",
+      "same": false,
+      "why": "two other tracks of the album"
+    }
+  ]
+}

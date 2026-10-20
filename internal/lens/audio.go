@@ -6,20 +6,23 @@ import (
 )
 
 // Audio identity. A recording is what its tags say it is: a title, a
-// performer and a duration. Phase 3 adds the acoustic fingerprint later;
-// until then these three, read the same way from every host, decide whether
-// two listings are the same recording and how well a listing answers a query.
+// performer and a duration, read the same way from every host; and, once a
+// sample has heard it, what it sounds like. The tags decide whether two
+// listings are the same recording and how well a listing answers a query
+// until both carry a fingerprint, which then overrules them.
 
-// AudioIdentity is a recording as far as its tags say. Keys are normalised
-// for comparison. An empty performer or a zero duration is unknown, which
+// AudioIdentity is a recording as far as its tags and, when a sample heard
+// it, its fingerprint say. Keys are normalised for comparison. An empty
+// performer, a zero duration or a missing fingerprint is unknown, which
 // never contradicts a known value.
 type AudioIdentity struct {
-	Title           string  `json:"title"`
-	TitleKey        string  `json:"titleKey"`
-	Creator         string  `json:"creator,omitempty"`
-	CreatorKey      string  `json:"creatorKey,omitempty"`
-	Year            int     `json:"year,omitempty"`
-	DurationSeconds float64 `json:"durationSeconds,omitempty"`
+	Title           string       `json:"title"`
+	TitleKey        string       `json:"titleKey"`
+	Creator         string       `json:"creator,omitempty"`
+	CreatorKey      string       `json:"creatorKey,omitempty"`
+	Year            int          `json:"year,omitempty"`
+	DurationSeconds float64      `json:"durationSeconds,omitempty"`
+	Fingerprint     *Fingerprint `json:"fingerprint,omitempty"`
 }
 
 // dashSeparators are the ways hosts and people write "Performer - Title".
@@ -102,6 +105,19 @@ func DurationsAgree(a, b float64) bool {
 	return math.Abs(a-b) <= tolerance
 }
 
+// EditionLengthsAgree is the length rule for two files whose sounds
+// matched: within ten seconds or five percent of the longer, whichever is
+// larger, because uploads of one master trim lead-in, silence and fades
+// differently by that much, while an edit is a third shorter or more. It
+// is looser than DurationsAgree, which judges lengths that stand alone.
+func EditionLengthsAgree(a, b float64) bool {
+	if a <= 0 || b <= 0 {
+		return false
+	}
+	tolerance := math.Max(10, 0.05*math.Max(a, b))
+	return math.Abs(a-b) <= tolerance
+}
+
 // CreatorsAgree compares two known performer keys: equal, or one naming the
 // other, so "Miles Davis" agrees with "Miles Davis Quintet". An empty key
 // is unknown and agrees with nothing here; callers treat it as no evidence.
@@ -109,20 +125,56 @@ func CreatorsAgree(a, b string) bool {
 	return a != "" && b != "" && (a == b || strings.Contains(a, b) || strings.Contains(b, a))
 }
 
-// SameRecording reports whether two identities name the same recording: the
-// same title, performers that agree when both are known, and durations that
-// agree when both are known.
-func SameRecording(a, b AudioIdentity) bool {
+// RecordingMatch is MatchRecordings' answer: whether two identities name
+// the same recording and on what basis. Basis is fingerprint when both
+// carried one and the sounds decided, duration when the sounds agreed but
+// the lengths did not (a radio edit that keeps the album's intro), and
+// tags otherwise. Distance is the fingerprints' bit error rate when they
+// were compared.
+type RecordingMatch struct {
+	Same     bool    `json:"same"`
+	Basis    string  `json:"basis"`
+	Distance float64 `json:"distance,omitempty"`
+}
+
+// MatchRecordings decides whether two identities name the same recording.
+// When both carry a fingerprint and the two can be compared, the sound
+// decides: the same sound is the same recording whatever the tags say,
+// unless both lengths are known and disagree as editions once the second
+// is scaled to the speed the sounds matched at, and a different sound is a
+// different recording even under the same tags. Otherwise the tags decide:
+// the same title, performers that agree when both are known, and durations
+// that agree when both are known.
+func MatchRecordings(a, b AudioIdentity) RecordingMatch {
+	if a.Fingerprint != nil && b.Fingerprint != nil {
+		if c := CompareFingerprints(*a.Fingerprint, *b.Fingerprint); c.Known {
+			if !c.Same() {
+				return RecordingMatch{Basis: "fingerprint", Distance: c.Distance}
+			}
+			if a.DurationSeconds > 0 && b.DurationSeconds > 0 && !EditionLengthsAgree(a.DurationSeconds, b.DurationSeconds*c.Speed) {
+				return RecordingMatch{Basis: "duration", Distance: c.Distance}
+			}
+			return RecordingMatch{Same: true, Basis: "fingerprint", Distance: c.Distance}
+		}
+	}
+	match := RecordingMatch{Basis: "tags"}
 	if a.TitleKey == "" || a.TitleKey != b.TitleKey {
-		return false
+		return match
 	}
 	if a.CreatorKey != "" && b.CreatorKey != "" && !CreatorsAgree(a.CreatorKey, b.CreatorKey) {
-		return false
+		return match
 	}
 	if a.DurationSeconds > 0 && b.DurationSeconds > 0 && !DurationsAgree(a.DurationSeconds, b.DurationSeconds) {
-		return false
+		return match
 	}
-	return true
+	match.Same = true
+	return match
+}
+
+// SameRecording reports whether two identities name the same recording,
+// by their fingerprints when both carry one and by their tags otherwise.
+func SameRecording(a, b AudioIdentity) bool {
+	return MatchRecordings(a, b).Same
 }
 
 // AudioRelevance scores how well a listing answers an audio query, from 0

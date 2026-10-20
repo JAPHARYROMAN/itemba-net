@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -185,5 +186,118 @@ func TestAudioSearchSamplesTheBestReachableRecording(t *testing.T) {
 	}
 	if lens.LevelFromChecks(first.AvailabilityCheck.Status, first.PlaybackCheck.Status, first.PlaybackCheck.PlaybackConfirmed) != lens.LevelRendered {
 		t.Fatal("a confirmed audio sample is rendered on the ladder")
+	}
+}
+
+// sampleFingerprint is a valid fingerprint of seventy frames with a
+// recognisable pattern, standing in for what the page computes.
+func sampleFingerprint() *lens.Fingerprint {
+	data := make([]byte, 4*70)
+	for i := range data {
+		data[i] = byte(i*37 + 11)
+	}
+	return &lens.Fingerprint{Type: lens.FingerprintAcousticBands, Frames: 70, Seconds: 6.6, Data: data}
+}
+
+func TestAudioHarnessPageComputesTheFingerprintWithLensTable(t *testing.T) {
+	page := string(audioPlaybackHTML("abc"))
+	edges := make([]string, 0, len(lens.FingerprintBandEdges))
+	for _, edge := range lens.FingerprintBandEdges {
+		edges = append(edges, strconv.Itoa(edge))
+	}
+	for _, want := range []string{
+		"const EDGES=[" + strings.Join(edges, ",") + "];",
+		"const RATE=11025,WINDOW=4096,HOP=1024,SECONDS=30,BANDS=32;",
+		"fetch('/media',{headers:{Range:'bytes=0-" + strconv.Itoa(audioFingerprintBytes-1) + "'}",
+		"new OfflineAudioContext(1,RATE,RATE)",
+		"type:'acoustic-bands-v1'",
+		"window.__itembaFingerprintState='pending'",
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("the audio page lacks %q", want)
+		}
+	}
+	if strings.Contains(string(moviePlaybackHTML("abc", false, false)), "Fingerprint") {
+		t.Fatal("the video page computes no fingerprint")
+	}
+	if audioFingerprintBytes > moviePlaybackResponseLimit || 2*audioFingerprintBytes > moviePlaybackByteLimit {
+		t.Fatal("the fingerprint fetch must fit one relay response and leave the sample its budget")
+	}
+}
+
+func TestAudioSamplerCarriesTheFingerprintThePageComputed(t *testing.T) {
+	origin := "http://127.0.0.1:1234"
+	state := audioStateFixture(origin)
+	state.Fingerprint, state.FingerprintState = sampleFingerprint(), "ready"
+	browser := &fakePlaybackBrowser{origin: origin, mediaResponse: true, state: state}
+	ctx, cancel := context.WithTimeout(context.Background(), 2500*time.Millisecond)
+	defer cancel()
+	result := runFreePlaybackSample(ctx, browser, audioPlaybackFixture(), origin, &PlaybackCheck{Method: "isolated_audio_sample"})
+	if !result.PlaybackConfirmed || result.FingerprintStatus != "computed" || result.Fingerprint == nil || result.Fingerprint.Frames != 70 || string(result.Fingerprint.Data) != string(sampleFingerprint().Data) {
+		t.Fatalf("a ready fingerprint rides on the confirmed sample: %+v %+v", result, result.Fingerprint)
+	}
+
+	// The fingerprint usually lands while the sample still runs; when it
+	// is pending at confirmation the sampler waits for it, briefly.
+	browser = &fakePlaybackBrowser{origin: origin, mediaResponse: true, state: audioStateFixture(origin), evolve: func(s *playbackSnapshot, evaluation int) {
+		s.FingerprintState = "pending"
+		if evaluation >= 9 {
+			s.Fingerprint, s.FingerprintState = sampleFingerprint(), "ready"
+		}
+	}}
+	ctx, cancel = context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+	result = runFreePlaybackSample(ctx, browser, audioPlaybackFixture(), origin, &PlaybackCheck{Method: "isolated_audio_sample"})
+	if !result.PlaybackConfirmed || result.FingerprintStatus != "computed" || result.Fingerprint == nil || browser.evaluations < 9 {
+		t.Fatalf("the sampler waited for the pending fingerprint: %+v after %d evaluations", result, browser.evaluations)
+	}
+
+	// A fingerprint that never arrives does not hold the confirmed sample
+	// past the grace period.
+	previous := fingerprintGrace
+	fingerprintGrace = 400 * time.Millisecond
+	defer func() { fingerprintGrace = previous }()
+	browser = &fakePlaybackBrowser{origin: origin, mediaResponse: true, state: audioStateFixture(origin), evolve: func(s *playbackSnapshot, _ int) { s.FingerprintState = "pending" }}
+	ctx, cancel = context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+	started := time.Now()
+	result = runFreePlaybackSample(ctx, browser, audioPlaybackFixture(), origin, &PlaybackCheck{Method: "isolated_audio_sample"})
+	if !result.PlaybackConfirmed || result.FingerprintStatus != "timeout" || result.Fingerprint != nil || time.Since(started) > 3*time.Second {
+		t.Fatalf("a pending fingerprint times out after the grace period: %+v in %s", result, time.Since(started))
+	}
+
+	// The page's own causes are kept; anything else is a plain failure, and
+	// a malformed fingerprint is invalid rather than carried.
+	for name, tc := range map[string]struct {
+		evolve func(*playbackSnapshot)
+		status string
+	}{
+		"decode":  {func(s *playbackSnapshot) { s.FingerprintState, s.FingerprintError = "failed", "decode_failed" }, "decode_failed"},
+		"unknown": {func(s *playbackSnapshot) { s.FingerprintState, s.FingerprintError = "failed", "alert('x')" }, "failed"},
+		"invalid": {func(s *playbackSnapshot) {
+			s.FingerprintState = "ready"
+			s.Fingerprint = &lens.Fingerprint{Type: "chromaprint", Frames: 70, Data: sampleFingerprint().Data}
+		}, "invalid"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			browser := &fakePlaybackBrowser{origin: origin, mediaResponse: true, state: audioStateFixture(origin), evolve: func(s *playbackSnapshot, _ int) { tc.evolve(s) }}
+			ctx, cancel := context.WithTimeout(context.Background(), 2500*time.Millisecond)
+			defer cancel()
+			result := runFreePlaybackSample(ctx, browser, audioPlaybackFixture(), origin, &PlaybackCheck{Method: "isolated_audio_sample"})
+			if !result.PlaybackConfirmed || result.FingerprintStatus != tc.status || result.Fingerprint != nil {
+				t.Fatalf("status %q, want %q: %+v", result.FingerprintStatus, tc.status, result)
+			}
+		})
+	}
+
+	// A video sample never carries one, whatever the page reports.
+	video := audioPlaybackFixture()
+	video.Kind = lens.TypeVideo
+	videoState := playbackSnapshot{CurrentTime: .2, ReadyState: 4, PlaybackRate: 1, Duration: 562.4, Source: origin + "/media", Protocol: "native", Width: 640, Height: 360, DecodedFrames: 10, Fingerprint: sampleFingerprint(), FingerprintState: "ready"}
+	browser = &fakePlaybackBrowser{origin: origin, mediaResponse: true, state: videoState}
+	ctx, cancel = context.WithTimeout(context.Background(), 2500*time.Millisecond)
+	defer cancel()
+	if result := runFreePlaybackSample(ctx, browser, video, origin, &PlaybackCheck{}); result.Fingerprint != nil || result.FingerprintStatus != "" {
+		t.Fatalf("a video sample carried a fingerprint: %+v", result)
 	}
 }

@@ -736,19 +736,87 @@ func startProtectedMoviePlaybackHarness(ctx context.Context, source VerifiedSour
 	return "http://" + address, close, outcome, nil
 }
 
+// audioFingerprintBytes is how much of the relayed file the harness page
+// fetches for the fingerprint: 640 KiB is forty seconds of a 128 kbit/s
+// MP3, sixteen of a 320 kbit/s one and six or so of FLAC, well inside the
+// sample's byte budget beside what the audio element itself loads.
+const audioFingerprintBytes = 640 << 10
+
 // audioPlaybackHTML is the harness page for a recording: one audio element
 // on the relayed file, muted, playing as soon as it can, with the same state
-// flags the video page keeps. Nothing else loads.
+// flags the video page keeps, and beside it the acoustic fingerprint of the
+// file's beginning: the page fetches the first audioFingerprintBytes of the
+// same relayed file, decodes them offline at 11025 Hz mono with the Web
+// Audio API and runs lens.AcousticFingerprintFamily's algorithm in
+// JavaScript, step for step (the band table, the Hann window, the radix-2
+// transform, the sign of the difference of differences, and the family at
+// lens.FingerprintSpeeds by the same linear resampling), so the two agree
+// on the words. The result waits in window.__itembaFingerprint for the
+// sampler; the state says pending, ready or failed, and a failure names
+// its cause in one of the words the sampler knows. Nothing else loads: the
+// policy allows the page's own origin only, so the fetch cannot go
+// elsewhere.
 func audioPlaybackHTML(nonce string) []byte {
 	page := `<!doctype html><html><head><meta charset="utf-8"><title>ITEMBA playback sample</title></head><body><audio id="sample" autoplay muted preload="auto" src="/media"></audio><script nonce="{{nonce}}">
 (() => {
 const audio=document.getElementById('sample');
 window.__itembaPlaybackProtocol='native';window.__itembaPlaybackState='loading';window.__itembaPlaybackError='';
+window.__itembaFingerprintState='pending';window.__itembaFingerprint=null;window.__itembaFingerprintError='';
 audio.muted=true;audio.addEventListener('playing',()=>{window.__itembaPlaybackState='playing'});
 audio.addEventListener('error',()=>{window.__itembaPlaybackError='media_error';window.__itembaPlaybackState='error'});
 audio.play().catch(()=>{window.__itembaPlaybackError='play_rejected'});
+const RATE=11025,WINDOW=4096,HOP=1024,SECONDS=30,BANDS=32;
+const EDGES=[111,118,125,132,140,149,157,167,177,187,198,210,222,235,249,264,280,296,314,332,352,373,395,418,443,469,497,526,557,590,625,662,702,743];
+const fft=(re,im)=>{const n=re.length;
+ for(let i=1,j=0;i<n;i++){let bit=n>>1;for(;j&bit;bit>>=1){j^=bit;}j^=bit;if(i<j){let t=re[i];re[i]=re[j];re[j]=t;t=im[i];im[i]=im[j];im[j]=t;}}
+ for(let size=2;size<=n;size<<=1){const half=size>>1,step=-2*Math.PI/size;
+  for(let start=0;start<n;start+=size){for(let k=0;k<half;k++){const angle=step*k,wr=Math.cos(angle),wi=Math.sin(angle),a=start+k,b=start+k+half;
+   const tr=re[b]*wr-im[b]*wi,ti=re[b]*wi+im[b]*wr;re[b]=re[a]-tr;im[b]=im[a]-ti;re[a]=re[a]+tr;im[a]=im[a]+ti;}}}};
+const fingerprint=(samples)=>{
+ if(samples.length>SECONDS*RATE){samples=samples.subarray(0,SECONDS*RATE);}
+ const frames=samples.length>=WINDOW?Math.floor((samples.length-WINDOW)/HOP)+1:0;
+ if(frames<2){return null;}
+ const window=new Float64Array(WINDOW);for(let i=0;i<WINDOW;i++){window[i]=0.5*(1-Math.cos(2*Math.PI*i/WINDOW));}
+ const re=new Float64Array(WINDOW),im=new Float64Array(WINDOW);
+ let previous=new Float64Array(BANDS+1),current=new Float64Array(BANDS+1);
+ const out=new Uint8Array(4*(frames-1));
+ for(let n=0;n<frames;n++){const start=n*HOP;
+  for(let i=0;i<WINDOW;i++){re[i]=samples[start+i]*window[i];im[i]=0;}
+  fft(re,im);
+  for(let m=0;m<=BANDS;m++){let energy=0;for(let k=EDGES[m];k<EDGES[m+1];k++){energy+=re[k]*re[k]+im[k]*im[k];}current[m]=energy;}
+  if(n>0){let word=0;for(let m=0;m<BANDS;m++){if((current[m]-current[m+1])-(previous[m]-previous[m+1])>0){word|=1<<(31-m);}}
+   const o=4*(n-1);out[o]=(word>>>24)&255;out[o+1]=(word>>>16)&255;out[o+2]=(word>>>8)&255;out[o+3]=word&255;}
+  const swap=previous;previous=current;current=swap;}
+ return {frames:frames-1,seconds:Math.round(samples.length/RATE*100)/100,data:out};};
+const base64=(bytes)=>{let s='';for(let i=0;i<bytes.length;i+=8192){s+=String.fromCharCode.apply(null,bytes.subarray(i,i+8192));}return btoa(s);};
+const resample=(samples,factor)=>{const out=new Float64Array(Math.floor(samples.length*factor));
+ for(let i=0;i<out.length;i++){const pos=i/factor,j=Math.floor(pos);if(j+1>=samples.length){break;}const frac=pos-j;out[i]=samples[j]*(1-frac)+samples[j+1]*frac;}return out;};
+const SPEEDS=[0.97,0.98,0.99,1.01,1.02,1.03];
+(async()=>{
+ try{
+  const response=await fetch('/media',{headers:{Range:'bytes=0-{{lastByte}}'},cache:'no-store',credentials:'omit'});
+  if(response.status!==200&&response.status!==206){throw new Error('fetch_failed');}
+  const bytes=await response.arrayBuffer();
+  if(bytes.byteLength<WINDOW){throw new Error('fetch_failed');}
+  if(typeof OfflineAudioContext!=='function'){throw new Error('unsupported');}
+  const context=new OfflineAudioContext(1,RATE,RATE);
+  let decoded;
+  try{decoded=await context.decodeAudioData(bytes);}catch(e){throw new Error('decode_failed');}
+  if(decoded.sampleRate!==RATE||decoded.numberOfChannels<1){throw new Error('unsupported');}
+  const channels=decoded.numberOfChannels,length=Math.min(decoded.length,SECONDS*RATE);
+  const mono=new Float64Array(length);
+  for(let c=0;c<channels;c++){const data=decoded.getChannelData(c);for(let i=0;i<length;i++){mono[i]+=data[i];}}
+  if(channels>1){for(let i=0;i<length;i++){mono[i]/=channels;}}
+  const fp=fingerprint(mono);
+  if(!fp){throw new Error('too_short');}
+  const variants=[];
+  for(const speed of SPEEDS){const v=fingerprint(resample(mono,speed));if(v){variants.push({speed:speed,frames:v.frames,data:base64(v.data)});}}
+  window.__itembaFingerprint={type:'acoustic-bands-v1',frames:fp.frames,seconds:fp.seconds,data:base64(fp.data),variants:variants};
+  window.__itembaFingerprintState='ready';
+ }catch(e){window.__itembaFingerprintError=(e&&e.message)||'failed';window.__itembaFingerprintState='failed';}
+})();
 })();</script></body></html>`
-	return []byte(strings.ReplaceAll(page, "{{nonce}}", nonce))
+	return []byte(strings.NewReplacer("{{nonce}}", nonce, "{{lastByte}}", strconv.Itoa(audioFingerprintBytes-1)).Replace(page))
 }
 
 func moviePlaybackHTML(nonce string, hls, library bool) []byte {

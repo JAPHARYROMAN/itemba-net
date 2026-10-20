@@ -178,6 +178,9 @@ type fakePlaybackBrowser struct {
 	evaluations   int
 	origin        string
 	state         playbackSnapshot
+	// evolve, when set, lets a test change the page's state by evaluation,
+	// as the audio page's fingerprint work finishes while playback runs.
+	evolve func(state *playbackSnapshot, evaluation int)
 }
 
 func (b *fakePlaybackBrowser) OnEvent(h cdp.EventHandler) { b.handler = h }
@@ -202,6 +205,9 @@ func (b *fakePlaybackBrowser) Call(ctx context.Context, method string, params an
 		state := b.state
 		state.CurrentTime += float64(b.evaluations-1) * .2
 		state.DecodedFrames += (b.evaluations - 1) * 5
+		if b.evolve != nil {
+			b.evolve(&state, b.evaluations)
+		}
 		data, _ := json.Marshal(map[string]any{"result": map[string]any{"value": state}})
 		return json.Unmarshal(data, result)
 	}

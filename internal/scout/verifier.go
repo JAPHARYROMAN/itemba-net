@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/itemba-net/core/internal/cdp"
+	"github.com/itemba-net/core/internal/lens"
 	"github.com/itemba-net/core/internal/shield"
 )
 
@@ -70,21 +71,26 @@ type CandidateSource struct {
 // VerifiedSource represents a candidate source after stream verification and cleanliness scoring.
 type VerifiedSource struct {
 	CandidateSource
-	PlaybackCheck      *PlaybackCheck     `json:"playbackCheck,omitempty"`
-	AvailabilityCheck  *AvailabilityCheck `json:"availabilityCheck,omitempty"`
-	Verified           bool               `json:"verified"`
-	PrunedReason       string             `json:"prunedReason,omitempty"`
-	HasVideoDOM        bool               `json:"hasVideoDom"`
-	HasIframePlayer    bool               `json:"hasIframePlayer"`
-	DetectedManifests  []string           `json:"detectedManifests"`
-	StreamFormat       string             `json:"streamFormat"` // "HLS (.m3u8)", "DASH (.mpd)", "Direct MP4", "Direct WebM", "HTML5 <video>"
-	CleanlinessScore   int                `json:"cleanlinessScore"`
-	ThreatsBlocked     int                `json:"threatsBlocked"`
-	VerifyDurationMs   int64              `json:"verifyDurationMs"`
-	VerificationMode   string             `json:"verificationMode"` // "CDP Headless Tab" or "Stream Manifest Probe"
-	VerificationStatus string             `json:"verificationStatus"`
-	CheckedAt          string             `json:"checkedAt"`
-	RelevanceScore     int                `json:"relevanceScore"`
+	PlaybackCheck     *PlaybackCheck     `json:"playbackCheck,omitempty"`
+	AvailabilityCheck *AvailabilityCheck `json:"availabilityCheck,omitempty"`
+	// Identity is what the recording's fingerprint said beside the other
+	// fingerprint this search computed: the same sound or a different one,
+	// and what that meant for the tags. The index adds its own against
+	// everything heard before.
+	Identity           *lens.IdentityMatch `json:"identity,omitempty"`
+	Verified           bool                `json:"verified"`
+	PrunedReason       string              `json:"prunedReason,omitempty"`
+	HasVideoDOM        bool                `json:"hasVideoDom"`
+	HasIframePlayer    bool                `json:"hasIframePlayer"`
+	DetectedManifests  []string            `json:"detectedManifests"`
+	StreamFormat       string              `json:"streamFormat"` // "HLS (.m3u8)", "DASH (.mpd)", "Direct MP4", "Direct WebM", "HTML5 <video>"
+	CleanlinessScore   int                 `json:"cleanlinessScore"`
+	ThreatsBlocked     int                 `json:"threatsBlocked"`
+	VerifyDurationMs   int64               `json:"verifyDurationMs"`
+	VerificationMode   string              `json:"verificationMode"` // "CDP Headless Tab" or "Stream Manifest Probe"
+	VerificationStatus string              `json:"verificationStatus"`
+	CheckedAt          string              `json:"checkedAt"`
+	RelevanceScore     int                 `json:"relevanceScore"`
 }
 
 var (

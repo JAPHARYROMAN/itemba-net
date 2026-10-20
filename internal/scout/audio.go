@@ -149,6 +149,7 @@ func (s *Scout) searchAudio(ctx context.Context, query, region string, start tim
 	}
 	wg.Wait()
 	s.checkAudioPlayback(ctx, results, region, location.country)
+	matchRecordingsBySound(results)
 
 	sources := make([]VerifiedSource, 0, len(results))
 	verified := []VerifiedSource{}
@@ -169,6 +170,11 @@ func (s *Scout) searchAudio(ctx context.Context, query, region string, start tim
 	report.TotalCandidates, report.ListedCount, report.VerifiedCount = len(candidates), len(sources), len(verified)
 	report.Providers = providers
 	report.AvailabilityChecks = movieAvailabilityCoverage(region, location.country, location.detail, sources)
+	for _, source := range sources {
+		if source.PlaybackCheck != nil && source.PlaybackCheck.Fingerprint.Valid() {
+			report.AvailabilityChecks.FingerprintCount++
+		}
+	}
 	report.AvailabilityChecks.Detail = audioWording.Replace(strings.Replace(report.AvailabilityChecks.Detail, "Up to two supported free videos receive a short playback sample. A successful start does not confirm the complete movie.", "Up to two free recordings with reachable files receive a short muted playback sample. A successful start does not confirm the complete recording.", 1))
 	report.DurationMs = time.Since(start).Milliseconds()
 	return report
@@ -509,4 +515,66 @@ func resolveArchiveAudioSource(ctx context.Context, client *http.Client, source 
 		source.Description = fmt.Sprintf("One audio file, %s, from the Internet Archive item.", lens.FormatDuration(total))
 	}
 	return source, true
+}
+
+// matchRecordingsBySound compares the fingerprints this search's samples
+// computed, two at most, and says on each what the other sounded like. The
+// same sound under different tags is the same recording, so the source
+// takes the better relevance of the two; a different sound under the same
+// tags is a different recording and says so; the same beginning on files
+// of different lengths is an edit. The index makes the same comparison
+// against everything it has heard before.
+func matchRecordingsBySound(results []VerifiedSource) {
+	type heard struct {
+		index    int
+		identity lens.AudioIdentity
+	}
+	var sampled []heard
+	for i := range results {
+		p := results[i].PlaybackCheck
+		if p == nil || !p.Fingerprint.Valid() {
+			continue
+		}
+		identity := lens.AudioListing(results[i].Title, results[i].Creator, results[i].Duration, results[i].ReleaseYear)
+		// The sampled file's own length judges an edit, not the item's.
+		identity.DurationSeconds, identity.Fingerprint = p.DurationSeconds, p.Fingerprint
+		sampled = append(sampled, heard{i, identity})
+	}
+	for _, a := range sampled {
+		var best *lens.IdentityMatch
+		relevance := results[a.index].RelevanceScore
+		for _, b := range sampled {
+			if a.index == b.index {
+				continue
+			}
+			c := lens.CompareFingerprints(*a.identity.Fingerprint, *b.identity.Fingerprint)
+			if !c.Known || best != nil && c.Distance >= best.Distance {
+				continue
+			}
+			sound := lens.MatchRecordings(a.identity, b.identity)
+			byTags, otherByTags := a.identity, b.identity
+			byTags.Fingerprint, otherByTags.Fingerprint = nil, nil
+			tags := lens.MatchRecordings(byTags, otherByTags)
+			match := &lens.IdentityMatch{Method: lens.MethodFingerprint, PeerURL: results[b.index].URL, PeerTitle: results[b.index].Title, Distance: math.Round(c.Distance*1000) / 1000, Seconds: c.OverlapSeconds()}
+			switch {
+			case sound.Same && tags.Same:
+				match.Verdict, match.Effect = lens.VerdictSame, lens.EffectConfirmed
+			case sound.Same:
+				match.Verdict, match.Effect = lens.VerdictSame, lens.EffectJoined
+				relevance = max(relevance, results[b.index].RelevanceScore)
+			case sound.Basis == "duration":
+				match.Verdict = lens.VerdictSame
+			case tags.Same:
+				match.Verdict, match.Effect = lens.VerdictDifferent, lens.EffectKeptApart
+			default:
+				match.Verdict = lens.VerdictDifferent
+			}
+			match.Detail = lens.IdentityDetail(*match)
+			best = match
+		}
+		if best != nil {
+			results[a.index].Identity = best
+			results[a.index].RelevanceScore = relevance
+		}
+	}
 }
