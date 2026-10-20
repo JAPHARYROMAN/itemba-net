@@ -74,6 +74,10 @@ type mergedLocation struct {
 	AccessType string     `json:"accessType"`
 	Origin     string     `json:"origin"`
 	Relevance  float64    `json:"relevance"`
+	// Identity is what the fingerprint said about the location: the
+	// index's verdict when it recorded the fingerprint, else the search's
+	// own comparison between its two samples.
+	Identity *lens.IdentityMatch `json:"identity,omitempty"`
 }
 
 type mergedEvent struct {
@@ -152,7 +156,7 @@ func (s *Server) searchStream(w http.ResponseWriter, r *http.Request) {
 	if !send("report", event) {
 		return
 	}
-	if !send("merged", mergeLocations(q, known.Locations, report)) {
+	if !send("merged", mergeLocations(q, known.Locations, report, event.Atlas)) {
 		return
 	}
 	send("done", map[string]any{"durationMs": time.Since(started).Milliseconds()})
@@ -176,7 +180,10 @@ func (s *Server) record(ctx context.Context, q lens.ObjectQuery, report scout.Se
 }
 
 // mergeLocations ranks known and fresh locations together under the cap.
-func mergeLocations(q lens.ObjectQuery, known []atlas.KnownLocation, report scout.SearchReport) mergedEvent {
+// recorded, when the report was written to the index, carries the
+// fingerprint library's verdict on each fresh location; a fresh location
+// the index did not judge keeps the search's own comparison.
+func mergeLocations(q lens.ObjectQuery, known []atlas.KnownLocation, report scout.SearchReport, recorded *atlas.RecordSummary) mergedEvent {
 	var candidates []lens.Candidate
 	knownURLs := make(map[string]bool, len(known))
 	for _, k := range known {
@@ -191,6 +198,7 @@ func mergeLocations(q lens.ObjectQuery, known []atlas.KnownLocation, report scou
 			AccessType: k.Location.AccessType,
 			Origin:     "index",
 			Relevance:  k.Relevance,
+			Identity:   k.Identity,
 		}
 		observed := k.Location.LastSeen
 		if k.Evidence != nil {
@@ -253,6 +261,12 @@ func mergeLocations(q lens.ObjectQuery, known []atlas.KnownLocation, report scou
 			AccessType: firstNonEmpty(strings.ToLower(source.AccessType), "unknown"),
 			Origin:     "fresh",
 			Relevance:  relevance,
+			Identity:   source.Identity,
+		}
+		if recorded != nil {
+			if identity, ok := recorded.Identities[source.URL]; ok {
+				m.Identity = &identity
+			}
 		}
 		if !observed.IsZero() {
 			at := observed

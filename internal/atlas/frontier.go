@@ -281,6 +281,10 @@ type Listing struct {
 	// ListingOnly is true when the page lists the object without a known
 	// media URL; verification must open it before any playback claim.
 	ListingOnly bool `json:"listingOnly"`
+	// Fingerprint is what a probe heard of the listing's media, when one
+	// did; the fingerprint library compares it with everything of its type
+	// and lets it decide the object the listing joins.
+	Fingerprint *FingerprintObservation `json:"fingerprint,omitempty"`
 }
 
 // RecordListings writes a driver's listings for an object as locations with

@@ -5,9 +5,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/itemba-net/core/internal/atlas"
 	"github.com/itemba-net/core/internal/lens"
 	"github.com/itemba-net/core/internal/scout"
 )
@@ -117,7 +120,7 @@ func TestAudioSearchCarriesTheKindFromTheFormToTheIndex(t *testing.T) {
 	// list and in the evidence Atlas is given.
 	sampled := search(context.Background(), "Kind of Blue by Miles Davis", "ALL", scout.SearchOptions{Kind: lens.TypeAudio})
 	sampled.Sources[0].PlaybackCheck = &scout.PlaybackCheck{Status: "started", PlaybackConfirmed: true, Method: "isolated_audio_sample", SecondsAdvanced: 1.4, DurationSeconds: 562.4, Country: "TZ", RequestedRegion: "ALL", CheckedAt: "2026-10-20T00:00:00Z", Detail: "A muted beginning sample decoded audio and advanced at normal speed."}
-	merged = mergeLocations(lens.ParseAs("Kind of Blue by Miles Davis", lens.TypeAudio), nil, sampled)
+	merged = mergeLocations(lens.ParseAs("Kind of Blue by Miles Davis", lens.TypeAudio), nil, sampled, nil)
 	if len(merged.Locations) != 1 || merged.Locations[0].Level != lens.LevelRendered || merged.Locations[0].LevelName != "rendered" {
 		t.Fatalf("a started audio sample is rendered in the merged list: %+v", merged.Locations)
 	}
@@ -148,5 +151,80 @@ func TestAudioSearchCarriesTheKindFromTheFormToTheIndex(t *testing.T) {
 	handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/scout/search", strings.NewReader(`{"query":"Sintel"}`)))
 	if response.Code != http.StatusOK || gotOptions.Kind != lens.TypeVideo || !strings.Contains(response.Body.String(), `"kind":"video"`) {
 		t.Fatalf("a search without a kind is a video search: %d %s", response.Code, response.Body.String())
+	}
+}
+
+// TestFingerprintsTravelFromTheSampleToTheIndexAndTheRankedList proves the
+// bridge: a sample's fingerprint reaches the index with the length of the
+// file it was taken from and the time it was taken, the sample's evidence
+// says how the fingerprint went, and the ranked list carries the index's
+// verdict on a fresh location, the search's own when the index gave none,
+// and a known location's stored verdict.
+func TestFingerprintsTravelFromTheSampleToTheIndexAndTheRankedList(t *testing.T) {
+	data, err := os.ReadFile("../lens/testdata/fingerprints.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fx struct {
+		Recordings []struct {
+			Name        string           `json:"name"`
+			Fingerprint lens.Fingerprint `json:"fingerprint"`
+		} `json:"recordings"`
+	}
+	if err := json.Unmarshal(data, &fx); err != nil || len(fx.Recordings) == 0 {
+		t.Fatalf("fixture set: %v", err)
+	}
+	fp := fx.Recordings[0].Fingerprint
+	album, reissue := "https://archive.org/details/kind-of-blue-1959", "https://archive.org/details/kind-of-blue-reissue"
+	source := scout.VerifiedSource{
+		CandidateSource: scout.CandidateSource{ID: "ia-audio-kind-of-blue-1959", Kind: lens.TypeAudio, Title: "Kind of Blue", Creator: "Miles Davis", URL: album, DirectStreamURL: "https://archive.org/download/kind-of-blue-1959/01.mp3", Provider: "Internet Archive", SourceType: "Archive audio", Duration: "2744", AccessType: "free"},
+		Verified:        true, VerificationStatus: "media_reachable", CheckedAt: "2026-10-20T00:00:00Z",
+		AvailabilityCheck: &scout.AvailabilityCheck{Status: "media_reachable", Country: "TZ", RequestedRegion: "ALL", CheckedAt: "2026-10-20T00:00:00Z", Method: "http_media_probe"},
+		PlaybackCheck:     &scout.PlaybackCheck{Status: "started", PlaybackConfirmed: true, Method: "isolated_audio_sample", SecondsAdvanced: 1.2, DurationSeconds: 562.4, Country: "TZ", RequestedRegion: "ALL", CheckedAt: "2026-10-20T06:00:00Z", Fingerprint: &fp, FingerprintStatus: "computed"},
+		Identity:          &lens.IdentityMatch{Method: lens.MethodFingerprint, Verdict: lens.VerdictSame, Effect: lens.EffectJoined, PeerURL: reissue, Distance: 0.12, Detail: "the search's own comparison"},
+	}
+	report := scout.SearchReport{Query: "Kind of Blue by Miles Davis", Kind: lens.TypeAudio, Sources: []scout.VerifiedSource{source}}
+
+	observations := observationsFromReport(report)
+	if len(observations) != 1 || observations[0].Fingerprint == nil {
+		t.Fatalf("the fingerprint reaches the listing: %+v", observations)
+	}
+	heard := observations[0].Fingerprint
+	if heard.MediaSeconds != 562.4 || !heard.ObservedAt.Equal(time.Date(2026, 10, 20, 6, 0, 0, 0, time.UTC)) || heard.Fingerprint.Frames != fp.Frames || string(heard.Fingerprint.Data) != string(fp.Data) {
+		t.Fatalf("the fingerprint carries the sampled file's length and its time: %+v", heard)
+	}
+	if evidence := observations[0].Evidence; len(evidence) != 2 || evidence[1].Artefacts["fingerprintStatus"] != "computed" || evidence[1].Level != lens.LevelRendered {
+		t.Fatalf("the sample's evidence says how the fingerprint went: %+v", evidence)
+	}
+
+	q := lens.ParseAs("Kind of Blue by Miles Davis", lens.TypeAudio)
+	merged := mergeLocations(q, nil, report, nil)
+	if len(merged.Locations) != 1 || merged.Locations[0].Identity == nil || merged.Locations[0].Identity.Detail != "the search's own comparison" {
+		t.Fatalf("without the index's verdict the search's own stands: %+v", merged.Locations)
+	}
+	recorded := &atlas.RecordSummary{Fingerprints: 1, Identities: map[string]lens.IdentityMatch{album: {Method: lens.MethodFingerprint, Verdict: lens.VerdictDifferent, Effect: lens.EffectKeptApart, PeerURL: reissue, Distance: 0.44, Detail: "the index's verdict"}}}
+	known := []atlas.KnownLocation{{
+		Object: atlas.Object{ID: 7, Type: lens.TypeAudio, Title: "Kind of Blue", TitleKey: "kind of blue", Creator: "Miles Davis", CreatorKey: "miles davis"},
+		Host:   atlas.Host{ID: 1, Hostname: "archive.org"}, Location: atlas.Location{ID: 3, ObjectID: 7, HostID: 1, URL: reissue, AccessType: "free", LastSeen: time.Now()},
+		EffectiveLevel: lens.LevelRendered, LevelName: "rendered", Relevance: 1,
+		Identity: &lens.IdentityMatch{Method: lens.MethodFingerprint, Verdict: lens.VerdictSame, Effect: lens.EffectConfirmed, PeerURL: album, Distance: 0.1, Detail: "stored with the fingerprint"},
+	}}
+	merged = mergeLocations(q, known, report, recorded)
+	byURL := map[string]mergedLocation{}
+	for _, m := range merged.Locations {
+		byURL[m.URL] = m
+	}
+	if m := byURL[album]; m.Identity == nil || m.Identity.Effect != lens.EffectKeptApart || m.Identity.Detail != "the index's verdict" {
+		t.Fatalf("the index's verdict replaces the search's on a fresh location: %+v", m.Identity)
+	}
+	if m := byURL[reissue]; m.Identity == nil || m.Identity.Effect != lens.EffectConfirmed || m.Origin != "index" {
+		t.Fatalf("a known location carries its stored verdict: %+v", m)
+	}
+
+	// A movie sample has no fingerprint and no verdict.
+	movie := source
+	movie.Kind, movie.PlaybackCheck.Fingerprint, movie.PlaybackCheck.FingerprintStatus, movie.Identity = lens.TypeVideo, nil, "", nil
+	if observations := observationsFromReport(scout.SearchReport{Sources: []scout.VerifiedSource{movie}}); observations[0].Fingerprint != nil || observations[0].Evidence[1].Artefacts["fingerprintStatus"] != nil {
+		t.Fatalf("a movie sample sends nothing to the library: %+v", observations[0])
 	}
 }

@@ -131,7 +131,7 @@ func TestSearchRouteUsesTheInjectedBurstAndReportsNoAtlas(t *testing.T) {
 func TestMergeLocationsCombinesIndexAndFreshByURL(t *testing.T) {
 	q := lens.Parse("Sintel 2010")
 	report := fixtureReport("Sintel", "ALL")
-	merged := mergeLocations(q, nil, report)
+	merged := mergeLocations(q, nil, report, nil)
 	if merged.Known != 0 || merged.Fresh != 2 || len(merged.Locations) != 2 || merged.Locations[0].Origin != "fresh" {
 		t.Fatalf("fresh-only merge: %+v", merged)
 	}

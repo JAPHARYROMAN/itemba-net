@@ -23,26 +23,29 @@ func observationsFromReport(report scout.SearchReport) []atlas.Observation {
 	}
 	observations := make([]atlas.Observation, 0, len(sources))
 	for _, source := range sources {
-		observations = append(observations, atlas.Observation{
-			Listing: atlas.Listing{
-				Kind:        source.Kind,
-				Title:       source.Title,
-				Creator:     source.Creator,
-				URL:         source.URL,
-				MediaURL:    source.DirectStreamURL,
-				Provider:    source.Provider,
-				SourceType:  source.SourceType,
-				AccessType:  source.AccessType,
-				Price:       source.Price,
-				Market:      source.Region,
-				Year:        source.ReleaseYear,
-				Duration:    source.Duration,
-				Description: source.Description,
-				Thumbnail:   source.Thumbnail,
-				ListingOnly: source.ListingOnly,
-			},
-			Evidence: evidenceFor(source, egress),
-		})
+		listing := atlas.Listing{
+			Kind:        source.Kind,
+			Title:       source.Title,
+			Creator:     source.Creator,
+			URL:         source.URL,
+			MediaURL:    source.DirectStreamURL,
+			Provider:    source.Provider,
+			SourceType:  source.SourceType,
+			AccessType:  source.AccessType,
+			Price:       source.Price,
+			Market:      source.Region,
+			Year:        source.ReleaseYear,
+			Duration:    source.Duration,
+			Description: source.Description,
+			Thumbnail:   source.Thumbnail,
+			ListingOnly: source.ListingOnly,
+		}
+		// What the sample heard goes to the fingerprint library with the
+		// length of the file it heard it from, as the browser read it.
+		if check := source.PlaybackCheck; check != nil && check.Fingerprint.Valid() {
+			listing.Fingerprint = &atlas.FingerprintObservation{Fingerprint: *check.Fingerprint, MediaSeconds: check.DurationSeconds, ObservedAt: observedOrNow(check.CheckedAt)}
+		}
+		observations = append(observations, atlas.Observation{Listing: listing, Evidence: evidenceFor(source, egress)})
 	}
 	return observations
 }
@@ -69,6 +72,18 @@ func evidenceFor(source scout.VerifiedSource, defaultEgress string) []atlas.Evid
 		} else if source.AvailabilityCheck != nil {
 			level = lens.LevelFromChecks(source.AvailabilityCheck.Status, "", false)
 		}
+		artefacts := map[string]any{
+			"secondsAdvanced": check.SecondsAdvanced,
+			"decodedFrames":   check.DecodedFrames,
+			"width":           check.Width,
+			"height":          check.Height,
+			"durationSeconds": check.DurationSeconds,
+			"evidenceUrl":     check.EvidenceURL,
+			"requestedRegion": check.RequestedRegion,
+		}
+		if check.FingerprintStatus != "" {
+			artefacts["fingerprintStatus"] = check.FingerprintStatus
+		}
 		out = append(out, atlas.Evidence{
 			Level:      level,
 			Method:     firstNonEmpty(check.Method, "playback_sample"),
@@ -76,15 +91,7 @@ func evidenceFor(source scout.VerifiedSource, defaultEgress string) []atlas.Evid
 			Detail:     firstNonEmpty(check.Reason, check.Detail),
 			Egress:     firstNonEmpty(check.Country, defaultEgress),
 			ObservedAt: observedOrNow(check.CheckedAt),
-			Artefacts: map[string]any{
-				"secondsAdvanced": check.SecondsAdvanced,
-				"decodedFrames":   check.DecodedFrames,
-				"width":           check.Width,
-				"height":          check.Height,
-				"durationSeconds": check.DurationSeconds,
-				"evidenceUrl":     check.EvidenceURL,
-				"requestedRegion": check.RequestedRegion,
-			},
+			Artefacts:  artefacts,
 		})
 	}
 	if len(out) == 0 && defaultEgress != "" {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -23,6 +24,11 @@ type Object struct {
 	CreatorKey string `json:"creatorKey,omitempty"`
 	Year       int    `json:"year,omitempty"`
 	Language   string `json:"language,omitempty"`
+	// ContentKey tells apart objects whose tags agree but whose content
+	// does not, a radio edit beside the album cut: empty when the content
+	// is unknown or agrees, a digest of the fingerprint that set it apart
+	// otherwise.
+	ContentKey string `json:"contentKey,omitempty"`
 }
 
 // Host is a site that holds locations.
@@ -73,6 +79,9 @@ type KnownLocation struct {
 	LevelName      string    `json:"levelName"`
 	AgeSeconds     int64     `json:"ageSeconds"`
 	Relevance      float64   `json:"relevance"`
+	// Identity is what the fingerprint library concluded when the
+	// location's latest fingerprint arrived; absent when none was taken.
+	Identity *lens.IdentityMatch `json:"identity,omitempty"`
 }
 
 var errNoDatabase = errors.New("atlas: no database configured")
@@ -99,16 +108,16 @@ func (s *Store) UpsertObject(ctx context.Context, o Object) (Object, error) {
 	}
 	var out Object
 	err := s.pool.QueryRow(ctx, `
-		INSERT INTO atlas.objects (type, title, title_key, creator, creator_key, year, language)
-		VALUES ($1, $2, $3, NULLIF($4, ''), $5, NULLIF($6, 0), NULLIF($7, ''))
+		INSERT INTO atlas.objects (type, title, title_key, creator, creator_key, year, language, content_key)
+		VALUES ($1, $2, $3, NULLIF($4, ''), $5, NULLIF($6, 0), NULLIF($7, ''), $8)
 		ON CONFLICT ON CONSTRAINT objects_identity DO UPDATE
 		SET title = EXCLUDED.title,
 		    creator = COALESCE(EXCLUDED.creator, atlas.objects.creator),
 		    language = COALESCE(EXCLUDED.language, atlas.objects.language),
 		    updated_at = now()
-		RETURNING id, type, title, title_key, COALESCE(creator, ''), creator_key, COALESCE(year, 0), COALESCE(language, '')`,
-		o.Type, o.Title, o.TitleKey, o.Creator, o.CreatorKey, o.Year, o.Language,
-	).Scan(&out.ID, &out.Type, &out.Title, &out.TitleKey, &out.Creator, &out.CreatorKey, &out.Year, &out.Language)
+		RETURNING id, type, title, title_key, COALESCE(creator, ''), creator_key, COALESCE(year, 0), COALESCE(language, ''), content_key`,
+		o.Type, o.Title, o.TitleKey, o.Creator, o.CreatorKey, o.Year, o.Language, o.ContentKey,
+	).Scan(&out.ID, &out.Type, &out.Title, &out.TitleKey, &out.Creator, &out.CreatorKey, &out.Year, &out.Language, &out.ContentKey)
 	if err != nil {
 		return Object{}, fmt.Errorf("atlas: upsert object: %w", err)
 	}
@@ -229,18 +238,27 @@ func (s *Store) Lookup(ctx context.Context, q lens.ObjectQuery, limit int) ([]Kn
 		limit = lens.DefaultLimit
 	}
 	const columns = `
-		o.id, o.type, o.title, o.title_key, COALESCE(o.creator, ''), o.creator_key, COALESCE(o.year, 0), COALESCE(o.language, ''),
+		o.id, o.type, o.title, o.title_key, COALESCE(o.creator, ''), o.creator_key, COALESCE(o.year, 0), COALESCE(o.language, ''), o.content_key,
 		l.id, l.object_id, l.host_id, l.url, COALESCE(l.media_url, ''), l.access_type, COALESCE(l.price, ''), COALESCE(l.market, ''), COALESCE(l.title, ''), COALESCE(l.source_type, ''), COALESCE(l.duration_seconds, 0), l.last_seen,
 		h.id, h.hostname, COALESCE(h.provider, ''),
-		e.level, e.method, e.status, e.detail, e.egress, e.observed_at`
+		e.level, e.method, e.status, e.detail, e.egress, e.observed_at,
+		fp.type, fp.seconds, fp.distance, fp.verdict, fp.effect, p.url, p.title`
 	// The latest evidence wins; two rows observed in the same instant resolve
-	// to the stronger one, then the later insert.
+	// to the stronger one, then the later insert. The latest fingerprint
+	// brings the verdict reached when it arrived and the location it was
+	// nearest to.
 	const latest = `
 		LEFT JOIN LATERAL (
 			SELECT level, method, status, detail, egress, observed_at
 			FROM atlas.evidence ev WHERE ev.location_id = l.id
 			ORDER BY observed_at DESC, level DESC, id DESC LIMIT 1
-		) e ON true`
+		) e ON true
+		LEFT JOIN LATERAL (
+			SELECT f.type, f.seconds, f.distance, f.verdict, f.effect, f.peer_location_id
+			FROM atlas.fingerprints f WHERE f.location_id = l.id
+			ORDER BY f.observed_at DESC LIMIT 1
+		) fp ON true
+		LEFT JOIN atlas.locations p ON p.id = fp.peer_location_id`
 
 	var rows pgx.Rows
 	var err error
@@ -288,13 +306,29 @@ func (s *Store) Lookup(ctx context.Context, q lens.ObjectQuery, limit int) ([]Kn
 		var level *int16
 		var method, status, detail, egress *string
 		var observed *time.Time
+		var fpType, fpVerdict, fpEffect, peerURL, peerTitle *string
+		var fpSeconds, fpDistance *float32
 		if err := rows.Scan(
-			&k.Object.ID, &k.Object.Type, &k.Object.Title, &k.Object.TitleKey, &k.Object.Creator, &k.Object.CreatorKey, &k.Object.Year, &k.Object.Language,
+			&k.Object.ID, &k.Object.Type, &k.Object.Title, &k.Object.TitleKey, &k.Object.Creator, &k.Object.CreatorKey, &k.Object.Year, &k.Object.Language, &k.Object.ContentKey,
 			&k.Location.ID, &k.Location.ObjectID, &k.Location.HostID, &k.Location.URL, &k.Location.MediaURL, &k.Location.AccessType, &k.Location.Price, &k.Location.Market, &k.Location.Title, &k.Location.SourceType, &k.Location.DurationSeconds, &k.Location.LastSeen,
 			&k.Host.ID, &k.Host.Hostname, &k.Host.Provider,
 			&level, &method, &status, &detail, &egress, &observed,
+			&fpType, &fpSeconds, &fpDistance, &fpVerdict, &fpEffect, &peerURL, &peerTitle,
 		); err != nil {
 			return nil, fmt.Errorf("atlas: lookup scan: %w", err)
+		}
+		if fpType != nil {
+			identity := lens.IdentityMatch{Method: lens.MethodFingerprint, Verdict: deref(fpVerdict), Effect: deref(fpEffect), PeerURL: deref(peerURL), PeerTitle: deref(peerTitle)}
+			if fpDistance != nil {
+				identity.Distance = math.Round(float64(*fpDistance)*1000) / 1000
+			}
+			if fpSeconds != nil && identity.PeerURL != "" {
+				// The span compared is at most the span covered; the exact
+				// overlap was not kept, so the covered span stands for it.
+				identity.Seconds = math.Round(float64(*fpSeconds)*10) / 10
+			}
+			identity.Detail = lens.IdentityDetail(identity)
+			k.Identity = &identity
 		}
 		if level != nil && observed != nil {
 			k.Evidence = &Evidence{LocationID: k.Location.ID, Level: int(*level), Method: deref(method), Status: deref(status), Detail: deref(detail), Egress: deref(egress), ObservedAt: *observed}

@@ -68,7 +68,7 @@ func TestGoldenReportsMergeOntoTheLadderAsRecorded(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			report := goldenReport(t, tc.name)
 			q := lens.Parse(report.Query)
-			merged := mergeLocations(q, nil, report)
+			merged := mergeLocations(q, nil, report, nil)
 			if len(merged.Locations) != tc.count || merged.Fresh != tc.count || merged.Known != 0 {
 				t.Fatalf("expected %d fresh locations, got %+v", tc.count, merged)
 			}

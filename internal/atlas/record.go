@@ -9,12 +9,16 @@ import (
 	"github.com/itemba-net/core/internal/lens"
 )
 
-// RecordSummary counts what one recording wrote to Atlas.
+// RecordSummary counts what one recording wrote to Atlas, and says what
+// the fingerprint library concluded about each fingerprinted listing, by
+// its URL.
 type RecordSummary struct {
-	Objects   int `json:"objects"`
-	Locations int `json:"locations"`
-	Evidence  int `json:"evidence"`
-	Skipped   int `json:"skipped,omitempty"`
+	Objects      int                           `json:"objects"`
+	Locations    int                           `json:"locations"`
+	Evidence     int                           `json:"evidence"`
+	Skipped      int                           `json:"skipped,omitempty"`
+	Fingerprints int                           `json:"fingerprints,omitempty"`
+	Identities   map[string]lens.IdentityMatch `json:"identities,omitempty"`
 }
 
 // Observation is a listing together with whatever was checked about it: the
@@ -55,7 +59,21 @@ func (s *Store) RecordObservations(ctx context.Context, q lens.ObjectQuery, obse
 			summary.Skipped++
 			continue
 		}
-		object, err := s.objectForTitle(ctx, q, queryObject, observation.Listing, objects, &summary)
+		candidate, err := tagCandidate(q, queryObject, observation.Listing)
+		if err != nil {
+			return summary, err
+		}
+		// A fingerprint lets the sound overrule the tags; without one the
+		// tags decide.
+		var object Object
+		var match *lens.IdentityMatch
+		var peer int64
+		heard := candidate.Type == lens.TypeAudio && observation.Fingerprint != nil && observation.Fingerprint.Fingerprint.Valid()
+		if heard {
+			object, match, peer, err = s.objectBySound(ctx, observation.Listing, candidate, objects, &summary)
+		} else {
+			object, err = s.resolveTagObject(ctx, candidate, objects, &summary)
+		}
 		if err != nil {
 			return summary, err
 		}
@@ -83,6 +101,16 @@ func (s *Store) RecordObservations(ctx context.Context, q lens.ObjectQuery, obse
 			return summary, err
 		}
 		summary.Locations++
+		if heard {
+			if err := s.RecordFingerprint(ctx, location.ID, *observation.Fingerprint, match, peer); err != nil {
+				return summary, err
+			}
+			summary.Fingerprints++
+			if summary.Identities == nil {
+				summary.Identities = map[string]lens.IdentityMatch{}
+			}
+			summary.Identities[observation.URL] = *match
+		}
 		evidence := observation.Evidence
 		if len(evidence) == 0 {
 			evidence = []Evidence{{Level: lens.LevelListed, Method: "provider_listing", Status: "listed", Detail: observation.Provider, ObservedAt: time.Now()}}
@@ -98,17 +126,29 @@ func (s *Store) RecordObservations(ctx context.Context, q lens.ObjectQuery, obse
 	return summary, nil
 }
 
-// objectForTitle decides which object a listing belongs to. A title is read
-// as a listing, so "Sintel (2010)" is the title Sintel with a year and joins
-// the Sintel object rather than becoming a second one, while a title that
-// merely ends in "film" keeps that word. An audio listing is read by its
-// tags: it joins the query's recording when the title matches and its
-// performer is unknown or agrees with the one the query names, and
-// otherwise becomes a recording of its own under its performer. So a search
-// that names no performer gathers only performer-less listings under its
-// own object, and every credited recording of that title stays apart. A
-// listing without a kind takes the query's.
+// objectForTitle decides which object a listing belongs to by its tags:
+// the candidate its tags name, stored.
 func (s *Store) objectForTitle(ctx context.Context, q lens.ObjectQuery, queryObject *Object, listing Listing, cache map[string]Object, summary *RecordSummary) (Object, error) {
+	candidate, err := tagCandidate(q, queryObject, listing)
+	if err != nil {
+		return Object{}, err
+	}
+	return s.resolveTagObject(ctx, candidate, cache, summary)
+}
+
+// tagCandidate reads which object a listing's tags name, without storing
+// it. A title is read as a listing, so "Sintel (2010)" is the title Sintel
+// with a year and joins the Sintel object rather than becoming a second
+// one, while a title that merely ends in "film" keeps that word. An audio
+// listing is read by its tags: it joins the query's recording when the
+// title matches and its performer is unknown or agrees with the one the
+// query names, and otherwise becomes a recording of its own under its
+// performer. So a search that names no performer gathers only
+// performer-less listings under its own object, and every credited
+// recording of that title stays apart. A listing without a kind takes the
+// query's. The query's own object comes back with its ID; any other
+// candidate has none until resolveTagObject stores it.
+func tagCandidate(q lens.ObjectQuery, queryObject *Object, listing Listing) (Object, error) {
 	kind := listing.Kind
 	if kind == "" {
 		kind = q.Type
@@ -135,7 +175,17 @@ func (s *Store) objectForTitle(ctx context.Context, q lens.ObjectQuery, queryObj
 	if candidate.TitleKey == "" {
 		return Object{}, fmt.Errorf("atlas: a listing titled %q names no object and the query names none", listing.Title)
 	}
-	cacheKey := fmt.Sprintf("%s|%s|%s|%d", kind, candidate.TitleKey, candidate.CreatorKey, candidate.Year)
+	return candidate, nil
+}
+
+// resolveTagObject stores a candidate the tags named, once per recording
+// run, and returns it with its ID; the query's own object is returned as
+// it is.
+func (s *Store) resolveTagObject(ctx context.Context, candidate Object, cache map[string]Object, summary *RecordSummary) (Object, error) {
+	if candidate.ID != 0 {
+		return candidate, nil
+	}
+	cacheKey := fmt.Sprintf("%s|%s|%s|%d|%s", candidate.Type, candidate.TitleKey, candidate.CreatorKey, candidate.Year, candidate.ContentKey)
 	if o, ok := cache[cacheKey]; ok {
 		return o, nil
 	}
@@ -146,6 +196,12 @@ func (s *Store) objectForTitle(ctx context.Context, q lens.ObjectQuery, queryObj
 	cache[cacheKey] = o
 	summary.Objects++
 	return o, nil
+}
+
+// sameIdentity reports whether two objects have the same identity, stored
+// or not: the columns of the identity constraint.
+func sameIdentity(a, b Object) bool {
+	return a.Type == b.Type && a.TitleKey == b.TitleKey && a.CreatorKey == b.CreatorKey && a.Year == b.Year && a.ContentKey == b.ContentKey
 }
 
 func accessType(raw string) string {
