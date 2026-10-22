@@ -34,7 +34,9 @@ func TestConverterRunsTheToolOnceAndCachesThePDF(t *testing.T) {
 	var runs int
 	c := testConverter(t, func(ctx context.Context, cmd *exec.Cmd) error {
 		runs++
-		if filepath.Base(cmd.Path) != "ebook-convert" || len(cmd.Args) != 3 || !strings.HasSuffix(cmd.Args[1], "input.epub") || !strings.HasSuffix(cmd.Args[2], "input.pdf") || cmd.Dir == "" {
+		// A tool installed on the host resolves to its path on PATH, which
+		// on Windows carries the executable extension.
+		if strings.TrimSuffix(filepath.Base(cmd.Path), ".exe") != "ebook-convert" || len(cmd.Args) != 3 || !strings.HasSuffix(cmd.Args[1], "input.epub") || !strings.HasSuffix(cmd.Args[2], "input.pdf") || cmd.Dir == "" {
 			t.Errorf("ebook-convert takes the input and the output: %v in %q", cmd.Args, cmd.Dir)
 		}
 		for _, want := range []string{"CALIBRE_CONFIG_DIRECTORY=", "CALIBRE_TEMP_DIR="} {

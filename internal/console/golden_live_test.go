@@ -37,9 +37,48 @@ func liveStore(t *testing.T) (*atlas.Store, context.Context) {
 	return store, ctx
 }
 
+// freshen moves the dated checks of a recorded report to the present, so the
+// levels it recorded do not decay down the ladder as the fixture ages: the
+// newest dated check lands at now and the rest keep their distance behind
+// it, which keeps the order and the ties the fixture is judged by. Evidence
+// the conversion stamped with the present, because the report carried no
+// time for it, is left where it is.
+func freshen(observations []atlas.Observation) []atlas.Observation {
+	now := time.Now()
+	dated := func(at time.Time) bool { return !at.IsZero() && now.Sub(at) > time.Hour }
+	var latest time.Time
+	for _, o := range observations {
+		for _, e := range o.Evidence {
+			if dated(e.ObservedAt) && e.ObservedAt.After(latest) {
+				latest = e.ObservedAt
+			}
+		}
+		if f := o.Fingerprint; f != nil && dated(f.ObservedAt) && f.ObservedAt.After(latest) {
+			latest = f.ObservedAt
+		}
+	}
+	if latest.IsZero() {
+		return observations
+	}
+	shift := now.Sub(latest)
+	for i := range observations {
+		for j := range observations[i].Evidence {
+			if e := &observations[i].Evidence[j]; dated(e.ObservedAt) {
+				e.ObservedAt = e.ObservedAt.Add(shift)
+			}
+		}
+		if f := observations[i].Fingerprint; f != nil && dated(f.ObservedAt) {
+			f.ObservedAt = f.ObservedAt.Add(shift)
+		}
+	}
+	return observations
+}
+
 // TestGoldenReportsRecordAndLookUpAgainstPostgreSQL writes the recorded
 // reports into a disposable database through the same conversion the search
-// routes use, and reads them back the way the streamed search does.
+// routes use, and reads them back the way the streamed search does. The
+// reports were captured on 18 October 2026; their checks are moved to the
+// present before recording, so the levels read back are the ones recorded.
 func TestGoldenReportsRecordAndLookUpAgainstPostgreSQL(t *testing.T) {
 	store, ctx := liveStore(t)
 	cases := []struct {
@@ -65,7 +104,7 @@ func TestGoldenReportsRecordAndLookUpAgainstPostgreSQL(t *testing.T) {
 			report := goldenReport(t, tc.name)
 			q := lens.Parse(report.Query)
 
-			summary, err := store.RecordObservations(ctx, q, observationsFromReport(report))
+			summary, err := store.RecordObservations(ctx, q, freshen(observationsFromReport(report)))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -89,7 +128,7 @@ func TestGoldenReportsRecordAndLookUpAgainstPostgreSQL(t *testing.T) {
 				}
 			}
 
-			again, err := store.RecordObservations(ctx, q, observationsFromReport(report))
+			again, err := store.RecordObservations(ctx, q, freshen(observationsFromReport(report)))
 			if err != nil || again.Locations != tc.locations {
 				t.Fatalf("recording again must update in place: %+v %v", again, err)
 			}

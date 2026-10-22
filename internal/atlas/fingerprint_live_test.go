@@ -61,7 +61,9 @@ func fixtureFingerprints(t *testing.T) map[string]struct {
 func TestFingerprintsDecideARecordingsObject(t *testing.T) {
 	store, ctx := liveStore(t)
 	fx := fixtureFingerprints(t)
-	observed := time.Date(2026, 10, 20, 12, 0, 0, 0, time.UTC)
+	// Seeded at the present, so the rendered evidence never ages past its
+	// freshness window and reads one level down.
+	observed := time.Now().UTC()
 	listing := func(name, title, creator, url string, withFingerprint bool) Observation {
 		r, ok := fx[name]
 		if !ok {
