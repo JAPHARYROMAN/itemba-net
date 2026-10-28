@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Shield, Radio, Sliders, RefreshCw, CheckCircle2, XCircle } from 'lucide-react';
 import { TelemetrySnapshot, ThreatLayer } from '../types';
+import { MessageKey, useI18n } from '../i18n/core';
 
 interface ShieldTelemetryProps {
   shield: TelemetrySnapshot;
@@ -8,16 +9,16 @@ interface ShieldTelemetryProps {
   onSyncRemoteList: () => Promise<number | null>;
 }
 
-const layerBadgeText = (layer: ThreatLayer) => {
+const layerBadgeKey = (layer: ThreatLayer): MessageKey => {
   switch (layer) {
     case 'L1_DNS_SINKHOLE':
-      return 'L1 • DNS SINKHOLE';
+      return 'shield.layer.dns';
     case 'L2_CDP_FILTER':
-      return 'L3/L2 • CDP FILTER';
+      return 'shield.layer.cdp';
     case 'L3_DOM_SWEEPER':
-      return 'L3 • DOM SWEEPER';
+      return 'shield.layer.dom';
     case 'L3_POPUP_GUILLOTINE':
-      return 'L3 • POP-UP LOCK';
+      return 'shield.layer.popup';
   }
 };
 
@@ -26,6 +27,7 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
   onAddCustomRule,
   onSyncRemoteList,
 }) => {
+  const { t } = useI18n();
   const [activeTab, setActiveTab] = useState<'intercepts' | 'streams' | 'engine'>('intercepts');
   const [layerFilter, setLayerFilter] = useState<'ALL' | 'L1' | 'L2' | 'L3'>('ALL');
   const [customRule, setCustomRule] = useState('');
@@ -70,7 +72,7 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
     try {
       const added = await onSyncRemoteList();
       if (added !== null) {
-        setSyncMsg(`+${added} live ad/tracker domains compiled into L1 DNS Sinkhole`);
+        setSyncMsg(t('shield.lists.synced', { count: added }));
       }
     } finally {
       setSyncing(false);
@@ -86,7 +88,7 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
               ITEMBA-SHIELD INSPECTOR
             </div>
             <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-              DNS Sinkhole • CDP Fetch Filter • DOM Guillotine
+              {t('shield.subtitle')}
             </div>
           </div>
           <div
@@ -100,7 +102,7 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
               fontWeight: 800,
               fontSize: 15,
             }}
-            title="Total Neutralized Threats Across All 3 Layers"
+            title={t('shield.totalTitle')}
           >
             {shield.totalBlocked}
           </div>
@@ -117,12 +119,12 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
           }}
           onClick={() => setLayerFilter(layerFilter === 'L1' ? 'ALL' : 'L1')}
         >
-          <div style={{ fontSize: 10, color: '#f59e0b', fontWeight: 700 }}>L1 DNS</div>
+          <div style={{ fontSize: 10, color: '#f59e0b', fontWeight: 700 }}>{t('shield.l1')}</div>
           <div style={{ fontSize: 17, fontWeight: 800, fontFamily: 'monospace', marginTop: 2 }}>
             {shield.layer1DnsCount}
           </div>
           <div style={{ fontSize: 9.5, color: '#64748b' }}>
-            {shield.engineStats?.dnsSinkholeDomains || 80}+ Hosts
+            {t('shield.l1Hosts', { count: shield.engineStats?.dnsSinkholeDomains || 80 })}
           </div>
         </div>
 
@@ -134,12 +136,12 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
           }}
           onClick={() => setLayerFilter(layerFilter === 'L2' ? 'ALL' : 'L2')}
         >
-          <div style={{ fontSize: 10, color: '#38bdf8', fontWeight: 700 }}>L2 CDP</div>
+          <div style={{ fontSize: 10, color: '#38bdf8', fontWeight: 700 }}>{t('shield.l2')}</div>
           <div style={{ fontSize: 17, fontWeight: 800, fontFamily: 'monospace', marginTop: 2 }}>
             {shield.layer2CdpCount}
           </div>
           <div style={{ fontSize: 9.5, color: '#64748b' }}>
-            {shield.engineStats?.cdpFilterRules || 23} ABP Rules
+            {t('shield.l2Rules', { count: shield.engineStats?.cdpFilterRules || 23 })}
           </div>
         </div>
 
@@ -151,11 +153,11 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
           }}
           onClick={() => setLayerFilter(layerFilter === 'L3' ? 'ALL' : 'L3')}
         >
-          <div style={{ fontSize: 10, color: '#f43f5e', fontWeight: 700 }}>L3 DOM</div>
+          <div style={{ fontSize: 10, color: '#f43f5e', fontWeight: 700 }}>{t('shield.l3')}</div>
           <div style={{ fontSize: 17, fontWeight: 800, fontFamily: 'monospace', marginTop: 2 }}>
             {l3Total}
           </div>
-          <div style={{ fontSize: 9.5, color: '#64748b' }}>Z-Index & Pop</div>
+          <div style={{ fontSize: 9.5, color: '#64748b' }}>{t('shield.l3Note')}</div>
         </div>
       </div>
 
@@ -176,7 +178,7 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
           style={{ padding: '5px 6px', fontSize: 11 }}
           onClick={() => setActiveTab('intercepts')}
         >
-          <Shield size={12} /> Threats ({filteredEvents.length})
+          <Shield size={12} /> {t('shield.tab.threats')} ({filteredEvents.length})
         </button>
         <button
           type="button"
@@ -184,7 +186,7 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
           style={{ padding: '5px 6px', fontSize: 11 }}
           onClick={() => setActiveTab('streams')}
         >
-          <Radio size={12} /> Media ({shield.sniffedStreams?.length || 0})
+          <Radio size={12} /> {t('shield.tab.media')} ({shield.sniffedStreams?.length || 0})
         </button>
         <button
           type="button"
@@ -192,7 +194,7 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
           style={{ padding: '5px 6px', fontSize: 11 }}
           onClick={() => setActiveTab('engine')}
         >
-          <Sliders size={12} /> Engine
+          <Sliders size={12} /> {t('shield.tab.engine')}
         </button>
       </div>
 
@@ -201,9 +203,7 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
         <div className="threat-feed">
           {filteredEvents.length === 0 ? (
             <div style={{ color: '#64748b', fontSize: 12, textAlign: 'center', padding: '28px 12px' }}>
-              No threats recorded in current filter view. Click{' '}
-              <strong>Run 3-Layer Security Benchmark</strong> or isolate an untrusted website in{' '}
-              <code>itemba-vault</code> to inspect live CDP/DOM blocks.
+              {t('shield.feed.empty')}
             </div>
           ) : (
             filteredEvents.map((ev) => (
@@ -222,7 +222,7 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
                           : '#fb7185',
                     }}
                   >
-                    {layerBadgeText(ev.layer)}
+                    {t(layerBadgeKey(ev.layer))}
                   </span>
                   <span style={{ fontSize: 10, color: '#64748b', fontFamily: 'monospace' }}>
                     {ev.timestamp}
@@ -248,7 +248,7 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
                     marginTop: 2,
                   }}
                 >
-                  <span>Rule: {ev.rule}</span>
+                  <span>{t('shield.feed.rule', { rule: ev.rule ?? '' })}</span>
                   <span>{ev.listSource}</span>
                 </div>
               </div>
@@ -262,15 +262,14 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
         <div className="threat-feed">
           {!shield.sniffedStreams || shield.sniffedStreams.length === 0 ? (
             <div style={{ color: '#64748b', fontSize: 12, textAlign: 'center', padding: '28px 12px' }}>
-              No media requests observed yet. Media URLs requested by a protected page appear here.
-              They can be previews, trailers or ads; full playback is not verified.
+              {t('shield.streams.empty')}
             </div>
           ) : (
             shield.sniffedStreams.map((st, idx) => (
               <div
                 key={idx}
                 className="threat-item"
-                style={{ borderLeftColor: '#10b981', gap: 6 }}
+                style={{ borderInlineStartColor: '#10b981', gap: 6 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span
@@ -298,7 +297,7 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
                   {st.url}
                 </div>
                 <p style={{ fontSize: 11, color: '#94a3b8', lineHeight: 1.5 }}>
-                  Observed media request; full playback unverified. This may be a preview, trailer or ad.
+                  {t('shield.streams.note')}
                 </p>
               </div>
             ))
@@ -319,13 +318,13 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
             }}
           >
             <div style={{ fontSize: 11.5, fontWeight: 700, color: '#f8fafc', marginBottom: 6 }}>
-              Rule Diagnostic Tester
+              {t('shield.test.title')}
             </div>
             <form onSubmit={handleTestUrl} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <input
                 value={testUrlInput}
                 onChange={(e) => setTestUrlInput(e.target.value)}
-                placeholder="https://ad.doubleclick.net/vast.xml"
+                placeholder={t('shield.test.placeholder')}
                 style={{
                   background: '#090d16',
                   border: '1px solid #1e293b',
@@ -337,7 +336,7 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
                 }}
               />
               <button type="submit" className="btn" style={{ fontSize: 11, padding: '5px 10px' }}>
-                Test URL Against 3-Layer Shield
+                {t('shield.test.submit')}
               </button>
             </form>
 
@@ -359,14 +358,14 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
                 {testResult.blocked ? (
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontWeight: 700 }}>
-                      <XCircle size={13} /> BLOCKED ({testResult.layer})
+                      <XCircle size={13} /> {t('shield.test.blocked', { layer: testResult.layer ?? '' })}
                     </div>
-                    <div style={{ color: '#e2e8f0', marginTop: 3 }}>Rule: {testResult.rule}</div>
-                    <div style={{ color: '#94a3b8' }}>Source: {testResult.listSource}</div>
+                    <div style={{ color: '#e2e8f0', marginTop: 3 }}>{t('shield.test.rule', { rule: testResult.rule ?? '' })}</div>
+                    <div style={{ color: '#94a3b8' }}>{t('shield.test.source', { source: testResult.listSource ?? '' })}</div>
                   </div>
                 ) : (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontWeight: 700 }}>
-                    <CheckCircle2 size={13} /> ALLOWED (Clean Request / Protected Media)
+                    <CheckCircle2 size={13} /> {t('shield.test.allowed')}
                   </div>
                 )}
               </div>
@@ -383,11 +382,10 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
             }}
           >
             <div style={{ fontSize: 11.5, fontWeight: 700, color: '#f8fafc', marginBottom: 4 }}>
-              Compile Custom Rule (ABP / uBlock / Hosts)
+              {t('shield.compile.title')}
             </div>
             <div style={{ fontSize: 10.5, color: '#94a3b8', marginBottom: 8 }}>
-              Supports <code>||domain.com^</code>, <code>@@||whitelist.com^</code>,{' '}
-              <code>##.ad-selector</code>, or <code>0.0.0.0 domain</code>.
+              {t('shield.compile.hint')}
             </div>
             <form
               onSubmit={(e) => {
@@ -401,7 +399,7 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
               <input
                 value={customRule}
                 onChange={(e) => setCustomRule(e.target.value)}
-                placeholder="||malvertising-host.net^"
+                placeholder={t('shield.compile.placeholder')}
                 style={{
                   flex: 1,
                   background: '#090d16',
@@ -414,7 +412,7 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
                 }}
               />
               <button type="submit" className="btn btn-primary" style={{ padding: '5px 10px', fontSize: 11 }}>
-                Compile
+                {t('shield.compile.submit')}
               </button>
             </form>
           </div>
@@ -430,7 +428,7 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <span style={{ fontSize: 11.5, fontWeight: 700, color: '#f8fafc' }}>
-                Active Filter Lists
+                {t('shield.lists.title')}
               </span>
               <span style={{ fontSize: 10, color: '#64748b', fontFamily: 'monospace' }}>
                 {shield.engineStats?.lastSyncedAt}
@@ -460,7 +458,7 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
               onClick={handleSync}
             >
               <RefreshCw size={12} />
-              {syncing ? 'Syncing Remote Hosts List...' : 'Sync Live AdServers Blocklist (HTTPS)'}
+              {syncing ? t('shield.lists.syncing') : t('shield.lists.sync')}
             </button>
             {syncMsg && (
               <div style={{ marginTop: 6, fontSize: 10.5, color: '#34d399', fontFamily: 'monospace' }}>

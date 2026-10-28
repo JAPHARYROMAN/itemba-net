@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Activity, Maximize, Maximize2, Minimize, ShieldCheck } from 'lucide-react';
 import { VaultStatus } from '../types';
+import { useI18n } from '../i18n/core';
 
 interface RbiViewerProps {
   vault: VaultStatus;
@@ -17,6 +18,7 @@ const REMOTE_HEIGHT = 720;
 // measured values only: frames drawn in the last second, and the age of the
 // latest frame against the sandbox's own timestamp.
 export const RbiViewer: React.FC<RbiViewerProps> = ({ vault, latestFrame, sendWsInput }) => {
+  const { t } = useI18n();
   const rootRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
@@ -178,7 +180,7 @@ export const RbiViewer: React.FC<RbiViewerProps> = ({ vault, latestFrame, sendWs
     else void root.requestFullscreen?.();
   };
 
-  const transport = rtcStatus === 'webrtc-connected' || rtcStatus === 'connected' ? 'Pion WebRTC data channel' : 'Console socket';
+  const transport = rtcStatus === 'webrtc-connected' || rtcStatus === 'connected' ? t('rbi.webrtc') : t('rbi.socket');
 
   return (
     <div
@@ -198,7 +200,7 @@ export const RbiViewer: React.FC<RbiViewerProps> = ({ vault, latestFrame, sendWs
         height={REMOTE_HEIGHT}
         tabIndex={0}
         className="viewport-canvas"
-        aria-label={`Remote browser: ${vault.pageTitle || vault.currentUrl || 'sandbox'}`}
+        aria-label={t('rbi.aria', { title: vault.pageTitle || vault.currentUrl || t('rbi.sandbox') })}
         onPointerDown={(event) => event.currentTarget.setPointerCapture(event.pointerId)}
         onPointerUp={(event) => event.currentTarget.releasePointerCapture(event.pointerId)}
         onMouseDown={(event) => {
@@ -232,21 +234,21 @@ export const RbiViewer: React.FC<RbiViewerProps> = ({ vault, latestFrame, sendWs
           <div className="rbi-title">
             <ShieldCheck size={17} aria-hidden="true" />
             <div>
-              <span>Protected browser</span>
-              <strong>{vault.pageTitle || vault.currentUrl || 'Remote session'}</strong>
+              <span>{t('rbi.protected')}</span>
+              <strong>{vault.pageTitle || vault.currentUrl || t('rbi.remoteSession')}</strong>
             </div>
           </div>
           <div className="rbi-top-actions">
             {vault.theaterActive && (
-              <span className="rbi-theater"><Maximize2 size={12} /> DOM theater</span>
+              <span className="rbi-theater"><Maximize2 size={12} /> {t('rbi.theater')}</span>
             )}
             <button
               type="button"
               className={`mp-btn rbi-chrome-button ${diagnosticsOpen ? 'mp-btn--active' : ''}`}
-              aria-label="Toggle stream diagnostics"
+              aria-label={t('rbi.toggleDiagnostics')}
               aria-expanded={diagnosticsOpen}
               aria-controls="rbi-stream-diagnostics"
-              title="Stream diagnostics"
+              title={t('rbi.diagnostics')}
               onClick={() => setDiagnosticsOpen((open) => !open)}
             >
               <Activity size={18} />
@@ -257,18 +259,18 @@ export const RbiViewer: React.FC<RbiViewerProps> = ({ vault, latestFrame, sendWs
         {diagnosticsOpen && (
           <div className="rbi-diagnostics" id="rbi-stream-diagnostics" role="status">
             <span>{transport}</span>
-            {frameAgeMs !== null && <span>Frame age {frameAgeMs} ms</span>}
+            {frameAgeMs !== null && <span>{t('rbi.frameAge', { ms: frameAgeMs })}</span>}
             <span>{REMOTE_WIDTH}×{REMOTE_HEIGHT} · {fps} fps</span>
           </div>
         )}
 
         <div className="rbi-control-deck">
-          <span>Click the picture to control the protected browser</span>
+          <span>{t('rbi.clickToControl')}</span>
           <button
             type="button"
             className="mp-btn rbi-chrome-button"
-            aria-label={fullscreen ? 'Exit full screen' : 'Full screen'}
-            title={fullscreen ? 'Exit full screen' : 'Full screen'}
+            aria-label={fullscreen ? t('player.exitFullscreen') : t('player.fullscreen')}
+            title={fullscreen ? t('player.exitFullscreen') : t('player.fullscreen')}
             onClick={toggleFullscreen}
           >
             {fullscreen ? <Minimize size={20} /> : <Maximize size={20} />}

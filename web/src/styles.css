@@ -190,7 +190,7 @@ body {
 
 .sidebar-column {
   background: var(--bg-panel);
-  border-left: 1px solid var(--border-subtle);
+  border-inline-start: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
   height: calc(100vh - 62px);
@@ -323,7 +323,7 @@ body {
 .viewport-hud {
   position: absolute;
   top: 10px;
-  right: 12px;
+  inset-inline-end: 12px;
   display: flex;
   gap: 8px;
   pointer-events: none;
@@ -469,7 +469,7 @@ body {
 
 .threat-item {
   background: var(--bg-card);
-  border-left: 3px solid var(--accent-rose);
+  border-inline-start: 3px solid var(--accent-rose);
   border-radius: 6px;
   padding: 8px 10px;
   font-size: 11.5px;
@@ -479,16 +479,16 @@ body {
 }
 
 .threat-item.L1_DNS_SINKHOLE {
-  border-left-color: #f59e0b;
+  border-inline-start-color: #f59e0b;
 }
 
 .threat-item.L2_CDP_FILTER {
-  border-left-color: #38bdf8;
+  border-inline-start-color: #38bdf8;
 }
 
 .threat-item.L3_DOM_SWEEPER,
 .threat-item.L3_POPUP_GUILLOTINE {
-  border-left-color: #f43f5e;
+  border-inline-start-color: #f43f5e;
 }
 
 /* Modal */
@@ -545,7 +545,7 @@ body {
 .movie-discovery-header h3 { font-size: 14px; color: #e2e8f0; }
 .movie-discovery-shelf > p { margin-top: 8px; }
 .movie-discovery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr)); gap: 9px; margin-top: 12px; }
-.movie-discovery-title { display: flex; align-items: flex-start; gap: 10px; min-width: 0; padding: 10px; border: 1px solid #263449; border-radius: 7px; background: #111a29; color: #e2e8f0; text-align: left; cursor: pointer; }
+.movie-discovery-title { display: flex; align-items: flex-start; gap: 10px; min-width: 0; padding: 10px; border: 1px solid #263449; border-radius: 7px; background: #111a29; color: #e2e8f0; text-align: start; cursor: pointer; }
 .movie-discovery-title:hover { border-color: #38bdf8; background: #142238; }
 .movie-discovery-title img { width: 42px; height: 60px; object-fit: cover; border-radius: 4px; flex-shrink: 0; }
 .movie-discovery-title > span { min-width: 0; }
@@ -568,7 +568,7 @@ body {
 .scout-duration { display: inline-flex; align-items: center; gap: 5px; }
 .scout-provider-details { font-size: 11.5px; line-height: 1.65; color: var(--text-secondary); background: #090d16; border: 1px solid #1e293b; border-radius: 8px; padding: 10px 12px; }
 .scout-provider-details summary { color: #cbd5e1; cursor: pointer; }
-.scout-provider-details ul { padding-left: 18px; margin-top: 8px; }
+.scout-provider-details ul { padding-inline-start: 18px; margin-top: 8px; }
 .scout-provider-details li + li { margin-top: 5px; }
 .scout-filter-active { border-color: rgba(56, 189, 248, .6); color: #7dd3fc; background: rgba(56, 189, 248, .12); }
 .movie-sources-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr)); }
@@ -629,8 +629,8 @@ body {
 .format-matrix-details { margin-bottom: 10px; }
 .format-matrix { display: grid; gap: 12px; margin-top: 8px; }
 .format-table { width: 100%; border-collapse: collapse; font-size: 11px; line-height: 1.5; }
-.format-table caption { text-align: left; color: #cbd5e1; font-weight: 600; padding: 4px 0; }
-.format-table th, .format-table td { text-align: left; vertical-align: top; padding: 4px 8px 4px 0; border-top: 1px solid #1e293b; }
+.format-table caption { text-align: start; color: #cbd5e1; font-weight: 600; padding: 4px 0; }
+.format-table th, .format-table td { text-align: start; vertical-align: top; padding: 4px 8px 4px 0; border-top: 1px solid #1e293b; }
 .format-table thead th { color: #94a3b8; font-weight: 500; border-top: 0; }
 .format-table code { font-size: 10.5px; color: #cbd5e1; }
 .format-mark { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
@@ -643,3 +643,45 @@ body {
 .index-resolution { margin: 6px 0 10px; }
 .index-resolution-list { list-style: none; padding: 0; margin: 4px 0 0; display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; }
 .index-resolution-item { display: inline-flex; align-items: center; gap: 6px; }
+
+/* The language switcher sits with the other navbar badges. */
+.language-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+}
+.language-select select {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 11.5px;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  cursor: pointer;
+  outline: none;
+}
+.language-select:focus-within { border-color: var(--accent-cyan); }
+.language-select option { background: var(--bg-card); color: var(--text-primary); }
+
+/* Right-to-left: flex rows mirror on their own; these are the places a
+   physical side was written down. Timelines and the seek bar stay LTR
+   because time runs one way, whatever the interface language. */
+[dir='rtl'] .format-table th,
+[dir='rtl'] .format-table td { padding: 4px 0 4px 8px; }
+[dir='rtl'] body { font-family: 'Inter', 'Segoe UI', Tahoma, 'Noto Naskh Arabic', sans-serif; }
+[dir='rtl'] .brand-subtitle,
+[dir='rtl'] .pill-badge,
+[dir='rtl'] .language-select select { font-family: 'Inter', 'Segoe UI', Tahoma, 'Noto Naskh Arabic', sans-serif; letter-spacing: 0; }
+[dir='rtl'] .player-time,
+[dir='rtl'] .player-seek,
+[dir='rtl'] .player-seek-track,
+[dir='rtl'] .mp-time,
+[dir='rtl'] .mp-seek,
+[dir='rtl'] .mp-seek-track { direction: ltr; }
+

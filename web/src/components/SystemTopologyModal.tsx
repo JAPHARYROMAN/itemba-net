@@ -1,76 +1,47 @@
 import React, { useState } from 'react';
+import { MessageKey, useI18n } from '../i18n/core';
 
 interface SystemTopologyModalProps {
   onClose: () => void;
 }
 
-const TOPOLOGY_STEPS = [
-  {
-    step: 1,
-    daemon: 'itemba-scout',
-    title: '1. Federated Seed Discovery & Headless CDP Verification',
-    boundary: 'Discovery Boundary (Zero User Exposure)',
-    color: '#38bdf8',
-    detail:
-      'Your query is dispatched concurrently to public catalogs (Internet Archive, Open Media) and untrusted web hosts. Before any link is shown to you, a headless Chromium worker visits each candidate page for up to 5s via CDP, sniffing for real <video> nodes or .m3u8/.mpd manifests while pruning fake registration walls.',
-  },
-  {
-    step: 2,
-    daemon: 'itemba-shield (Layer 1)',
-    title: '2. Layer 1: Pre-Connection DNS Sinkhole (0.0.0.0)',
-    boundary: 'Container / Socket Boundary',
-    color: '#f59e0b',
-    detail:
-      'Inside the sandbox, CoreDNS and Chromium host-resolver rules preload OISD, HaGeZi Pro++, and StevenBlack blocklists. Lookups for doubleclick.net, popads.net, exoclick.com, and telemetry domains immediately resolve to 0.0.0.0 before a TCP handshake can occur.',
-  },
-  {
-    step: 3,
-    daemon: 'itemba-shield (Layer 2)',
-    title: '3. Layer 2: In-Flight CDP Request Interception',
-    boundary: 'Network Packet Boundary',
-    color: '#a855f7',
-    detail:
-      'Using Chrome DevTools Protocol Fetch.enable, every outgoing HTTP, XHR, and WebSocket request is inspected against EasyList, EasyPrivacy, and uBlock filter rules. First-party VAST ad tags and tracking pixels are aborted with BlockedByClient while legitimate .m3u8/.mp4 video segments pass through.',
-  },
-  {
-    step: 4,
-    daemon: 'itemba-shield (Layer 3)',
-    title: '4. Layer 3: DOM Cosmetic Sanitizer & Pop-Up Guillotine',
-    boundary: 'DOM Execution Boundary',
-    color: '#f43f5e',
-    detail:
-      'A pre-injected script locks window.open = () => null to prevent tab-under hijacks and attaches a real-time MutationObserver that detects and strips transparent z-index >= 9000 clickjacking overlays sitting above <video> players.',
-  },
-  {
-    step: 5,
-    daemon: 'itemba-vault',
-    title: '5. Sub-100ms WebRTC Pixel Streaming & Zero-Residue Teardown',
-    boundary: 'Client Isolation Airgap',
-    color: '#10b981',
-    detail:
-      'Only sanitized video/viewport frames are encoded and streamed over Pion WebRTC / low-latency socket to your HTML5 <canvas>. Your mouse and keyboard events travel over the WebRTC DataChannel (itemba-input). Clicking Destroy wipes the container and profile in milliseconds.',
-  },
+interface TopologyStep {
+  step: number;
+  daemon: string;
+  color: string;
+  title: MessageKey;
+  boundary: MessageKey;
+  detail: MessageKey;
+}
+
+const TOPOLOGY_STEPS: TopologyStep[] = [
+  { step: 1, daemon: 'itemba-scout', color: '#38bdf8', title: 'topology.step1.title', boundary: 'topology.step1.boundary', detail: 'topology.step1.detail' },
+  { step: 2, daemon: 'itemba-shield (Layer 1)', color: '#f59e0b', title: 'topology.step2.title', boundary: 'topology.step2.boundary', detail: 'topology.step2.detail' },
+  { step: 3, daemon: 'itemba-shield (Layer 2)', color: '#a855f7', title: 'topology.step3.title', boundary: 'topology.step3.boundary', detail: 'topology.step3.detail' },
+  { step: 4, daemon: 'itemba-shield (Layer 3)', color: '#f43f5e', title: 'topology.step4.title', boundary: 'topology.step4.boundary', detail: 'topology.step4.detail' },
+  { step: 5, daemon: 'itemba-vault', color: '#10b981', title: 'topology.step5.title', boundary: 'topology.step5.boundary', detail: 'topology.step5.detail' },
 ];
 
 export const SystemTopologyModal: React.FC<SystemTopologyModalProps> = ({ onClose }) => {
+  const { t } = useI18n();
   const [activeStep, setActiveStep] = useState<number>(1);
 
-  const current = TOPOLOGY_STEPS.find((s) => s.step === activeStep) || TOPOLOGY_STEPS[0];
+  const current = TOPOLOGY_STEPS.find((step) => step.step === activeStep) || TOPOLOGY_STEPS[0];
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+      <div className="modal-card" onClick={(event) => event.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
           <div>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: '#f8fafc' }}>
-              ITEMBA NET — Interactive Isolation Topology & Stream Flow
+              {t('topology.title')}
             </h2>
             <p style={{ fontSize: 12.5, color: '#94a3b8', marginTop: 2 }}>
-              Click any stage below to trace how a query and media stream traverse ITEMBA NET&apos;s isolation boundaries.
+              {t('topology.intro')}
             </p>
           </div>
           <button className="btn" onClick={onClose}>
-            ✕ Close
+            ✕ {t('app.close')}
           </button>
         </div>
 
@@ -107,9 +78,9 @@ export const SystemTopologyModal: React.FC<SystemTopologyModalProps> = ({ onClos
                     marginBottom: 4,
                   }}
                 >
-                  STAGE 0{item.step} • {item.daemon}
+                  {t('topology.stage', { step: item.step })} • {item.daemon}
                 </div>
-                <div style={{ fontSize: 12.5, fontWeight: 700, color: '#f1f5f9' }}>{item.title}</div>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: '#f1f5f9' }}>{t(item.title)}</div>
               </div>
             );
           })}
@@ -129,12 +100,12 @@ export const SystemTopologyModal: React.FC<SystemTopologyModalProps> = ({ onClos
               className="pill-badge"
               style={{ borderColor: current.color, color: current.color, fontWeight: 700 }}
             >
-              Daemon: {current.daemon}
+              {t('topology.daemon', { daemon: current.daemon })}
             </span>
-            <span className="pill-badge">{current.boundary}</span>
+            <span className="pill-badge">{t(current.boundary)}</span>
           </div>
-          <h3 style={{ fontSize: 17, fontWeight: 800, color: '#f8fafc', marginBottom: 8 }}>{current.title}</h3>
-          <p style={{ fontSize: 13.5, color: '#cbd5e1', lineHeight: 1.65 }}>{current.detail}</p>
+          <h3 style={{ fontSize: 17, fontWeight: 800, color: '#f8fafc', marginBottom: 8 }}>{t(current.title)}</h3>
+          <p style={{ fontSize: 13.5, color: '#cbd5e1', lineHeight: 1.65 }}>{t(current.detail)}</p>
         </div>
       </div>
     </div>

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Loader, Maximize, Minimize, RotateCw, Scan, ShieldCheck, ShieldOff, ZoomIn, ZoomOut } from 'lucide-react';
 import { ActiveRelayStream } from '../../types';
 import { clamp } from '../../media/media';
+import { useI18n } from '../../i18n/core';
 
 interface ImageViewerProps {
   stream: ActiveRelayStream;
@@ -25,6 +26,7 @@ const ZOOM_STEP = 1.25;
 // still, drags pan, and the readout shows the zoom against the image's real
 // pixels rather than the fitted size.
 export const ImageViewer: React.FC<ImageViewerProps> = ({ stream, src, isProtected, attempt, onRetryProtected }) => {
+  const { t } = useI18n();
   const rootRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const [natural, setNatural] = useState<Natural | null>(null);
@@ -171,20 +173,20 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({ stream, src, isProtect
   const displayPercent = natural ? Math.round(fitScale * zoom * 100) : null;
 
   return (
-    <div ref={rootRef} className={`mp-player mp-player--image ${fullscreen ? 'mp-player--fullscreen' : ''}`} tabIndex={0} aria-label={`Image viewer: ${stream.title}`} onKeyDown={onKeyDown}>
+    <div ref={rootRef} className={`mp-player mp-player--image ${fullscreen ? 'mp-player--fullscreen' : ''}`} tabIndex={0} aria-label={t('player.aria.image', { title: stream.title })} onKeyDown={onKeyDown}>
       <div className="mp-image-toolbar" onPointerDown={(event) => event.stopPropagation()}>
         <span className={`mp-badge ${isProtected ? 'mp-badge--protected' : 'mp-badge--direct'}`}>
           {isProtected ? <ShieldCheck size={12} /> : <ShieldOff size={12} />}
-          {isProtected ? 'Protected relay' : 'Direct · filtering off'}
+          {isProtected ? t('player.protectedRelay') : t('player.direct')}
         </span>
         <span className="mp-controls-spacer" />
-        <button type="button" className="mp-btn" aria-label="Zoom out" title="Zoom out (-)" disabled={status !== 'ready'} onClick={() => zoomAround(zoom / ZOOM_STEP)}><ZoomOut size={16} /></button>
+        <button type="button" className="mp-btn" aria-label={t('image.zoomOut')} title={t('image.zoomOutTitle')} disabled={status !== 'ready'} onClick={() => zoomAround(zoom / ZOOM_STEP)}><ZoomOut size={16} /></button>
         <span className="mp-image-zoom" aria-live="polite">{displayPercent !== null ? `${displayPercent}%` : '—'}</span>
-        <button type="button" className="mp-btn" aria-label="Zoom in" title="Zoom in (+)" disabled={status !== 'ready'} onClick={() => zoomAround(zoom * ZOOM_STEP)}><ZoomIn size={16} /></button>
-        <button type="button" className="mp-btn" aria-label="Fit to view" title="Fit to view (0)" disabled={status !== 'ready'} onClick={reset}><Scan size={16} /></button>
-        <button type="button" className="mp-btn" aria-label="Actual pixels" title="Actual pixels (1)" disabled={status !== 'ready'} onClick={actualSize}><span className="mp-btn-caption">1:1</span></button>
-        <button type="button" className="mp-btn" aria-label="Rotate" title="Rotate (r)" disabled={status !== 'ready'} onClick={() => setRotation((r) => (r + 90) % 360)}><RotateCw size={16} /></button>
-        <button type="button" className="mp-btn" aria-label={fullscreen ? 'Exit full screen' : 'Full screen'} title="Full screen (f)" onClick={toggleFullscreen}>{fullscreen ? <Minimize size={16} /> : <Maximize size={16} />}</button>
+        <button type="button" className="mp-btn" aria-label={t('image.zoomIn')} title={t('image.zoomInTitle')} disabled={status !== 'ready'} onClick={() => zoomAround(zoom * ZOOM_STEP)}><ZoomIn size={16} /></button>
+        <button type="button" className="mp-btn" aria-label={t('image.fit')} title={t('image.fitTitle')} disabled={status !== 'ready'} onClick={reset}><Scan size={16} /></button>
+        <button type="button" className="mp-btn" aria-label={t('image.actual')} title={t('image.actualTitle')} disabled={status !== 'ready'} onClick={actualSize}><span className="mp-btn-caption">1:1</span></button>
+        <button type="button" className="mp-btn" aria-label={t('image.rotate')} title={t('image.rotateTitle')} disabled={status !== 'ready'} onClick={() => setRotation((r) => (r + 90) % 360)}><RotateCw size={16} /></button>
+        <button type="button" className="mp-btn" aria-label={fullscreen ? t('player.exitFullscreen') : t('player.fullscreen')} title={t('image.fullscreenTitle')} onClick={toggleFullscreen}>{fullscreen ? <Minimize size={16} /> : <Maximize size={16} />}</button>
       </div>
 
       <div
@@ -209,12 +211,12 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({ stream, src, isProtect
         }}
       >
         {status === 'loading' && (
-          <div className="mp-overlay mp-overlay--spinner"><Loader size={30} className="mp-spin" /><span>Loading through the relay…</span></div>
+          <div className="mp-overlay mp-overlay--spinner"><Loader size={30} className="mp-spin" /><span>{t('player.loading')}</span></div>
         )}
         {status === 'error' && (
           <div className="mp-overlay mp-overlay--error" role="alert">
-            <p>{isProtected ? "The image could not load through ITEMBA's protected relay. Ad filtering remains enabled." : 'Direct image load failed. Retry through ITEMBA with ad filtering enabled.'}</p>
-            <button type="button" className="btn" onClick={onRetryProtected}><RotateCw size={13} aria-hidden="true" /> Retry with ad filtering</button>
+            <p>{isProtected ? t('player.error.protectedImage') : t('player.error.directImage')}</p>
+            <button type="button" className="btn" onClick={onRetryProtected}><RotateCw size={13} aria-hidden="true" /> {t('player.retry')}</button>
           </div>
         )}
         <img
@@ -238,8 +240,8 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({ stream, src, isProtect
         />
       </div>
       <div className="mp-image-foot">
-        <span>{natural ? `${natural.width}×${natural.height} px` : 'Dimensions unknown'}</span>
-        <span className="scout-muted">Scroll to zoom · drag to pan · double-click to toggle zoom</span>
+        <span>{natural ? t('image.pixels', { width: natural.width, height: natural.height }) : t('image.dimensionsUnknown')}</span>
+        <span className="scout-muted">{t('image.hints')}</span>
       </div>
     </div>
   );

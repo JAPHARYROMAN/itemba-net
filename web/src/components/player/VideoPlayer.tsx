@@ -4,6 +4,7 @@ import { ActiveRelayStream } from '../../types';
 import { useMediaEngine } from '../../media/useMediaEngine';
 import { formatKbps, formatTime, isDashUrl, isHlsUrl, relayUrl } from '../../media/media';
 import { ControlBar, QueueControls } from './ControlBar';
+import { MessageKey, useI18n } from '../../i18n/core';
 
 interface VideoPlayerProps {
   stream: ActiveRelayStream;
@@ -21,22 +22,22 @@ interface VideoPlayerProps {
 
 const IDLE_AFTER_MS = 2800;
 
-const SHORTCUTS: Array<[string, string]> = [
-  ['Space / k', 'Play or pause'],
-  ['j / l', 'Back or forward 10 seconds'],
-  ['← / →', 'Back or forward 5 seconds'],
-  ['↑ / ↓', 'Volume up or down'],
-  ['0 – 9', 'Jump to 0% – 90%'],
-  ['Home / End', 'Jump to the start or end'],
-  [', / .', 'Step one frame while paused'],
-  ['< / >', 'Slower or faster'],
-  ['m', 'Mute'],
-  ['c', 'Captions on or off'],
-  ['f', 'Full screen'],
-  ['t', 'Theater size'],
-  ['p', 'Picture in picture'],
-  ['s', 'Playback statistics'],
-  ['?', 'This list'],
+const SHORTCUTS: Array<[string, MessageKey]> = [
+  ['Space / k', 'player.shortcut.playPause'],
+  ['j / l', 'player.shortcut.seekTen'],
+  ['← / →', 'player.shortcut.seekFive'],
+  ['↑ / ↓', 'player.shortcut.volume'],
+  ['0 – 9', 'player.shortcut.percent'],
+  ['Home / End', 'player.shortcut.startEnd'],
+  [', / .', 'player.shortcut.frame'],
+  ['< / >', 'player.shortcut.speed'],
+  ['m', 'player.shortcut.mute'],
+  ['c', 'player.shortcut.captions'],
+  ['f', 'player.shortcut.fullscreen'],
+  ['t', 'player.shortcut.theater'],
+  ['p', 'player.shortcut.pip'],
+  ['s', 'player.shortcut.stats'],
+  ['?', 'player.shortcut.help'],
 ];
 
 // The protected video player: a bare <video> driven by the playback engine,
@@ -57,6 +58,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   onEnded,
   queue,
 }) => {
+  const { t, formatNumber } = useI18n();
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
   const [idle, setIdle] = useState(false);
@@ -68,11 +70,9 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
   const dash = isDashUrl(stream.streamUrl);
   const source = useMemo(() => (dash ? null : { url: src, hls: isHlsUrl(stream.streamUrl) }), [dash, src, stream.streamUrl]);
-  const failureMessage = isProtected
-    ? "Playback could not load or decode through ITEMBA's protected relay. Ad filtering remains enabled."
-    : 'Direct CDN playback failed. Retry through ITEMBA with ad filtering enabled.';
+  const failureMessage = isProtected ? t('player.error.protectedVideo') : t('player.error.directVideo');
 
-  const { state, actions } = useMediaEngine(videoEl, source, { autoplay, attempt, failureMessage, onEnded });
+  const { state, actions } = useMediaEngine(videoEl, source, { autoplay, attempt, failureMessage, onEnded, translate: t });
 
   // Controls fade while playing and the pointer is still; any activity or a
   // pause brings them back.
@@ -228,16 +228,14 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
   const showBigPlay = !state.error && !dash && (state.status === 'ready' || state.status === 'paused' || state.status === 'ended' || state.autoplayBlocked);
   const showSpinner = !state.error && !dash && (state.status === 'loading' || (state.waiting && state.status === 'playing'));
-  const errorMessage = dash
-    ? 'DASH (.mpd) manifests are not supported by the console player yet. Open the page with ad blocking instead.'
-    : state.error;
+  const errorMessage = dash ? t('player.error.dash') : state.error;
 
   return (
     <div
       ref={rootRef}
       className={`mp-player mp-player--video ${idle ? 'mp-player--idle' : ''} ${fullscreen ? 'mp-player--fullscreen' : ''}`}
       tabIndex={0}
-      aria-label={`Video player: ${stream.title}`}
+      aria-label={t('player.aria.video', { title: stream.title })}
       onKeyDown={onKeyDown}
       onPointerMove={poke}
       onPointerDown={poke}
@@ -268,14 +266,14 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       {showSpinner && (
         <div className="mp-overlay mp-overlay--spinner" aria-live="polite">
           <Loader size={34} className="mp-spin" />
-          <span>{state.status === 'loading' ? 'Loading through the relay…' : 'Buffering…'}</span>
+          <span>{state.status === 'loading' ? t('player.loading') : t('player.buffering')}</span>
         </div>
       )}
 
       {showBigPlay && (
-        <button type="button" className="mp-bigplay" aria-label={state.status === 'ended' ? 'Replay' : 'Play'} onClick={actions.toggle}>
+        <button type="button" className="mp-bigplay" aria-label={state.status === 'ended' ? t('player.replay') : t('player.play')} onClick={actions.toggle}>
           {state.status === 'ended' ? <RotateCcw size={34} /> : <Play size={36} />}
-          {state.autoplayBlocked && <span className="mp-bigplay-note">The browser blocked automatic playback. Press to start.</span>}
+          {state.autoplayBlocked && <span className="mp-bigplay-note">{t('player.autoplayBlocked')}</span>}
         </button>
       )}
 
@@ -284,44 +282,44 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           <p>{errorMessage}</p>
           {!dash && (
             <button type="button" className="btn" onClick={onRetryProtected}>
-              <RotateCw size={13} aria-hidden="true" /> Retry with ad filtering
+              <RotateCw size={13} aria-hidden="true" /> {t('player.retry')}
             </button>
           )}
         </div>
       )}
 
       {statsOpen && (
-        <div className="mp-panel mp-panel--stats" aria-label="Playback statistics">
+        <div className="mp-panel mp-panel--stats" aria-label={t('player.playbackStats')}>
           <div className="mp-panel-head">
-            <strong>Playback statistics</strong>
-            <button type="button" className="mp-btn" aria-label="Close statistics" onClick={() => setStatsOpen(false)}><X size={14} /></button>
+            <strong>{t('player.playbackStats')}</strong>
+            <button type="button" className="mp-btn" aria-label={t('player.closeStats')} onClick={() => setStatsOpen(false)}><X size={14} /></button>
           </div>
           <dl>
-            <dt>Path</dt><dd>{isProtected ? 'Relay, Shield applied to every request' : 'Direct to the CDN, no filtering'}</dd>
-            <dt>Engine</dt><dd>{state.engine === 'hls.js' ? 'hls.js (MSE)' : state.engine === 'native' ? 'Browser decoder' : '—'}</dd>
-            <dt>Resolution</dt><dd>{state.width > 0 ? `${state.width}×${state.height}` : '—'}</dd>
-            <dt>Frames</dt><dd>{state.stats.totalFrames > 0 ? `${state.stats.totalFrames.toLocaleString()} decoded · ${state.stats.droppedFrames.toLocaleString()} dropped` : '—'}</dd>
-            <dt>Buffer ahead</dt><dd>{state.stats.bufferAheadSec.toFixed(1)} s</dd>
-            <dt>Position</dt><dd>{formatTime(state.currentTime)}{Number.isFinite(state.duration) ? ` of ${formatTime(state.duration)}` : ' (live)'}</dd>
-            <dt>Speed</dt><dd>{state.rate}×</dd>
+            <dt>{t('player.stat.path')}</dt><dd>{isProtected ? t('player.stat.relay') : t('player.stat.direct')}</dd>
+            <dt>{t('player.stat.engine')}</dt><dd>{state.engine === 'hls.js' ? t('player.stat.hls') : state.engine === 'native' ? t('player.stat.native') : t('player.stat.none')}</dd>
+            <dt>{t('player.stat.resolution')}</dt><dd>{state.width > 0 ? `${state.width}×${state.height}` : t('player.stat.none')}</dd>
+            <dt>{t('player.stat.frames')}</dt><dd>{state.stats.totalFrames > 0 ? t('player.stat.framesValue', { decoded: formatNumber(state.stats.totalFrames), dropped: formatNumber(state.stats.droppedFrames) }) : t('player.stat.none')}</dd>
+            <dt>{t('player.stat.buffer')}</dt><dd>{t('player.stat.bufferValue', { seconds: state.stats.bufferAheadSec.toFixed(1) })}</dd>
+            <dt>{t('player.stat.position')}</dt><dd>{Number.isFinite(state.duration) ? t('player.of', { current: formatTime(state.currentTime), duration: formatTime(state.duration) }) : t('player.stat.positionLive', { time: formatTime(state.currentTime) })}</dd>
+            <dt>{t('player.stat.speed')}</dt><dd>{state.rate}×</dd>
             {state.engine === 'hls.js' && (<>
-              <dt>Rendition</dt><dd>{state.levels.find((level) => level.id === state.activeLevel)?.label ?? '—'}{state.levelChoice === -1 ? ' (auto)' : ' (chosen)'}</dd>
-              <dt>Measured bandwidth</dt><dd>{formatKbps(state.stats.bandwidthKbps)}</dd>
-              <dt>Last segment</dt><dd>{state.stats.lastFragmentLoadMs !== null ? `${state.stats.lastFragmentLoadMs} ms` : '—'}</dd>
+              <dt>{t('player.stat.rendition')}</dt><dd>{state.levels.find((level) => level.id === state.activeLevel)?.label ?? t('player.stat.none')}{state.levelChoice === -1 ? t('player.stat.auto') : t('player.stat.chosen')}</dd>
+              <dt>{t('player.stat.bandwidth')}</dt><dd>{formatKbps(state.stats.bandwidthKbps)}</dd>
+              <dt>{t('player.stat.lastSegment')}</dt><dd>{state.stats.lastFragmentLoadMs !== null ? `${state.stats.lastFragmentLoadMs} ms` : t('player.stat.none')}</dd>
             </>)}
-            <dt>Source</dt><dd className="mp-panel-url">{stream.streamUrl}</dd>
+            <dt>{t('player.stat.source')}</dt><dd className="mp-panel-url">{stream.streamUrl}</dd>
           </dl>
         </div>
       )}
 
       {helpOpen && (
-        <div className="mp-panel mp-panel--help" aria-label="Keyboard shortcuts">
+        <div className="mp-panel mp-panel--help" aria-label={t('player.shortcuts')}>
           <div className="mp-panel-head">
-            <strong>Keyboard shortcuts</strong>
-            <button type="button" className="mp-btn" aria-label="Close shortcuts" onClick={() => setHelpOpen(false)}><X size={14} /></button>
+            <strong>{t('player.shortcuts')}</strong>
+            <button type="button" className="mp-btn" aria-label={t('player.closeShortcuts')} onClick={() => setHelpOpen(false)}><X size={14} /></button>
           </div>
           <dl>
-            {SHORTCUTS.map(([keys, what]) => (<React.Fragment key={keys}><dt><kbd>{keys}</kbd></dt><dd>{what}</dd></React.Fragment>))}
+            {SHORTCUTS.map(([keys, what]) => (<React.Fragment key={keys}><dt><kbd>{keys}</kbd></dt><dd>{t(what)}</dd></React.Fragment>))}
           </dl>
         </div>
       )}

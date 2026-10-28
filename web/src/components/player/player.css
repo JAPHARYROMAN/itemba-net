@@ -152,7 +152,7 @@
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
   background: var(--bg-card);
-  padding-right: 6px;
+  padding-inline-end: 6px;
 }
 
 .media-queue-item--current {
@@ -170,7 +170,7 @@
   background: transparent;
   border: none;
   color: var(--text-primary);
-  text-align: left;
+  text-align: start;
   cursor: pointer;
   font: inherit;
 }
@@ -180,7 +180,7 @@
   font-size: 11px;
   color: var(--text-muted);
   width: 18px;
-  text-align: right;
+  text-align: end;
 }
 
 .media-queue-text {
@@ -439,7 +439,7 @@
 .mp-panel {
   position: absolute;
   top: 44px;
-  right: 12px;
+  inset-inline-end: 12px;
   width: min(360px, calc(100% - 24px));
   max-height: calc(100% - 110px);
   overflow: auto;
@@ -606,13 +606,13 @@
 .mp-volume:focus-within .mp-volume-slider {
   width: 86px;
   opacity: 1;
-  margin-right: 6px;
+  margin-inline-end: 6px;
 }
 
 .mp-player--audio .mp-volume-slider {
   width: 86px;
   opacity: 1;
-  margin-right: 6px;
+  margin-inline-end: 6px;
 }
 
 /* Seek bar. */
@@ -714,7 +714,7 @@
 .mp-menu-list {
   position: absolute;
   bottom: 40px;
-  right: 0;
+  inset-inline-end: 0;
   min-width: 190px;
   list-style: none;
   background: rgba(6, 8, 15, 0.96);
@@ -1048,7 +1048,7 @@
 .rbi-diagnostics {
   position: absolute;
   top: 64px;
-  right: 18px;
+  inset-inline-end: 18px;
   display: grid;
   gap: 4px;
   padding: 9px 12px;

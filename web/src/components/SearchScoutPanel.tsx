@@ -5,7 +5,7 @@ import { RankedLocations } from './RankedLocations';
 import { FormatMatrix } from './FormatMatrix';
 import { IndexResolution } from './IndexResolution';
 import { fingerprintLabel, identityLabel } from '../identity';
-import { formatDateTime, regionName } from '../locale';
+import { MessageKey, Translate, useI18n } from '../i18n/core';
 import { isConvertibleUrl, isPdfUrl } from '../media/media';
 
 interface SearchScoutPanelProps {
@@ -22,6 +22,8 @@ interface SearchScoutPanelProps {
   onPlayRelay: (stream: ActiveRelayStream) => void;
 }
 
+type RegionFormatter = (code?: string, fallback?: string) => string | null;
+
 const REGIONS = [
   ['ALL', 'Worldwide'], ['US', 'United States'], ['GB', 'United Kingdom'],
   ['IN', 'India'], ['ZA', 'South Africa'], ['KE', 'Kenya'], ['TZ', 'Tanzania'],
@@ -29,27 +31,27 @@ const REGIONS = [
 ];
 const FREE_CATALOG_EXAMPLES = ['Seder-Masochism 2018', 'Planetary Defenders 2025', 'The Secret Wife 2024'];
 const PROVIDER_MOVIE_BASES = new Set(['filmzie_movie_metadata', 'nasa_movie_metadata', 'creator_movie_metadata', 'fawesome_movie_metadata', 'nfb_movie_metadata']);
-const ACCESS_LABELS = {
-  free: 'Free', subscription: 'Paid · Subscription', rent: 'Paid · Rent', buy: 'Paid · Buy', paid: 'Paid', unknown: 'Access unconfirmed',
+const ACCESS_KEYS: Record<string, MessageKey> = {
+  free: 'access.free', subscription: 'access.subscription', rent: 'access.rental', buy: 'access.purchase', paid: 'access.paid', unknown: 'access.unknown',
 };
-const PLAYBACK_REASON_LABELS = {
-  region_unavailable: 'Provider unavailable at test location',
-  sign_in_required: 'Sign-in required to check playback',
-  drm_required: 'DRM playback not tested',
-  content_unconfirmed: 'Main movie playback unconfirmed',
-  trailer_only: 'Trailer found · movie unconfirmed',
-  blocked_with_protection: 'Playback unconfirmed with ad filtering',
-  timeout: 'Playback check timed out',
-  ads_only: 'Ad stream found · movie unconfirmed',
-  expired: 'Playback check expired',
-  protection_changed: 'Playback unconfirmed · protection changed',
-  location_changed: 'Playback unconfirmed · test location changed',
+const PLAYBACK_REASON_KEYS: Record<string, MessageKey> = {
+  region_unavailable: 'reason.region_unavailable',
+  sign_in_required: 'reason.sign_in_required',
+  drm_required: 'reason.drm_required',
+  content_unconfirmed: 'reason.content_unconfirmed',
+  trailer_only: 'reason.trailer_only',
+  blocked_with_protection: 'reason.blocked_with_protection',
+  timeout: 'reason.timeout',
+  ads_only: 'reason.ads_only',
+  expired: 'reason.expired',
+  protection_changed: 'reason.protection_changed',
+  location_changed: 'reason.location_changed',
 };
 type AccessFilter = 'all' | 'free' | 'paid' | 'unknown';
-const FILTERS: { value: AccessFilter; label: string }[] = [
-  { value: 'all', label: 'All' }, { value: 'free', label: 'Free' },
-  { value: 'paid', label: 'Paid' }, { value: 'unknown', label: 'Unknown' },
-];
+const FILTER_KEYS: Record<AccessFilter, MessageKey> = {
+  all: 'search.filter.all', free: 'search.filter.free', paid: 'search.filter.paid', unknown: 'search.filter.unknown',
+};
+const FILTERS: AccessFilter[] = ['all', 'free', 'paid', 'unknown'];
 
 const accessGroup = (source: VerifiedSource): AccessFilter => {
   if (source.accessType === 'free') return 'free';
@@ -62,49 +64,48 @@ const marketCode = (market?: string): string | null => {
   return code && /^[A-Z]{2}$/.test(code) ? code : null;
 };
 
-const countryName = (country?: string): string | null => {
+const countryName = (country: string | undefined, regionName: RegionFormatter): string | null => {
   const code = marketCode(country);
   if (!code) return null;
   return regionName(code, REGIONS.find(([region]) => region === code)?.[1]);
 };
 
-const accessSummary = (source: VerifiedSource): string => {
-  if (source.accessType === 'free' && PROVIDER_MOVIE_BASES.has(source.accessBasis ?? '')) return 'Provider identified the full movie; playback is checked separately.';
-  if (source.accessType === 'free' && (source.accessBasis === 'archive_metadata' || source.accessBasis === 'peertube_api')) return 'Free catalog video identified; playback and location are checked separately.';
-  if (source.accessBasis === 'creator_catalog') return 'The official creator lists a free full feature; current playback is checked separately.';
-  if (source.accessBasis === 'provider_model') return "Service pricing; this movie's offer unconfirmed.";
+const accessSummary = (source: VerifiedSource, t: Translate): string => {
+  if (source.accessType === 'free' && PROVIDER_MOVIE_BASES.has(source.accessBasis ?? '')) return t('access.summary.providerMovie');
+  if (source.accessType === 'free' && (source.accessBasis === 'archive_metadata' || source.accessBasis === 'peertube_api')) return t('access.summary.freeCatalog');
+  if (source.accessBasis === 'creator_catalog') return t('access.summary.creatorCatalog');
+  if (source.accessBasis === 'provider_model') return t('access.summary.providerModel');
   if (source.accessBasis === 'catalog' && source.price) return source.price;
-  if (accessGroup(source) === 'unknown') return "This movie's price and access are unconfirmed.";
-  if (source.accessBasis === 'catalog') return source.accessType === 'free' ? 'Free catalog listing; availability may vary.' : 'Catalog listing; current price not supplied.';
-  if (source.accessBasis === 'page_text') return source.accessType === 'free' ? 'Page indicates free access; confirm on the movie page.' : 'Page indicates paid access; confirm the current offer.';
-  return source.accessType === 'free' ? 'Listed as free; current movie offer unconfirmed.' : 'Price and current movie offer unconfirmed.';
+  if (accessGroup(source) === 'unknown') return t('access.summary.unknown');
+  if (source.accessBasis === 'catalog') return t(source.accessType === 'free' ? 'access.summary.catalogFree' : 'access.summary.catalogPaid');
+  if (source.accessBasis === 'page_text') return t(source.accessType === 'free' ? 'access.summary.pageFree' : 'access.summary.pagePaid');
+  return t(source.accessType === 'free' ? 'access.summary.listedFree' : 'access.summary.listedPaid');
 };
 
-const availabilityLabel = (source: VerifiedSource, country: string, countryLabel: string): string => {
+const availabilityLabel = (source: VerifiedSource, country: string, countryLabel: string, t: Translate, regionName: RegionFormatter): string => {
   const market = marketCode(source.region);
+  const marketName = market ? countryName(market, regionName) ?? market : null;
   if (country === 'ALL') {
     switch (source.availabilityStatus) {
-      case 'regional_listing': return market ? `Listed in ${countryName(market) ?? market}` : 'Regional listing';
-      case 'service_available': return 'Service supported · movie unconfirmed';
-      case 'other_region': return market ? `${market} offer · availability varies` : 'Other market · availability unconfirmed';
-      case 'unavailable': return 'Service availability restricted';
-      default: return 'Regional availability unconfirmed';
+      case 'regional_listing': return marketName ? t('availability.regionalListing', { market: marketName }) : t('availability.regionalListingFallback');
+      case 'service_available': return t('availability.serviceAvailable');
+      case 'other_region': return marketName ? t('availability.otherRegion', { market: marketName }) : t('availability.otherRegionFallback');
+      case 'unavailable': return t('availability.unavailable');
+      default: return t('availability.unconfirmed');
     }
   }
   switch (source.availabilityStatus) {
-    case 'regional_listing': return market && market !== country ? `${market} offer · ${countryLabel} unconfirmed` : `Listed in ${countryLabel}`;
-    case 'service_available': return `Service in ${countryLabel} · movie unconfirmed`;
-    case 'other_region': return `${market || 'Other country'} offer · ${countryLabel} unconfirmed`;
-    case 'unavailable': return `Not supported in ${countryLabel}`;
-    default: return `${countryLabel} availability unconfirmed`;
+    case 'regional_listing': return market && market !== country ? t('availability.marketOther', { market, country: countryLabel }) : t('availability.regionalListingCountry', { country: countryLabel });
+    case 'service_available': return t('availability.serviceInCountry', { country: countryLabel });
+    case 'other_region': return t('availability.otherCountry', { country: market || t('availability.otherMarket'), country2: countryLabel });
+    case 'unavailable': return t('availability.notSupported', { country: countryLabel });
+    default: return t('availability.countryUnconfirmed', { country: countryLabel });
   }
 };
 
 const sourceHost = (url: string): string => {
   try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; }
 };
-
-const formatCheckedAt = (timestamp?: string): string | null => formatDateTime(timestamp);
 
 const runtimeSeconds = (value?: string): number | null => {
   if (!value?.trim()) return null;
@@ -124,26 +125,28 @@ const runtimeSeconds = (value?: string): number | null => {
   return Number.isFinite(seconds) && seconds > 0 ? seconds : null;
 };
 
-const formatRuntime = (seconds: number): string => {
+const formatRuntime = (seconds: number, t: Translate): string => {
   const minutes = Math.floor(seconds / 60);
   const hours = Math.floor(minutes / 60);
-  return hours > 0 ? `${hours}h ${minutes % 60}m` : minutes > 0 ? `${minutes}m` : `${Math.floor(seconds)}s`;
+  return hours > 0
+    ? t('runtime.hoursMinutes', { hours, minutes: minutes % 60 })
+    : minutes > 0 ? t('runtime.minutes', { minutes }) : t('runtime.seconds', { seconds: Math.floor(seconds) });
 };
 
-const accessCheckLabel = (check?: MovieAvailabilityCheck): string => {
-	if (check?.method === 'not_checked') return 'Unchecked';
-  const location = countryName(check?.country);
-  const checkedFrom = location ? ` from ${location}` : ' · check location unconfirmed';
+const accessCheckLabel = (check: MovieAvailabilityCheck | undefined, t: Translate, regionName: RegionFormatter): string => {
+  if (check?.method === 'not_checked') return t('check.unchecked');
+  const location = countryName(check?.country, regionName);
+  const checkedFrom = location ? t('search.linkChecks.from', { location }) : t('search.linkChecks.locationUnknown');
   switch (check?.status) {
-    case 'media_reachable': return `Media URL reachable${checkedFrom}`;
-    case 'page_reachable': return `Page reachable${checkedFrom}`;
-    case 'region_blocked': return 'Regional block detected';
-    case 'not_found': return 'Link not found';
-    case 'sign_in_required': return 'Sign-in needed';
-    case 'access_restricted': return 'Access check blocked';
-    case 'unconfirmed': return 'Link check inconclusive';
-    case 'error': return 'Access check failed';
-    default: return 'Unchecked';
+    case 'media_reachable': return `${t('check.mediaReachable')}${checkedFrom}`;
+    case 'page_reachable': return `${t('check.pageReachable')}${checkedFrom}`;
+    case 'region_blocked': return t('check.regionBlocked');
+    case 'not_found': return t('check.notFound');
+    case 'sign_in_required': return t('check.signInRequired');
+    case 'access_restricted': return t('check.accessRestricted');
+    case 'unconfirmed': return t('check.unconfirmed');
+    case 'error': return t('check.error');
+    default: return t('check.unchecked');
   }
 };
 
@@ -157,34 +160,34 @@ const playbackSampleStarted = (source: Pick<VerifiedSource, 'accessType' | 'play
     && Number.isFinite(check.height) && (check.height ?? 0) > 0;
 };
 
-const playbackCheckLabel = (source: VerifiedSource, region: string): string => {
-  if (source.accessType !== 'free') return 'Playback test skipped';
+const playbackCheckLabel = (source: VerifiedSource, region: string, t: Translate, regionName: RegionFormatter): string => {
+  if (source.accessType !== 'free') return t('playback.skippedPaid');
   const check = source.playbackCheck;
   if (playbackSampleStarted(source)) {
-    if (region === 'ALL') return 'Playback started';
-    const location = countryName(check?.country);
-    return location ? `Playback started from ${location}` : 'Playback started · check location unconfirmed';
+    if (region === 'ALL') return t('playback.started');
+    const location = countryName(check?.country, regionName);
+    return location ? t('playback.startedFrom', { location }) : t('playback.startedLocationUnknown');
   }
-  const reasonLabel = check?.reason ? PLAYBACK_REASON_LABELS[check.reason] : undefined;
-  if (reasonLabel) return reasonLabel;
-  if (check?.method === 'provider_playback_preflight') return 'Provider checked · movie playback unconfirmed';
+  const reasonKey = check?.reason ? PLAYBACK_REASON_KEYS[check.reason] : undefined;
+  if (reasonKey) return t(reasonKey);
+  if (check?.method === 'provider_playback_preflight') return t('playback.providerPreflight');
   switch (check?.status) {
-    case 'not_started': return 'Playback did not start';
-    case 'unsupported': return 'Playback test unsupported';
-    case 'unconfirmed': return 'Playback test unconfirmed';
-    case 'skipped': return 'Playback test skipped';
-    case 'started': return 'Playback start unconfirmed';
-    case 'expired': return 'Playback check expired';
-    default: return 'Playback not tested';
+    case 'not_started': return t('playback.notStarted');
+    case 'unsupported': return t('playback.unsupported');
+    case 'unconfirmed': return t('playback.unconfirmed');
+    case 'skipped': return t('playback.skipped');
+    case 'started': return t('playback.startedUnconfirmed');
+    case 'expired': return t('playback.expired');
+    default: return t('playback.notTested');
   }
 };
 
-const playbackMetrics = (source: VerifiedSource): string => {
+const playbackMetrics = (source: VerifiedSource, t: Translate, formatNumber: (value: number) => string): string => {
   const sample = source.playbackCheck;
   if (!sample || !playbackSampleStarted(source)) return '';
   const metrics: string[] = [];
-  if (sample.secondsAdvanced && Number.isFinite(sample.secondsAdvanced) && sample.secondsAdvanced > 0) metrics.push(`${sample.secondsAdvanced.toFixed(1)}s of video progress`);
-  if (sample.width && sample.height && Number.isFinite(sample.width) && Number.isFinite(sample.height) && sample.width > 0 && sample.height > 0) metrics.push(`${sample.width}×${sample.height}`);
+  if (sample.secondsAdvanced && Number.isFinite(sample.secondsAdvanced) && sample.secondsAdvanced > 0) metrics.push(t('playback.metrics.progress', { seconds: sample.secondsAdvanced.toFixed(1) }));
+  if (sample.width && sample.height && Number.isFinite(sample.width) && Number.isFinite(sample.height) && sample.width > 0 && sample.height > 0) metrics.push(`${formatNumber(sample.width)}×${formatNumber(sample.height)}`);
   return metrics.join(' · ');
 };
 
@@ -203,25 +206,35 @@ const isFawesomeMovieSuggestion = (raw: string): boolean => {
   } catch { return false; }
 };
 
+// Shelf failures are kept as message keys, not composed strings, so a
+// language switch re-renders the notice without restarting the round.
+class ShelfError extends Error {
+  constructor(readonly key: MessageKey) { super(key); }
+}
+
+const shelfFailure = (error: unknown): MessageKey =>
+  error instanceof ShelfError ? error.key : 'shelf.error.suggestions';
+
 const shelfPlaybackStarted = (movie: MovieDiscoveryItem, playback: FawesomeShelfPlaybackReport | undefined, now: number): boolean =>
   playback?.adBlockingEnabled === true && movie.playbackState === 'checked' && playbackSampleStarted(movie)
   && Number.isFinite(movie.playbackCheck?.durationSeconds) && (movie.playbackCheck?.durationSeconds ?? 0) >= 40 * 60
   && Number.isFinite(Date.parse(movie.playbackExpiresAt ?? '')) && Date.parse(movie.playbackExpiresAt ?? '') > now;
 
-const shelfPlaybackLabel = (movie: MovieDiscoveryItem, playback: FawesomeShelfPlaybackReport | undefined, now: number): string => {
-  if (shelfPlaybackStarted(movie, playback, now)) return 'Playback started · ad protection on';
-  if (movie.playbackState === 'expired' || Date.parse(movie.playbackExpiresAt ?? '') <= now) return 'Playback check expired';
+const shelfPlaybackLabel = (movie: MovieDiscoveryItem, playback: FawesomeShelfPlaybackReport | undefined, now: number, t: Translate): string => {
+  if (shelfPlaybackStarted(movie, playback, now)) return t('shelf.playback.started');
+  if (movie.playbackState === 'expired' || Date.parse(movie.playbackExpiresAt ?? '') <= now) return t('shelf.playback.expired');
   const running = playback?.state === 'running' && Date.parse(playback.expiresAt) > now;
-  if (running && movie.playbackState === 'checking') return 'Checking protected playback…';
-  if (running && movie.playbackState === 'queued') return 'Queued for playback check';
+  if (running && movie.playbackState === 'checking') return t('shelf.playback.checking');
+  if (running && movie.playbackState === 'queued') return t('shelf.playback.queued');
   if (movie.playbackState === 'checked') {
     const reason = movie.playbackCheck?.reason;
-    return reason ? PLAYBACK_REASON_LABELS[reason] : 'Playback unconfirmed';
+    return reason ? t(PLAYBACK_REASON_KEYS[reason]) : t('shelf.playback.unconfirmed');
   }
-  return 'Playback unchecked';
+  return t('shelf.playback.unchecked');
 };
 
 const MovieDiscoveryShelf: React.FC<{ region: string; onSelect: (query: string) => void }> = ({ region, onSelect }) => {
+  const { t, formatDateTime, regionName } = useI18n();
   const [source, setSource] = useState<'charts' | 'fawesome'>('charts');
   const [mode, setMode] = useState<MovieDiscoveryMode>('popular');
   const [retry, setRetry] = useState(0);
@@ -229,12 +242,12 @@ const MovieDiscoveryShelf: React.FC<{ region: string; onSelect: (query: string) 
   const [focusedMovieId, setFocusedMovieId] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now);
   const requestKey = `${source}|${mode}|${region}`;
-  const [state, setState] = useState<{ key: string; loading: boolean; report?: MovieDiscoveryReport; error?: string; playback?: FawesomeShelfPlaybackReport; playbackError?: string }>({ key: requestKey, loading: true });
+  const [state, setState] = useState<{ key: string; loading: boolean; report?: MovieDiscoveryReport; error?: MessageKey; playback?: FawesomeShelfPlaybackReport; playbackError?: MessageKey }>({ key: requestKey, loading: true });
   const current = state.key === requestKey ? state : null;
   const loading = current?.loading ?? true;
   const discovery = current?.report;
   const playback = current?.playback;
-  const checkedAt = formatCheckedAt(discovery?.checkedAt);
+  const checkedAt = formatDateTime(discovery?.checkedAt);
   const partial = discovery?.providers?.some((provider) => provider.status === 'error' || provider.status === 'not_configured');
   const playbackItems = new Map(playback?.items.map((movie) => [movie.sourceUrl, movie]) ?? []);
   const movies = (discovery?.items ?? []).map((movie, order) => {
@@ -279,21 +292,21 @@ const MovieDiscoveryShelf: React.FC<{ region: string; onSelect: (query: string) 
     void (async () => {
       try {
         const response = await request(`/api/scout/discover?mode=${mode}&region=${encodeURIComponent(region)}${source === 'fawesome' ? '&source=fawesome' : ''}`);
-        if (!response.ok) throw new Error('Movie suggestions could not load. You can still search any title above.');
+        if (!response.ok) throw new ShelfError('shelf.error.suggestions');
         const report = response.data as MovieDiscoveryReport;
-        if (!Array.isArray(report.items)) throw new Error('Movie suggestions could not load. You can still search any title above.');
-        if (source === 'fawesome' && report.items.some((movie) => !isFawesomeMovieSuggestion(movie.sourceUrl))) throw new Error('Free Fawesome listings could not load. You can still search any title above.');
+        if (!Array.isArray(report.items)) throw new ShelfError('shelf.error.suggestions');
+        if (source === 'fawesome' && report.items.some((movie) => !isFawesomeMovieSuggestion(movie.sourceUrl))) throw new ShelfError('shelf.error.fawesome');
         if (active) setState({ key: requestKey, loading: false, report });
         if (!active || source !== 'fawesome' || report.items.length === 0) return;
         const catalogUrls = new Set(report.items.map((movie) => movie.sourceUrl));
         const readPlayback = (response: { ok: boolean; data: unknown }): FawesomeShelfPlaybackReport => {
-          if (!response.ok) throw new Error('Background playback checks are unavailable. The catalog is still ready to search.');
+          if (!response.ok) throw new ShelfError('shelf.error.unavailable');
           const snapshot = response.data as FawesomeShelfPlaybackReport;
           if (!/^[a-f0-9]{32}$/.test(snapshot.jobId ?? '') || snapshot.mode !== mode || snapshot.region !== 'ALL'
             || snapshot.adBlockingEnabled !== true || !['running', 'complete', 'cancelled', 'expired'].includes(snapshot.state)
             || !Number.isFinite(Date.parse(snapshot.expiresAt)) || !Array.isArray(snapshot.items)
             || snapshot.items.some((movie) => !isFawesomeMovieSuggestion(movie.sourceUrl) || !catalogUrls.has(movie.sourceUrl))) {
-            throw new Error('Background playback checks could not be read. The catalog is still ready to search.');
+            throw new ShelfError('shelf.error.unreadable');
           }
           return snapshot;
         };
@@ -305,7 +318,7 @@ const MovieDiscoveryShelf: React.FC<{ region: string; onSelect: (query: string) 
         const playbackFailed = () => {
           if (jobId) releaseJob(jobId);
           if (active && !controller.signal.aborted) setState((previous) => previous.key === requestKey
-            ? { ...previous, playback: previous.playback ? { ...previous.playback, state: 'cancelled' } : undefined, playbackError: 'Background playback checks stopped. The catalog is still ready to search.' } : previous);
+            ? { ...previous, playback: previous.playback ? { ...previous.playback, state: 'cancelled' } : undefined, playbackError: 'shelf.error.stopped' } : previous);
         };
         const pollPlayback = (snapshot: FawesomeShelfPlaybackReport) => {
           const remaining = Date.parse(snapshot.expiresAt) - Date.now();
@@ -317,7 +330,7 @@ const MovieDiscoveryShelf: React.FC<{ region: string; onSelect: (query: string) 
             void (async () => {
               try {
                 const next = await readPlayback(await request(`/api/scout/fawesome/playback?job=${encodeURIComponent(snapshot.jobId)}`));
-                if (next.jobId !== snapshot.jobId) throw new Error('Background playback round changed.');
+                if (next.jobId !== snapshot.jobId) throw new ShelfError('shelf.error.roundChanged');
                 acceptPlayback(next);
                 pollPlayback(next);
               } catch { playbackFailed(); }
@@ -331,7 +344,7 @@ const MovieDiscoveryShelf: React.FC<{ region: string; onSelect: (query: string) 
           pollPlayback(snapshot);
         } catch { playbackFailed(); }
       } catch (error) {
-        if (active && !controller.signal.aborted) setState({ key: requestKey, loading: false, error: error instanceof Error ? error.message : 'Movie suggestions could not load. You can still search any title above.' });
+        if (active && !controller.signal.aborted) setState({ key: requestKey, loading: false, error: shelfFailure(error) });
       }
     })();
     return () => {
@@ -355,63 +368,63 @@ const MovieDiscoveryShelf: React.FC<{ region: string; onSelect: (query: string) 
   return (
     <div className="movie-discovery-shelf" aria-labelledby="movie-discovery-heading">
       <div className="movie-discovery-header">
-        <h3 id="movie-discovery-heading">Explore movies</h3>
-        <div className="preset-chips" role="group" aria-label="Choose movie suggestions">
+        <h3 id="movie-discovery-heading">{t('shelf.title')}</h3>
+        <div className="preset-chips" role="group" aria-label={t('shelf.choose.group')}>
           {(['popular', 'recent'] as const).map((option) => (
             <button key={option} type="button" className={`chip${source === 'charts' && mode === option ? ' scout-filter-active' : ''}`} aria-pressed={source === 'charts' && mode === option} onClick={() => { setSource('charts'); setMode(option); }}>
-              {option === 'popular' ? 'Popular chart films' : 'Recent store releases'}
+              {option === 'popular' ? t('shelf.popularCharts') : t('shelf.recentReleases')}
             </button>
           ))}
-          <button type="button" className={`chip${source === 'fawesome' ? ' scout-filter-active' : ''}`} aria-pressed={source === 'fawesome'} onClick={() => { if (source !== 'fawesome') setMode('popular'); setSource('fawesome'); }}>Free on Fawesome</button>
+          <button type="button" className={`chip${source === 'fawesome' ? ' scout-filter-active' : ''}`} aria-pressed={source === 'fawesome'} onClick={() => { if (source !== 'fawesome') setMode('popular'); setSource('fawesome'); }}>{t('shelf.fawesome')}</button>
         </div>
       </div>
-      {source === 'fawesome' && <div className="preset-chips" role="group" aria-label="Choose Fawesome catalog" style={{ marginTop: 10 }}>
-        {(['popular', 'recent'] as const).map((option) => <button key={option} type="button" className={`chip${mode === option ? ' scout-filter-active' : ''}`} aria-pressed={mode === option} onClick={() => setMode(option)}>{option === 'popular' ? 'Popular on Fawesome' : 'New on Fawesome'}</button>)}
+      {source === 'fawesome' && <div className="preset-chips" role="group" aria-label={t('shelf.chooseFawesome')} style={{ marginTop: 10 }}>
+        {(['popular', 'recent'] as const).map((option) => <button key={option} type="button" className={`chip${mode === option ? ' scout-filter-active' : ''}`} aria-pressed={mode === option} onClick={() => setMode(option)}>{option === 'popular' ? t('shelf.fawesomePopular') : t('shelf.fawesomeNew')}</button>)}
       </div>}
       <p className="scout-muted">{source === 'fawesome'
-        ? 'Free catalog listings. Protected playback checks run in the background; confirmed short samples appear first.'
+        ? t('shelf.note.fawesome')
         : mode === 'popular'
-        ? 'Popular across sampled Apple storefronts. Dates show store releases; search a title to check watch options.'
-        : 'Recent store releases from current charts; older reissues may appear.'}</p>
-      {loading ? <p className="scout-muted" role="status">{source === 'fawesome' ? 'Loading free Fawesome listings…' : 'Loading movie charts…'}</p> : current?.error ? (
-        <div className="movie-discovery-message" role="status"><p>{current.error}</p><button type="button" className="chip" onClick={() => setRetry((attempt) => attempt + 1)}>Retry suggestions</button></div>
+        ? t('shelf.note.popular')
+        : t('shelf.note.recent')}</p>
+      {loading ? <p className="scout-muted" role="status">{source === 'fawesome' ? t('shelf.loading.fawesome') : t('shelf.loading.charts')}</p> : current?.error ? (
+        <div className="movie-discovery-message" role="status"><p>{t(current.error)}</p><button type="button" className="chip" onClick={() => setRetry((attempt) => attempt + 1)}>{t('shelf.retry')}</button></div>
       ) : discovery ? (
         <>
-          {partial && <p className="scout-muted" role="status">Some provider feeds could not load. Available suggestions are shown below.</p>}
+          {partial && <p className="scout-muted" role="status">{t('shelf.partial')}</p>}
           {source === 'fawesome' && discovery.items.length > 0 && <div className="movie-discovery-progress" role="status" aria-live="polite">
-            <p>{current?.playbackError ? current.playbackError
-              : !playback ? 'Preparing protected playback checks…'
-              : roundRunning ? `${playback.checkedCount} of ${playback.total} checked · ${startedCount} playback samples started · checking continues in the background.`
-              : roundExpired ? `Background check round ended · ${startedCount} current playback samples started. Unchecked titles remain available to search.`
-              : playback.state === 'cancelled' ? 'Background checks stopped. The catalog remains available to search.'
-              : `Checks complete · ${startedCount} current playback samples started. Other titles remain unconfirmed or unchecked.`}</p>
-            {(current?.playbackError || roundExpired) && <button type="button" className="chip" onClick={() => setRetry((attempt) => attempt + 1)}>Check again</button>}
+            <p>{current?.playbackError ? t(current.playbackError)
+              : !playback ? t('shelf.preparing')
+              : roundRunning ? t('shelf.progress', { checked: playback.checkedCount, total: playback.total, started: startedCount })
+              : roundExpired ? t('shelf.roundEnded', { started: startedCount })
+              : playback.state === 'cancelled' ? t('shelf.cancelled')
+              : t('shelf.complete', { started: startedCount })}</p>
+            {(current?.playbackError || roundExpired) && <button type="button" className="chip" onClick={() => setRetry((attempt) => attempt + 1)}>{t('shelf.checkAgain')}</button>}
           </div>}
           {discovery.items.length > 0 ? (
             <div className="movie-discovery-grid">
               {movies.slice(0, displayLimit).map((movie) => {
                 const started = shelfPlaybackStarted(movie, playback, now);
-                const sampleAt = formatCheckedAt(movie.playbackCheck?.checkedAt);
+                const sampleAt = formatDateTime(movie.playbackCheck?.checkedAt);
                 return <button key={movie.id} type="button" className={`movie-discovery-title${started ? ' movie-discovery-started' : ''}`} onFocus={() => setFocusedMovieId(movie.id)} onBlur={() => setFocusedMovieId(null)} onClick={() => onSelect(movie.query || movie.title)}>
                   {movie.thumbnail && <img src={movie.thumbnail} alt="" loading="lazy" referrerPolicy="no-referrer" onError={(event) => { event.currentTarget.hidden = true; }} />}
                   <span>
                     <strong>{movie.title}</strong>
-                    <span className="scout-muted">{movie.sourceName}{movie.markets?.length ? ` · ${movie.markets.map((market) => countryName(market) ?? market).join(', ')}` : ''}</span>
-                    {source === 'fawesome' ? movie.catalogDate && <span className="scout-muted">Catalog date: {movie.catalogDate}</span> : movie.releaseDate && <span className="scout-muted">Store release: {movie.releaseDate.slice(0, 10)}</span>}
+                    <span className="scout-muted">{movie.sourceName}{movie.markets?.length ? ` · ${movie.markets.map((market) => countryName(market, regionName) ?? market).join(', ')}` : ''}</span>
+                    {source === 'fawesome' ? movie.catalogDate && <span className="scout-muted">{t('shelf.catalogDate', { date: movie.catalogDate })}</span> : movie.releaseDate && <span className="scout-muted">{t('shelf.storeRelease', { date: movie.releaseDate.slice(0, 10) })}</span>}
                     {source === 'fawesome' && <>
-                      <span className={`movie-discovery-playback${started ? ' sample-started' : ''}`}>{shelfPlaybackLabel(movie, playback, now)}</span>
-                      {sampleAt && <span className="scout-muted">Test location: {countryName(movie.playbackCheck?.country) ?? 'unconfirmed'} · <time dateTime={movie.playbackCheck?.checkedAt}>{sampleAt}</time></span>}
-                      {started && <span className="scout-muted">Short sample; full movie not verified.</span>}
+                      <span className={`movie-discovery-playback${started ? ' sample-started' : ''}`}>{shelfPlaybackLabel(movie, playback, now, t)}</span>
+                      {sampleAt && <span className="scout-muted">{t('shelf.testLocation', { location: countryName(movie.playbackCheck?.country, regionName) ?? t('card.testLocationUnknown') })} · <time dateTime={movie.playbackCheck?.checkedAt}>{sampleAt}</time></span>}
+                      {started && <span className="scout-muted">{t('shelf.shortSample')}</span>}
                     </>}
-                    <span className="movie-discovery-action">Find watch options <Search size={11} aria-hidden="true" /></span>
+                    <span className="movie-discovery-action">{t('shelf.findOptions')} <Search size={11} aria-hidden="true" /></span>
                   </span>
                 </button>;
               })}
             </div>
-          ) : <p className="scout-muted" role="status">{source === 'fawesome' ? 'No matching free catalog suggestions are available. Search a movie title above, or try the other catalog.' : 'No matching chart suggestions are available. Search a movie title above, or try another chart or region.'}</p>}
-          {displayLimit < Math.min(movies.length, 24) && <button type="button" className="chip" style={{ marginTop: 10 }} onClick={() => setVisibleLimit((count) => Math.min(Math.max(count, displayLimit) + 6, 24))}>Show {Math.min(6, Math.min(movies.length, 24) - displayLimit)} more movies</button>}
-          {discovery.detail && <details className="scout-provider-details" style={{ marginTop: 10 }}><summary>About these suggestions</summary><p>{discovery.detail}</p></details>}
-          {checkedAt && <p className="scout-muted">{source === 'fawesome' ? 'Catalog checked' : 'Charts checked'} <time dateTime={discovery.checkedAt}>{checkedAt}</time>{discovery.cached ? ' · cached feed' : ''}</p>}
+          ) : <p className="scout-muted" role="status">{source === 'fawesome' ? t('shelf.noFawesome') : t('shelf.noCharts')}</p>}
+          {displayLimit < Math.min(movies.length, 24) && <button type="button" className="chip" style={{ marginTop: 10 }} onClick={() => setVisibleLimit((count) => Math.min(Math.max(count, displayLimit) + 6, 24))}>{t(Math.min(6, Math.min(movies.length, 24) - displayLimit) === 1 ? 'shelf.more.one' : 'shelf.more.other', { count: Math.min(6, Math.min(movies.length, 24) - displayLimit) })}</button>}
+          {discovery.detail && <details className="scout-provider-details" style={{ marginTop: 10 }}><summary>{t('shelf.about')}</summary><p>{discovery.detail}</p></details>}
+          {checkedAt && <p className="scout-muted">{source === 'fawesome' ? t('shelf.checkedCatalog') : t('shelf.checkedCharts')} <time dateTime={discovery.checkedAt}>{checkedAt}</time>{discovery.cached ? t('shelf.cached') : ''}</p>}
         </>
       ) : null}
     </div>
@@ -431,33 +444,33 @@ const audioSampleStarted = (source: VerifiedSource): boolean => {
     && check.method === 'isolated_audio_sample' && !check.reason && Number.isFinite(check.secondsAdvanced) && (check.secondsAdvanced ?? 0) >= 1;
 };
 
-const audioSampleLabel = (source: VerifiedSource): string => {
+const audioSampleLabel = (source: VerifiedSource, t: Translate, regionName: RegionFormatter): string => {
   const check = source.playbackCheck;
   if (audioSampleStarted(source)) {
-    const location = countryName(check?.country);
-    return location ? `Playback started from ${location}` : 'Playback started';
+    const location = countryName(check?.country, regionName);
+    return location ? t('playback.startedFrom', { location }) : t('playback.started');
   }
-  if (!check || check.method === 'not_checked') return 'Playback not sampled';
-  const reasonLabel = check.reason ? PLAYBACK_REASON_LABELS[check.reason] : undefined;
-  if (reasonLabel) return reasonLabel;
+  if (!check || check.method === 'not_checked') return t('card.sampleNotTested');
+  const reasonKey = check.reason ? PLAYBACK_REASON_KEYS[check.reason] : undefined;
+  if (reasonKey) return t(reasonKey);
   switch (check.status) {
-    case 'not_started': return 'Playback did not start';
-    case 'unsupported': return 'Playback test unsupported';
-    case 'skipped': return 'Playback not sampled';
-    default: return 'Playback sample unconfirmed';
+    case 'not_started': return t('playback.notStarted');
+    case 'unsupported': return t('playback.unsupported');
+    case 'skipped': return t('card.sampleNotTested');
+    default: return t('card.sampleUnconfirmed');
   }
 };
 
 // The stream a track plays as: the chosen file first, the whole set behind
 // it so the stage queues the rest in order.
-const audioStream = (source: VerifiedSource, track?: AudioTrack): ActiveRelayStream => {
+const audioStream = (source: VerifiedSource, track: AudioTrack | undefined, t: Translate): ActiveRelayStream => {
   const collection = source.creator ? `${source.title} · ${source.creator}` : source.title;
   const streamUrl = track?.url ?? (source.directStreamUrl as string);
   const current = track ?? source.tracks?.find((entry) => entry.url === streamUrl);
   const title = current && (source.tracks?.length ?? 0) > 1 ? `${current.title} · ${collection}` : collection;
   return {
     title, collection, streamUrl, pageUrl: source.url, provider: source.provider,
-    format: current?.format ? `Direct ${current.format}` : source.streamFormat, useZeroTrustProxy: true, kind: 'audio', poster: source.thumbnail,
+    format: current?.format ? t('stage.directFormat', { format: current.format }) : source.streamFormat, useZeroTrustProxy: true, kind: 'audio', poster: source.thumbnail,
     durationSeconds: current?.durationSeconds, tracks: source.tracks,
   };
 };
@@ -467,7 +480,7 @@ interface AudioResultsProps {
   sources: VerifiedSource[];
   filter: AccessFilter;
   onFilter: (filter: AccessFilter) => void;
-  regionName: string;
+  regionLabel: string;
   checkLocation: string | null;
   batchCheckedAt: string | null;
   launchingUrl: string | null;
@@ -478,68 +491,69 @@ interface AudioResultsProps {
 // The audio results: recordings with their performer, year, length and the
 // reach of their file or page. The movie cards' playback and offer rows do
 // not apply to a recording yet.
-const AudioResults: React.FC<AudioResultsProps> = ({ report, sources, filter, onFilter, regionName, checkLocation, batchCheckedAt, launchingUrl, onLaunchRbi, onPlayRelay }) => {
+const AudioResults: React.FC<AudioResultsProps> = ({ report, sources, filter, onFilter, regionLabel, checkLocation, batchCheckedAt, launchingUrl, onLaunchRbi, onPlayRelay }) => {
+  const { t, regionName, formatDateTime } = useI18n();
   const visible = sources.filter((source) => filter === 'all' || accessGroup(source) === filter);
   const coverageOpen = report.providers?.some((provider) => provider.status === 'error' || provider.status === 'not_configured') ?? false;
   return (
     <>
       <div className="movie-results-summary" role="status">
-        <div><strong>{sources.length} {sources.length === 1 ? 'recording' : 'recordings'}</strong> for “{report.query}”<span className="scout-muted"> · {regionName}</span></div>
+        <div><strong>{t(sources.length === 1 ? 'search.summary.recordings.one' : 'search.summary.recordings.other', { count: sources.length })}</strong> {t('search.summary.for', { query: report.query })}<span className="scout-muted"> · {regionLabel}</span></div>
         <span className="scout-muted scout-duration"><Clock size={12} aria-hidden="true" /> {(report.durationMs / 1000).toFixed(1)}s</span>
       </div>
-      <p className="scout-muted">Audio search · Listings are matched by title and performer. Files are checked for reach from the server, and up to two free recordings get a short muted sample in the isolated browser; a started sample confirms the first file decodes, not the whole recording. The sample also takes an acoustic fingerprint of the file’s beginning, and recordings that sound the same are matched by it whatever their tags say.</p>
+      <p className="scout-muted">{t('results.intro.audio')}</p>
       {report.providers && report.providers.length > 0 && (
         <details className="scout-provider-details" open={coverageOpen}>
-          <summary>Search coverage{coverageOpen ? ' · some sources unavailable' : ''}</summary>
+          <summary>{t('search.coverage')}{coverageOpen ? t('search.coverage.unavailable') : ''}</summary>
           <ul>{report.providers.map((provider) => (
             <li key={provider.name}>
-              <strong>{provider.name}</strong>: {provider.detail || (provider.status === 'ok' ? 'Search completed.' : provider.status === 'empty' ? 'No matching listings.' : provider.status === 'not_configured' ? 'Not configured.' : 'Could not search this source.')}
+              <strong>{provider.name}</strong>: {provider.detail || (provider.status === 'ok' ? t('search.coverage.ok') : provider.status === 'empty' ? t('search.coverage.empty') : provider.status === 'not_configured' ? t('search.coverage.notConfigured') : t('search.coverage.failed'))}
             </li>
           ))}</ul>
         </details>
       )}
       {report.availabilityChecks && (
         <div className="scout-link-check-summary">
-          <p><strong>Automatic link checks</strong> · {report.availabilityChecks.checkedCount} checked{checkLocation ? ` from ${checkLocation}` : ' · check location unconfirmed'}</p>
-          {report.availabilityChecks.playbackCheckedCount !== undefined && <p><strong>Muted playback samples</strong> · {report.availabilityChecks.playbackCheckedCount} attempted{report.availabilityChecks.playbackStartedCount !== undefined ? ` · ${report.availabilityChecks.playbackStartedCount} started` : ''}{report.availabilityChecks.fingerprintCount ? ` · ${report.availabilityChecks.fingerprintCount} acoustic ${report.availabilityChecks.fingerprintCount === 1 ? 'fingerprint' : 'fingerprints'} taken` : ''}. A started sample confirms the first file decodes, not the whole recording.</p>}
-          {report.atlas?.fingerprints ? <p><strong>Fingerprint library</strong> · {report.atlas.fingerprints} stored in the index and compared with everything heard before.</p> : null}
-          {batchCheckedAt && <p>Checked <time dateTime={report.availabilityChecks.checkedAt}>{batchCheckedAt}</time></p>}
+          <p><strong>{t('search.linkChecks')}</strong> · {t('search.linkChecks.checked.other', { count: report.availabilityChecks.checkedCount })}{checkLocation ? t('search.linkChecks.from', { location: checkLocation }) : t('search.linkChecks.locationUnknown')}</p>
+          {report.availabilityChecks.playbackCheckedCount !== undefined && <p><strong>{t('search.sample.mutedAudio')}</strong> · {t('search.sample.attempted.other', { count: report.availabilityChecks.playbackCheckedCount })}{report.availabilityChecks.playbackStartedCount !== undefined ? t('search.sample.started', { count: report.availabilityChecks.playbackStartedCount }) : ''}{report.availabilityChecks.fingerprintCount ? t(report.availabilityChecks.fingerprintCount === 1 ? 'search.sample.audioFingerprints.one' : 'search.sample.audioFingerprints.other', { count: report.availabilityChecks.fingerprintCount }) : ''}{t('search.sample.shortAudio')}</p>}
+          {report.atlas?.fingerprints ? <p><strong>{t('search.fingerprintLibrary')}</strong>{t('search.fingerprinted.audio', { count: report.atlas.fingerprints })}</p> : null}
+          {batchCheckedAt && <p>{t('search.checked')} <time dateTime={report.availabilityChecks.checkedAt}>{batchCheckedAt}</time></p>}
         </div>
       )}
-      <div className="preset-chips" role="group" aria-label="Filter by access type">
-        {FILTERS.map(({ value, label }) => (
+      <div className="preset-chips" role="group" aria-label={t('search.filters.group')}>
+        {FILTERS.map((value) => (
           <button key={value} type="button" className={`chip${filter === value ? ' scout-filter-active' : ''}`}
             aria-pressed={filter === value} onClick={() => onFilter(value)}>
-            {label} ({value === 'all' ? sources.length : sources.filter((source) => accessGroup(source) === value).length})
+            {t(FILTER_KEYS[value])} ({value === 'all' ? sources.length : sources.filter((source) => accessGroup(source) === value).length})
           </button>
         ))}
       </div>
       {visible.length === 0 ? (
         <div className="scout-empty" role="status">
-          <strong>{sources.length === 0 ? 'No recordings found in the covered audio catalogs.' : `No listings marked ${filter} in these results.`}</strong>
-          <p>{sources.length === 0 ? 'Try the recording’s title with its performer, as in “Kind of Blue by Miles Davis”. Search coverage is shown above.' : 'Choose another filter. Access labels reflect the evidence available for each source.'}</p>
+          <strong>{sources.length === 0 ? t('search.empty.audio.noSources') : t('search.filter.noneMarked', { filter: t(FILTER_KEYS[filter]) })}</strong>
+          <p>{sources.length === 0 ? t('search.empty.audio.help.noSources') : t('search.filter.otherHint')}</p>
         </div>
       ) : (
         <div className="sources-grid movie-sources-grid">
           {visible.map((source) => {
             const check = source.availabilityCheck;
-            const checkedAt = formatCheckedAt(check?.checkedAt);
+            const checkedAt = formatDateTime(check?.checkedAt);
             const length = runtimeSeconds(source.duration);
             const showYear = source.releaseYear && !source.title.includes(String(source.releaseYear));
             const sampleStarted = audioSampleStarted(source);
             const sample = source.playbackCheck;
-            const sampleCheckedAt = formatCheckedAt(sample?.checkedAt);
-            const reach = sampleStarted ? 'Playback sample passed' : source.verificationStatus === 'media_reachable' ? 'Audio file reachable' : source.verificationStatus === 'page_reachable' ? 'Page reachable' : 'Listing';
+            const sampleCheckedAt = formatDateTime(sample?.checkedAt);
+            const reach = sampleStarted ? t('card.reach.samplePassed') : source.verificationStatus === 'media_reachable' ? t('card.reach.audio') : source.verificationStatus === 'page_reachable' ? t('card.reach.page') : t('card.reach.listing');
             const tracks = source.tracks ?? [];
             // The index's verdict, compared with everything it has heard,
             // over the search's own between its two samples.
             const identity = report.atlas?.identities?.[source.url] ?? source.identity;
-            const fingerprintNote = sample ? fingerprintLabel(sample) : null;
+            const fingerprintNote = sample ? fingerprintLabel(sample, t) : null;
             return (
               <article key={source.id} className="source-card movie-source-card audio-source-card">
                 <div>
                   <div className="movie-source-badges">
-                    <span className={`pill-badge${source.accessType === 'free' ? ' live' : ''}`}>{ACCESS_LABELS[source.accessType ?? 'unknown']}</span>
+                    <span className={`pill-badge${source.accessType === 'free' ? ' live' : ''}`}>{t(ACCESS_KEYS[source.accessType ?? 'unknown'])}</span>
                     <span className={`scout-muted${sampleStarted ? ' scout-media-status' : ''}`}>{reach}</span>
                   </div>
                   <div className="movie-source-title">
@@ -547,36 +561,36 @@ const AudioResults: React.FC<AudioResultsProps> = ({ report, sources, filter, on
                       onError={(event) => { event.currentTarget.hidden = true; }} />}
                     <div>
                       <h3>{source.title}{showYear ? <span className="scout-muted"> ({source.releaseYear})</span> : null}</h3>
-                      <p className="movie-source-provider">{source.creator || <span className="scout-muted">Performer unconfirmed</span>}</p>
+                      <p className="movie-source-provider">{source.creator || <span className="scout-muted">{t('card.performerUnconfirmed')}</span>}</p>
                       <p className="scout-muted movie-source-host">{source.provider} · {sourceHost(source.url)}</p>
-                      <p className="scout-muted movie-source-runtime">{length === null ? 'Length unconfirmed' : `Listed length: ${formatRuntime(length)}`}{source.verificationStatus === 'media_reachable' && source.streamFormat ? ` · ${source.streamFormat}` : ''}</p>
+                      <p className="scout-muted movie-source-runtime">{length === null ? t('card.lengthUnconfirmed') : t('card.listedLength', { length: formatRuntime(length, t) })}{source.verificationStatus === 'media_reachable' && source.streamFormat ? ` · ${source.streamFormat}` : ''}</p>
                     </div>
                   </div>
                   {source.accessType === 'free' && (
                     <div className={`movie-playback-check${sampleStarted ? ' sample-started' : ''}`}>
-                      <p className="movie-check-status">{audioSampleLabel(source)}</p>
+                      <p className="movie-check-status">{audioSampleLabel(source, t, regionName)}</p>
                       {sampleStarted
-                        ? <p className="scout-muted">{(sample?.secondsAdvanced ?? 0).toFixed(1)}s of audio decoded in the isolated browser; the rest of the recording is not verified.</p>
-                        : <p className="scout-muted">{sample?.detail || 'No playback sample was tested for this recording.'}</p>}
+                        ? <p className="scout-muted">{t('card.sampleDecodedAudio', { seconds: (sample?.secondsAdvanced ?? 0).toFixed(1) })}</p>
+                        : <p className="scout-muted">{sample?.detail || t('card.noAudioSample')}</p>}
                       {fingerprintNote && <p className="scout-muted">{fingerprintNote}</p>}
                       {identity && (
                         <p className={`audio-identity identity-${identity.effect ?? identity.verdict ?? 'none'}`}>
-                          <span className="ladder-identity"><Fingerprint size={11} aria-hidden="true" /> {identityLabel(identity)}</span>
+                          <span className="ladder-identity"><Fingerprint size={11} aria-hidden="true" /> {identityLabel(identity, t)}</span>
                           {identity.detail && <span className="scout-muted">{identity.detail}</span>}
                         </p>
                       )}
-                      {sampleCheckedAt && <p className="scout-muted">Sample checked <time dateTime={sample?.checkedAt}>{sampleCheckedAt}</time></p>}
+                      {sampleCheckedAt && <p className="scout-muted">{t('card.sampleChecked')} <time dateTime={sample?.checkedAt}>{sampleCheckedAt}</time></p>}
                     </div>
                   )}
                   {source.description && <p className="scout-description movie-source-description">{source.description}</p>}
                   {tracks.length > 1 && (
                     <details className="scout-provider-details audio-track-list">
-                      <summary>{tracks.length} tracks · play from any</summary>
+                      <summary>{t(tracks.length === 1 ? 'card.tracks.one' : 'card.tracks.other', { count: tracks.length })}</summary>
                       <ol>{tracks.map((track, index) => {
-                        const trackLength = track.durationSeconds && track.durationSeconds > 0 ? formatRuntime(track.durationSeconds) : null;
+                        const trackLength = track.durationSeconds && track.durationSeconds > 0 ? formatRuntime(track.durationSeconds, t) : null;
                         return (
                           <li key={track.url}>
-                            <button type="button" className="btn" disabled={!canPlayAudio(source)} onClick={() => onPlayRelay(audioStream(source, track))}>
+                            <button type="button" className="btn" disabled={!canPlayAudio(source)} onClick={() => onPlayRelay(audioStream(source, track, t))}>
                               <Play size={12} aria-hidden="true" /> {index + 1}. {track.title}{trackLength ? <span className="scout-muted"> · {trackLength}</span> : null}
                             </button>
                           </li>
@@ -587,20 +601,20 @@ const AudioResults: React.FC<AudioResultsProps> = ({ report, sources, filter, on
                   <div className="movie-source-facts">
                     {source.accessNote && <p className="scout-muted">{source.accessNote}</p>}
                     <div className="movie-access-check">
-                      <p className={`movie-check-status check-${check?.status ?? 'unchecked'}`}>{accessCheckLabel(check)}</p>
+                      <p className={`movie-check-status check-${check?.status ?? 'unchecked'}`}>{accessCheckLabel(check, t, regionName)}</p>
                       {check?.detail && <p className="scout-muted">{check.detail}</p>}
-                      <p className="scout-muted">A reachable file does not confirm playback; only a started sample does, and only for its beginning.</p>
-                      {checkedAt && <p className="scout-muted">Link checked <time dateTime={check?.checkedAt}>{checkedAt}</time></p>}
+                      <p className="scout-muted">{t('card.reachableFileNote')}</p>
+                      {checkedAt && <p className="scout-muted">{t('card.linkChecked')} <time dateTime={check?.checkedAt}>{checkedAt}</time></p>}
                     </div>
                   </div>
                 </div>
                 <div className="movie-source-actions">
                   <button type="button" className="btn btn-primary" disabled={launchingUrl !== null}
                     onClick={() => onLaunchRbi(source.url, false)}>
-                    <Globe size={14} aria-hidden="true" /> {launchingUrl === source.url ? 'Opening protected browser…' : 'Open page with ad blocking'}
+                    <Globe size={14} aria-hidden="true" /> {launchingUrl === source.url ? t('card.opening') : t('card.openPageProtected')}
                   </button>
-                  {canPlayAudio(source) && <button type="button" className="btn" onClick={() => onPlayRelay(audioStream(source))}>
-                    <Play size={13} aria-hidden="true" /> {sampleStarted ? (tracks.length > 1 ? 'Play sampled recording · all tracks' : 'Play sampled recording') : (tracks.length > 1 ? 'Play all tracks through the relay' : 'Play through the relay')}
+                  {canPlayAudio(source) && <button type="button" className="btn" onClick={() => onPlayRelay(audioStream(source, undefined, t))}>
+                    <Play size={13} aria-hidden="true" /> {sampleStarted ? (tracks.length > 1 ? t('card.sampledRecordingTracks') : t('card.sampledRecording')) : (tracks.length > 1 ? t('card.allTracks') : t('card.playRelay'))}
                   </button>}
                 </div>
               </article>
@@ -613,17 +627,17 @@ const AudioResults: React.FC<AudioResultsProps> = ({ report, sources, filter, on
 };
 
 // What the isolated sandbox drew of a picture or a document, in a line.
-const renderLabel = (check?: RenderCheck): string | null => {
+const renderLabel = (check: RenderCheck | undefined, t: Translate): string | null => {
   if (!check || check.status === 'skipped') return null;
   if (check.status === 'rendered') {
-    const size = check.width && check.height ? ` at ${check.width}×${check.height}` : '';
-    const took = check.milliseconds ? ` in ${(check.milliseconds / 1000).toFixed(1)} s` : '';
-    const hash = check.hashAgrees === 'yes' ? '; the drawn pixels hash as the probe said' : check.hashAgrees === 'no' ? '; the drawn pixels hash differently from the file the probe read' : '';
-    const drawn = check.visibleShare ? `; ${Math.round(check.visibleShare * 100)}% of the frame drawn` : '';
-    const converted = check.converted ? ` ${check.converted}` : '';
-    return `Rendered in the sandbox${size}${took}${hash}${drawn}.${converted}`;
+    const size = check.width && check.height ? t('render.size', { width: check.width, height: check.height }) : '';
+    const took = check.milliseconds ? t('render.took', { seconds: (check.milliseconds / 1000).toFixed(1) }) : '';
+    const hash = check.hashAgrees === 'yes' ? t('render.hashYes') : check.hashAgrees === 'no' ? t('render.hashNo') : '';
+    const drawn = check.visibleShare ? t('render.visible', { percent: Math.round(check.visibleShare * 100) }) : '';
+    const converted = check.converted ? t('render.converted', { format: check.converted }) : '';
+    return `${t('render.rendered')}${size}${took}${hash}${drawn}.${converted}`;
   }
-  return `Not rendered in the sandbox: ${check.detail}`;
+  return t('render.failed', { detail: check.detail ?? '' });
 };
 
 // A picture opens in the zoomable viewer through the relay whenever its
@@ -632,30 +646,30 @@ const renderLabel = (check?: RenderCheck): string | null => {
 const canViewImage = (source: VerifiedSource): boolean =>
   Boolean(source.directStreamUrl) && (source.imageCheck?.status === 'decoded' || source.imageCheck?.status === 'unsupported');
 
-const imageStream = (source: VerifiedSource): ActiveRelayStream => ({
+const imageStream = (source: VerifiedSource, t: Translate): ActiveRelayStream => ({
   title: source.creator ? `${source.title} · ${source.creator}` : source.title,
   streamUrl: source.directStreamUrl as string, pageUrl: source.url, provider: source.provider,
-  format: source.streamFormat || (source.imageCheck?.format ? `${source.imageCheck.format.toUpperCase()} image` : 'Image'),
+  format: source.streamFormat || (source.imageCheck?.format ? t('image.formatLabel', { format: source.imageCheck.format.toUpperCase() }) : t('kind.image')),
   resolution: source.imageCheck?.width && source.imageCheck?.height ? `${source.imageCheck.width}×${source.imageCheck.height}` : source.resolution,
   useZeroTrustProxy: true, kind: 'image', poster: source.thumbnail,
 });
 
-const imageProbeLabel = (check?: ImageCheck): string => {
+const imageProbeLabel = (check: ImageCheck | undefined, t: Translate): string => {
   switch (check?.status) {
-    case 'decoded': return `Decoded ${check.width}×${check.height} ${(check.format ?? '').toUpperCase()}`.trim();
-    case 'unsupported': return `File reachable · ${(check.format ?? 'this').toUpperCase()} not decoded yet`;
-    case 'undecodable': return 'File answered but is not a picture';
-    case 'unreachable': return check.httpStatus ? `File answered HTTP ${check.httpStatus}` : 'File unreachable';
-    default: return 'File not probed';
+    case 'decoded': return t('image.decoded', { width: check.width ?? '', height: check.height ?? '', format: (check.format ?? '').toUpperCase() }).trim();
+    case 'unsupported': return t('image.unsupported', { format: (check.format ?? t('image.probeFormat')).toUpperCase() });
+    case 'undecodable': return t('image.undecodable');
+    case 'unreachable': return check.httpStatus ? t('image.http', { status: check.httpStatus }) : t('image.unreachable');
+    default: return t('image.unprobed');
   }
 };
 
-const imageHashLabel = (check?: ImageCheck): string | null => {
+const imageHashLabel = (check: ImageCheck | undefined, t: Translate): string | null => {
   switch (check?.fingerprintStatus) {
-    case 'computed': return 'Perceptual hash taken from the decoded picture; the index compares it with every picture it has seen.';
-    case 'too_large': return 'No perceptual hash: the file is larger than the probe decodes whole and the host gave no thumbnail.';
-    case 'undecodable': return 'No perceptual hash: the thumbnail could not be decoded.';
-    case 'unavailable': return 'No perceptual hash: the thumbnail could not be fetched.';
+    case 'computed': return t('image.hash.computed');
+    case 'too_large': return t('image.hash.too_large');
+    case 'undecodable': return t('image.hash.undecodable');
+    case 'unavailable': return t('image.hash.unavailable');
     default: return null;
   }
 };
@@ -665,7 +679,7 @@ interface ImageResultsProps {
   sources: VerifiedSource[];
   filter: AccessFilter;
   onFilter: (filter: AccessFilter) => void;
-  regionName: string;
+  regionLabel: string;
   checkLocation: string | null;
   batchCheckedAt: string | null;
   launchingUrl: string | null;
@@ -676,56 +690,57 @@ interface ImageResultsProps {
 // The picture results: each picture with its maker, year, dimensions,
 // licence, what the probe decoded of its file, and what its hash said
 // beside the other pictures of the search and the index.
-const ImageResults: React.FC<ImageResultsProps> = ({ report, sources, filter, onFilter, regionName, checkLocation, batchCheckedAt, launchingUrl, onLaunchRbi, onPlayRelay }) => {
+const ImageResults: React.FC<ImageResultsProps> = ({ report, sources, filter, onFilter, regionLabel, checkLocation, batchCheckedAt, launchingUrl, onLaunchRbi, onPlayRelay }) => {
+  const { t, regionName, formatDateTime } = useI18n();
   const visible = sources.filter((source) => filter === 'all' || accessGroup(source) === filter);
   const coverageOpen = report.providers?.some((provider) => provider.status === 'error' || provider.status === 'not_configured') ?? false;
   return (
     <>
       <div className="movie-results-summary" role="status">
-        <div><strong>{sources.length} {sources.length === 1 ? 'picture' : 'pictures'}</strong> for “{report.query}”<span className="scout-muted"> · {regionName}</span></div>
+        <div><strong>{t(sources.length === 1 ? 'search.summary.pictures.one' : 'search.summary.pictures.other', { count: sources.length })}</strong> {t('search.summary.for', { query: report.query })}<span className="scout-muted"> · {regionLabel}</span></div>
         <span className="scout-muted scout-duration"><Clock size={12} aria-hidden="true" /> {(report.durationMs / 1000).toFixed(1)}s</span>
       </div>
-      <p className="scout-muted">Picture search · The host matched these by its own index, so a file name need not say what the picture shows. Each file is fetched for its header, which gives the dimensions and format, and its thumbnail is decoded for a perceptual hash; pictures that look the same are matched by it whatever their names say. Up to two decoded pictures are drawn in the isolated sandbox, which makes them rendered on the ladder.</p>
+      <p className="scout-muted">{t('results.intro.image')}</p>
       {report.providers && report.providers.length > 0 && (
         <details className="scout-provider-details" open={coverageOpen}>
-          <summary>Search coverage{coverageOpen ? ' · some sources unavailable' : ''}</summary>
+          <summary>{t('search.coverage')}{coverageOpen ? t('search.coverage.unavailable') : ''}</summary>
           <ul>{report.providers.map((provider) => (
             <li key={provider.name}>
-              <strong>{provider.name}</strong>: {provider.detail || (provider.status === 'ok' ? 'Search completed.' : provider.status === 'empty' ? 'No matching listings.' : provider.status === 'not_configured' ? 'Not configured.' : 'Could not search this source.')}
+              <strong>{provider.name}</strong>: {provider.detail || (provider.status === 'ok' ? t('search.coverage.ok') : provider.status === 'empty' ? t('search.coverage.empty') : provider.status === 'not_configured' ? t('search.coverage.notConfigured') : t('search.coverage.failed'))}
             </li>
           ))}</ul>
         </details>
       )}
       {report.availabilityChecks && (
         <div className="scout-link-check-summary">
-          <p><strong>File probes</strong> · {report.availabilityChecks.checkedCount} checked{checkLocation ? ` from ${checkLocation}` : ' · check location unconfirmed'}{report.availabilityChecks.fingerprintCount ? ` · ${report.availabilityChecks.fingerprintCount} perceptual ${report.availabilityChecks.fingerprintCount === 1 ? 'hash' : 'hashes'} taken` : ''}</p>
-          {report.availabilityChecks.renderCheckedCount ? <p><strong>Sandbox renders</strong> · {report.availabilityChecks.renderCheckedCount} attempted · {report.availabilityChecks.renderedCount ?? 0} rendered. A render draws the beginning of the file in the isolated browser; it does not verify the whole.</p> : null}
-          {report.atlas?.fingerprints ? <p><strong>Fingerprint library</strong> · {report.atlas.fingerprints} stored in the index and compared with every picture seen before.</p> : null}
-          {batchCheckedAt && <p>Checked <time dateTime={report.availabilityChecks.checkedAt}>{batchCheckedAt}</time></p>}
+          <p><strong>{t('results.fileProbes')}</strong> · {t('search.linkChecks.checked.other', { count: report.availabilityChecks.checkedCount })}{checkLocation ? t('search.linkChecks.from', { location: checkLocation }) : t('search.linkChecks.locationUnknown')}{report.availabilityChecks.fingerprintCount ? t(report.availabilityChecks.fingerprintCount === 1 ? 'search.sample.hashes.one' : 'search.sample.hashes.other', { count: report.availabilityChecks.fingerprintCount }) : ''}</p>
+          {report.availabilityChecks.renderCheckedCount ? <p><strong>{t('results.sandboxRenders')}</strong> · {t('results.renderAttempted', { count: report.availabilityChecks.renderCheckedCount, rendered: report.availabilityChecks.renderedCount ?? 0 })}</p> : null}
+          {report.atlas?.fingerprints ? <p><strong>{t('search.fingerprintLibrary')}</strong>{t('search.fingerprinted.images', { count: report.atlas.fingerprints })}</p> : null}
+          {batchCheckedAt && <p>{t('search.checked')} <time dateTime={report.availabilityChecks.checkedAt}>{batchCheckedAt}</time></p>}
         </div>
       )}
-      <div className="preset-chips" role="group" aria-label="Filter by access type">
-        {FILTERS.map(({ value, label }) => (
+      <div className="preset-chips" role="group" aria-label={t('search.filters.group')}>
+        {FILTERS.map((value) => (
           <button key={value} type="button" className={`chip${filter === value ? ' scout-filter-active' : ''}`}
             aria-pressed={filter === value} onClick={() => onFilter(value)}>
-            {label} ({value === 'all' ? sources.length : sources.filter((source) => accessGroup(source) === value).length})
+            {t(FILTER_KEYS[value])} ({value === 'all' ? sources.length : sources.filter((source) => accessGroup(source) === value).length})
           </button>
         ))}
       </div>
       {visible.length === 0 ? (
         <div className="scout-empty" role="status">
-          <strong>{sources.length === 0 ? 'No pictures found in the covered catalogs.' : `No listings marked ${filter} in these results.`}</strong>
-          <p>{sources.length === 0 ? 'Try what the picture shows in other words, or the artist, as in “Starry Night by Van Gogh”. Search coverage is shown above.' : 'Choose another filter. Access labels reflect the evidence available for each source.'}</p>
+          <strong>{sources.length === 0 ? t('search.empty.image.noSources') : t('search.filter.noneMarked', { filter: t(FILTER_KEYS[filter]) })}</strong>
+          <p>{sources.length === 0 ? t('search.empty.image.help.noSources') : t('search.filter.otherHint')}</p>
         </div>
       ) : (
         <div className="sources-grid movie-sources-grid">
           {visible.map((source) => {
             const check = source.availabilityCheck;
             const probe = source.imageCheck;
-            const checkedAt = formatCheckedAt(probe?.checkedAt ?? check?.checkedAt);
+            const checkedAt = formatDateTime(probe?.checkedAt ?? check?.checkedAt);
             const showYear = source.releaseYear && !source.title.includes(String(source.releaseYear));
             const identity = report.atlas?.identities?.[source.url] ?? source.identity;
-            const hashNote = imageHashLabel(probe);
+            const hashNote = imageHashLabel(probe, t);
             const dimensions = probe?.width && probe?.height ? `${probe.width}×${probe.height}` : source.resolution ? source.resolution.replace('x', '×') : null;
             return (
               <article key={source.id} className="source-card movie-source-card image-source-card">
@@ -733,13 +748,13 @@ const ImageResults: React.FC<ImageResultsProps> = ({ report, sources, filter, on
                   {source.thumbnail && <img className="image-thumb" src={source.thumbnail} alt="" loading="lazy" referrerPolicy="no-referrer"
                     onError={(event) => { event.currentTarget.hidden = true; }} />}
                   <div className="movie-source-badges">
-                    <span className={`pill-badge${source.accessType === 'free' ? ' live' : ''}`}>{ACCESS_LABELS[source.accessType ?? 'unknown']}</span>
-                    <span className={`scout-muted${probe?.status === 'decoded' ? ' scout-media-status' : ''}`}>{probe ? imageProbeLabel(probe) : source.verificationStatus === 'page_reachable' ? 'Page reachable' : 'Listing'}</span>
+                    <span className={`pill-badge${source.accessType === 'free' ? ' live' : ''}`}>{t(ACCESS_KEYS[source.accessType ?? 'unknown'])}</span>
+                    <span className={`scout-muted${probe?.status === 'decoded' ? ' scout-media-status' : ''}`}>{probe ? imageProbeLabel(probe, t) : source.verificationStatus === 'page_reachable' ? t('check.pageReachable') : t('card.reach.listing')}</span>
                   </div>
                   <div className="movie-source-title">
                     <div>
                       <h3>{source.title}{showYear ? <span className="scout-muted"> ({source.releaseYear})</span> : null}</h3>
-                      <p className="movie-source-provider">{source.creator || <span className="scout-muted">Maker unconfirmed</span>}</p>
+                      <p className="movie-source-provider">{source.creator || <span className="scout-muted">{t('card.makerUnconfirmed')}</span>}</p>
                       <p className="scout-muted movie-source-host">{source.provider} · {sourceHost(source.url)}{dimensions ? ` · ${dimensions}` : ''}{source.license ? ` · ${source.license}` : ''}</p>
                     </div>
                   </div>
@@ -747,28 +762,28 @@ const ImageResults: React.FC<ImageResultsProps> = ({ report, sources, filter, on
                   <div className="movie-source-facts">
                     {source.accessNote && <p className="scout-muted">{source.accessNote}</p>}
                     <div className="movie-access-check">
-                      <p className={`movie-check-status check-${check?.status ?? 'unchecked'}`}>{probe ? imageProbeLabel(probe) : accessCheckLabel(check)}</p>
+                      <p className={`movie-check-status check-${check?.status ?? 'unchecked'}`}>{probe ? imageProbeLabel(probe, t) : accessCheckLabel(check, t, regionName)}</p>
                       {(probe?.detail || check?.detail) && <p className="scout-muted">{probe?.detail || check?.detail}</p>}
                       {hashNote && <p className="scout-muted">{hashNote}</p>}
                       {identity && (
                         <p className={`audio-identity identity-${identity.effect ?? identity.verdict ?? 'none'}`}>
-                          <span className="ladder-identity"><Fingerprint size={11} aria-hidden="true" /> {identityLabel(identity)}</span>
+                          <span className="ladder-identity"><Fingerprint size={11} aria-hidden="true" /> {identityLabel(identity, t)}</span>
                           {identity.detail && <span className="scout-muted">{identity.detail}</span>}
                         </p>
                       )}
-                      {renderLabel(source.renderCheck) && <p className={`scout-muted${source.renderCheck?.status === 'rendered' ? ' scout-media-status' : ''}`}>{renderLabel(source.renderCheck)}</p>}
-                      {source.renderCheck?.status !== 'rendered' && <p className="scout-muted">A decoded header confirms the file is a picture of these dimensions; the sandbox has not rendered it.</p>}
-                      {checkedAt && <p className="scout-muted">File checked <time dateTime={probe?.checkedAt ?? check?.checkedAt}>{checkedAt}</time></p>}
+                      {renderLabel(source.renderCheck, t) && <p className={`scout-muted${source.renderCheck?.status === 'rendered' ? ' scout-media-status' : ''}`}>{renderLabel(source.renderCheck, t)}</p>}
+                      {source.renderCheck?.status !== 'rendered' && <p className="scout-muted">{t('image.headerNote')}</p>}
+                      {checkedAt && <p className="scout-muted">{t('card.fileChecked')} <time dateTime={probe?.checkedAt ?? check?.checkedAt}>{checkedAt}</time></p>}
                     </div>
                   </div>
                 </div>
                 <div className="movie-source-actions">
-                  {canViewImage(source) && <button type="button" className="btn btn-primary" onClick={() => onPlayRelay(imageStream(source))}>
-                    <Scan size={13} aria-hidden="true" /> Open in the viewer
+                  {canViewImage(source) && <button type="button" className="btn btn-primary" onClick={() => onPlayRelay(imageStream(source, t))}>
+                    <Scan size={13} aria-hidden="true" /> {t('image.openViewer')}
                   </button>}
                   <button type="button" className={`btn${canViewImage(source) ? '' : ' btn-primary'}`} disabled={launchingUrl !== null}
                     onClick={() => onLaunchRbi(source.url, false)}>
-                    <Globe size={14} aria-hidden="true" /> {launchingUrl === source.url ? 'Opening protected browser…' : 'Open page with ad blocking'}
+                    <Globe size={14} aria-hidden="true" /> {launchingUrl === source.url ? t('card.opening') : t('card.openPageProtected')}
                   </button>
                 </div>
               </article>
@@ -792,37 +807,37 @@ const canReadDocument = (source: VerifiedSource): boolean => {
   return isConvertibleUrl(source.directStreamUrl);
 };
 
-const documentStream = (source: VerifiedSource): ActiveRelayStream => ({
+const documentStream = (source: VerifiedSource, t: Translate): ActiveRelayStream => ({
   title: source.creator ? `${source.title} · ${source.creator}` : source.title,
   streamUrl: source.directStreamUrl as string, pageUrl: source.url, provider: source.provider,
-  format: source.streamFormat || (source.documentCheck?.format ? `${source.documentCheck.format.toUpperCase()} document` : 'Document'),
+  format: source.streamFormat || (source.documentCheck?.format ? t('document.formatLabel', { format: source.documentCheck.format.toUpperCase() }) : t('document.fallback')),
   useZeroTrustProxy: true, kind: 'document', poster: source.thumbnail,
 });
 
-const documentProbeLabel = (check?: DocumentCheck): string => {
+const documentProbeLabel = (check: DocumentCheck | undefined, t: Translate): string => {
   switch (check?.status) {
     case 'parsed': {
       const format = (check.format ?? '').toUpperCase();
-      if (check.pages) return `Parsed ${format} · ${check.pages} ${check.pages === 1 ? 'page' : 'pages'}${check.pagesConfirmed ? '' : ' by the host’s count'}`;
-      return `Parsed ${format}`.trim();
+      if (check.pages) return `${t(check.pages === 1 ? 'document.parsedPages.one' : 'document.parsedPages.other', { format, count: check.pages })}${check.pagesConfirmed ? '' : t('document.hostCount')}`;
+      return t('document.parsed', { format }).trim();
     }
-    case 'unsupported': return `File reachable · ${(check.format ?? 'this').toUpperCase()} not read yet`;
-    case 'undecodable': return 'File answered but is not a document';
-    case 'unreachable': return check.httpStatus ? `File answered HTTP ${check.httpStatus}` : 'File unreachable';
-    default: return 'File not probed';
+    case 'unsupported': return t('document.unsupported', { format: (check.format ?? t('document.this')).toUpperCase() });
+    case 'undecodable': return t('document.undecodable');
+    case 'unreachable': return check.httpStatus ? t('document.http', { status: check.httpStatus }) : t('document.unreachable');
+    default: return t('document.unprobed');
   }
 };
 
-const documentFingerprintLabel = (check?: DocumentCheck): string | null => {
+const documentFingerprintLabel = (check: DocumentCheck | undefined, t: Translate, formatNumber: (value: number) => string): string | null => {
   switch (check?.fingerprintStatus) {
     case 'computed': {
-      const from = check.textSource === 'ocr_text' ? 'the OCR text beside the file' : check.textSource === 'text_file' ? 'the text file' : 'the PDF’s own text';
-      const body = check.bodyWords ? ` over ${check.bodyWords.toLocaleString()} words of its body${check.bodySkipped ? `, after ${check.bodySkipped.toLocaleString()} words of front matter` : ''}` : '';
-      return `Text fingerprint taken from ${from}${body}; the index compares it with every document it has read.`;
+      const from = t(check.textSource === 'ocr_text' ? 'document.fingerprint.ocr' : check.textSource === 'text_file' ? 'document.fingerprint.textFile' : 'document.fingerprint.pdf');
+      const body = check.bodyWords ? `${t('document.fingerprint.body', { words: formatNumber(check.bodyWords) })}${check.bodySkipped ? t('document.fingerprint.skipped', { words: formatNumber(check.bodySkipped) }) : ''}` : '';
+      return t('document.fingerprint.computed', { source: from, body });
     }
-    case 'too_short': return 'No text fingerprint: too little text was read, as with a scan that carries no text layer and no OCR text beside it.';
-    case 'unreadable': return 'No text fingerprint: nothing in the text read as prose, as with a scan whose OCR is noise throughout.';
-    case 'partial': return `No text fingerprint: only the beginning of a longer text was read (${(check.bodyWords ?? 0).toLocaleString()} words of its body), too little to compare fairly with whole texts.`;
+    case 'too_short': return t('document.fingerprint.too_short');
+    case 'unreadable': return t('document.fingerprint.unreadable');
+    case 'partial': return t('document.fingerprint.partial', { words: formatNumber(check.bodyWords ?? 0) });
     default: return null;
   }
 };
@@ -832,7 +847,7 @@ interface DocumentResultsProps {
   sources: VerifiedSource[];
   filter: AccessFilter;
   onFilter: (filter: AccessFilter) => void;
-  regionName: string;
+  regionLabel: string;
   checkLocation: string | null;
   batchCheckedAt: string | null;
   launchingUrl: string | null;
@@ -843,56 +858,57 @@ interface DocumentResultsProps {
 // The document results: each document with its author, year, page count
 // and collection, what the probe read of its file, and what its text
 // fingerprint said beside the other documents of the search and the index.
-const DocumentResults: React.FC<DocumentResultsProps> = ({ report, sources, filter, onFilter, regionName, checkLocation, batchCheckedAt, launchingUrl, onLaunchRbi, onPlayRelay }) => {
+const DocumentResults: React.FC<DocumentResultsProps> = ({ report, sources, filter, onFilter, regionLabel, checkLocation, batchCheckedAt, launchingUrl, onLaunchRbi, onPlayRelay }) => {
+  const { t, regionName, formatDateTime, formatNumber } = useI18n();
   const visible = sources.filter((source) => filter === 'all' || accessGroup(source) === filter);
   const coverageOpen = report.providers?.some((provider) => provider.status === 'error' || provider.status === 'not_configured') ?? false;
   return (
     <>
       <div className="movie-results-summary" role="status">
-        <div><strong>{sources.length} {sources.length === 1 ? 'document' : 'documents'}</strong> for “{report.query}”<span className="scout-muted"> · {regionName}</span></div>
+        <div><strong>{t(sources.length === 1 ? 'search.summary.documents.one' : 'search.summary.documents.other', { count: sources.length })}</strong> {t('search.summary.for', { query: report.query })}<span className="scout-muted"> · {regionLabel}</span></div>
         <span className="scout-muted scout-duration"><Clock size={12} aria-hidden="true" /> {(report.durationMs / 1000).toFixed(1)}s</span>
       </div>
-      <p className="scout-muted">Document search · The host matched these by its own catalog. Each PDF is fetched at both ends for its format and its own page count, and its text, from the OCR text beside it or from the PDF itself, is fingerprinted; documents that read the same are matched by it whatever their titles say. Up to two parsed PDFs are framed and drawn in the isolated sandbox, which makes them rendered on the ladder.</p>
+      <p className="scout-muted">{t('results.intro.document')}</p>
       {report.providers && report.providers.length > 0 && (
         <details className="scout-provider-details" open={coverageOpen}>
-          <summary>Search coverage{coverageOpen ? ' · some sources unavailable' : ''}</summary>
+          <summary>{t('search.coverage')}{coverageOpen ? t('search.coverage.unavailable') : ''}</summary>
           <ul>{report.providers.map((provider) => (
             <li key={provider.name}>
-              <strong>{provider.name}</strong>: {provider.detail || (provider.status === 'ok' ? 'Search completed.' : provider.status === 'empty' ? 'No matching listings.' : provider.status === 'not_configured' ? 'Not configured.' : 'Could not search this source.')}
+              <strong>{provider.name}</strong>: {provider.detail || (provider.status === 'ok' ? t('search.coverage.ok') : provider.status === 'empty' ? t('search.coverage.empty') : provider.status === 'not_configured' ? t('search.coverage.notConfigured') : t('search.coverage.failed'))}
             </li>
           ))}</ul>
         </details>
       )}
       {report.availabilityChecks && (
         <div className="scout-link-check-summary">
-          <p><strong>File probes</strong> · {report.availabilityChecks.checkedCount} checked{checkLocation ? ` from ${checkLocation}` : ' · check location unconfirmed'}{report.availabilityChecks.fingerprintCount ? ` · ${report.availabilityChecks.fingerprintCount} text ${report.availabilityChecks.fingerprintCount === 1 ? 'fingerprint' : 'fingerprints'} taken` : ''}</p>
-          {report.availabilityChecks.renderCheckedCount ? <p><strong>Sandbox renders</strong> · {report.availabilityChecks.renderCheckedCount} attempted · {report.availabilityChecks.renderedCount ?? 0} rendered. A render frames the PDF in the isolated browser and looks at what it drew; it does not verify the whole.</p> : null}
-          {report.atlas?.fingerprints ? <p><strong>Fingerprint library</strong> · {report.atlas.fingerprints} stored in the index and compared with every document read before.</p> : null}
-          {batchCheckedAt && <p>Checked <time dateTime={report.availabilityChecks.checkedAt}>{batchCheckedAt}</time></p>}
+          <p><strong>{t('results.fileProbes')}</strong> · {t('search.linkChecks.checked.other', { count: report.availabilityChecks.checkedCount })}{checkLocation ? t('search.linkChecks.from', { location: checkLocation }) : t('search.linkChecks.locationUnknown')}{report.availabilityChecks.fingerprintCount ? t(report.availabilityChecks.fingerprintCount === 1 ? 'search.sample.textFingerprints.one' : 'search.sample.textFingerprints.other', { count: report.availabilityChecks.fingerprintCount }) : ''}</p>
+          {report.availabilityChecks.renderCheckedCount ? <p><strong>{t('results.sandboxRenders')}</strong> · {t('results.renderAttemptedDocument', { count: report.availabilityChecks.renderCheckedCount, rendered: report.availabilityChecks.renderedCount ?? 0 })}</p> : null}
+          {report.atlas?.fingerprints ? <p><strong>{t('search.fingerprintLibrary')}</strong>{t('search.fingerprinted.documents', { count: report.atlas.fingerprints })}</p> : null}
+          {batchCheckedAt && <p>{t('search.checked')} <time dateTime={report.availabilityChecks.checkedAt}>{batchCheckedAt}</time></p>}
         </div>
       )}
-      <div className="preset-chips" role="group" aria-label="Filter by access type">
-        {FILTERS.map(({ value, label }) => (
+      <div className="preset-chips" role="group" aria-label={t('search.filters.group')}>
+        {FILTERS.map((value) => (
           <button key={value} type="button" className={`chip${filter === value ? ' scout-filter-active' : ''}`}
             aria-pressed={filter === value} onClick={() => onFilter(value)}>
-            {label} ({value === 'all' ? sources.length : sources.filter((source) => accessGroup(source) === value).length})
+            {t(FILTER_KEYS[value])} ({value === 'all' ? sources.length : sources.filter((source) => accessGroup(source) === value).length})
           </button>
         ))}
       </div>
       {visible.length === 0 ? (
         <div className="scout-empty" role="status">
-          <strong>{sources.length === 0 ? 'No documents found in the covered collections.' : `No listings marked ${filter} in these results.`}</strong>
-          <p>{sources.length === 0 ? 'Try the title in other words, or add the author, as in “Alice in Wonderland by Lewis Carroll”. Search coverage is shown above.' : 'Choose another filter. Access labels reflect the evidence available for each source.'}</p>
+          <strong>{sources.length === 0 ? t('search.empty.document.noSources') : t('search.filter.noneMarked', { filter: t(FILTER_KEYS[filter]) })}</strong>
+          <p>{sources.length === 0 ? t('search.empty.document.help.noSources') : t('search.filter.otherHint')}</p>
         </div>
       ) : (
         <div className="sources-grid movie-sources-grid">
           {visible.map((source) => {
             const check = source.availabilityCheck;
             const probe = source.documentCheck;
-            const checkedAt = formatCheckedAt(probe?.checkedAt ?? check?.checkedAt);
+            const checkedAt = formatDateTime(probe?.checkedAt ?? check?.checkedAt);
             const showYear = source.releaseYear && !source.title.includes(String(source.releaseYear));
             const identity = report.atlas?.identities?.[source.url] ?? source.identity;
-            const fingerprintNote = documentFingerprintLabel(probe);
+            const fingerprintNote = documentFingerprintLabel(probe, t, formatNumber);
             const pages = probe?.pages || source.pages;
             return (
               <article key={source.id} className="source-card movie-source-card image-source-card document-source-card">
@@ -900,42 +916,42 @@ const DocumentResults: React.FC<DocumentResultsProps> = ({ report, sources, filt
                   {source.thumbnail && <img className="image-thumb" src={source.thumbnail} alt="" loading="lazy" referrerPolicy="no-referrer"
                     onError={(event) => { event.currentTarget.hidden = true; }} />}
                   <div className="movie-source-badges">
-                    <span className={`pill-badge${source.accessType === 'free' ? ' live' : ''}`}>{ACCESS_LABELS[source.accessType ?? 'unknown']}</span>
-                    <span className={`scout-muted${probe?.status === 'parsed' ? ' scout-media-status' : ''}`}>{probe ? documentProbeLabel(probe) : source.verificationStatus === 'page_reachable' ? 'Page reachable' : 'Listing'}</span>
+                    <span className={`pill-badge${source.accessType === 'free' ? ' live' : ''}`}>{t(ACCESS_KEYS[source.accessType ?? 'unknown'])}</span>
+                    <span className={`scout-muted${probe?.status === 'parsed' ? ' scout-media-status' : ''}`}>{probe ? documentProbeLabel(probe, t) : source.verificationStatus === 'page_reachable' ? t('check.pageReachable') : t('card.reach.listing')}</span>
                   </div>
                   <div className="movie-source-title">
                     <div>
                       <h3>{source.title}{showYear ? <span className="scout-muted"> ({source.releaseYear})</span> : null}</h3>
-                      <p className="movie-source-provider">{source.creator || <span className="scout-muted">Author unconfirmed</span>}</p>
-                      <p className="scout-muted movie-source-host">{source.provider} · {sourceHost(source.url)}{pages ? ` · ${pages} ${pages === 1 ? 'page' : 'pages'}` : ''}{source.license ? ` · ${source.license}` : ''}</p>
+                      <p className="movie-source-provider">{source.creator || <span className="scout-muted">{t('card.authorUnconfirmed')}</span>}</p>
+                      <p className="scout-muted movie-source-host">{source.provider} · {sourceHost(source.url)}{pages ? ` · ${t(pages === 1 ? 'document.pages.one' : 'document.pages.other', { count: pages })}` : ''}{source.license ? ` · ${source.license}` : ''}</p>
                     </div>
                   </div>
                   {source.description && <p className="scout-description movie-source-description">{source.description}</p>}
                   <div className="movie-source-facts">
                     {source.accessNote && <p className="scout-muted">{source.accessNote}</p>}
                     <div className="movie-access-check">
-                      <p className={`movie-check-status check-${check?.status ?? 'unchecked'}`}>{probe ? documentProbeLabel(probe) : accessCheckLabel(check)}</p>
+                      <p className={`movie-check-status check-${check?.status ?? 'unchecked'}`}>{probe ? documentProbeLabel(probe, t) : accessCheckLabel(check, t, regionName)}</p>
                       {(probe?.detail || check?.detail) && <p className="scout-muted">{probe?.detail || check?.detail}</p>}
                       {fingerprintNote && <p className="scout-muted">{fingerprintNote}</p>}
                       {identity && (
                         <p className={`audio-identity identity-${identity.effect ?? identity.verdict ?? 'none'}`}>
-                          <span className="ladder-identity"><Fingerprint size={11} aria-hidden="true" /> {identityLabel(identity)}</span>
+                          <span className="ladder-identity"><Fingerprint size={11} aria-hidden="true" /> {identityLabel(identity, t)}</span>
                           {identity.detail && <span className="scout-muted">{identity.detail}</span>}
                         </p>
                       )}
-                      {renderLabel(source.renderCheck) && <p className={`scout-muted${source.renderCheck?.status === 'rendered' ? ' scout-media-status' : ''}`}>{renderLabel(source.renderCheck)}</p>}
-                      {source.renderCheck?.status !== 'rendered' && <p className="scout-muted">A parsed file confirms the document is a PDF of these pages; the sandbox has not rendered it.</p>}
-                      {checkedAt && <p className="scout-muted">File checked <time dateTime={probe?.checkedAt ?? check?.checkedAt}>{checkedAt}</time></p>}
+                      {renderLabel(source.renderCheck, t) && <p className={`scout-muted${source.renderCheck?.status === 'rendered' ? ' scout-media-status' : ''}`}>{renderLabel(source.renderCheck, t)}</p>}
+                      {source.renderCheck?.status !== 'rendered' && <p className="scout-muted">{t('document.parsedNote')}</p>}
+                      {checkedAt && <p className="scout-muted">{t('card.fileChecked')} <time dateTime={probe?.checkedAt ?? check?.checkedAt}>{checkedAt}</time></p>}
                     </div>
                   </div>
                 </div>
                 <div className="movie-source-actions">
-                  {canReadDocument(source) && <button type="button" className="btn btn-primary" onClick={() => onPlayRelay(documentStream(source))}>
-                    <BookOpen size={13} aria-hidden="true" /> Open in the reader
+                  {canReadDocument(source) && <button type="button" className="btn btn-primary" onClick={() => onPlayRelay(documentStream(source, t))}>
+                    <BookOpen size={13} aria-hidden="true" /> {t('document.openReader')}
                   </button>}
                   <button type="button" className={`btn${canReadDocument(source) ? '' : ' btn-primary'}`} disabled={launchingUrl !== null}
                     onClick={() => onLaunchRbi(source.url, false)}>
-                    <Globe size={14} aria-hidden="true" /> {launchingUrl === source.url ? 'Opening protected browser…' : 'Open page with ad blocking'}
+                    <Globe size={14} aria-hidden="true" /> {launchingUrl === source.url ? t('card.opening') : t('card.openPageProtected')}
                   </button>
                 </div>
               </article>
@@ -951,6 +967,7 @@ export const SearchScoutPanel: React.FC<SearchScoutPanelProps> = ({
   report, known, merged, searching, searchError, launchError, launchingUrl, onSearch,
   onRunBenchmark, onLaunchRbi, onPlayRelay,
 }) => {
+  const { t, regionName, formatDateTime, formatNumber } = useI18n();
   const [query, setQuery] = useState('');
   const [region, setRegion] = useState('ALL');
   const [fullLengthOnly, setFullLengthOnly] = useState(true);
@@ -961,11 +978,11 @@ export const SearchScoutPanel: React.FC<SearchScoutPanelProps> = ({
   const sampledSources = playbackOnly ? sources.filter(playbackSampleStarted) : sources;
   const visibleSources = sampledSources.filter((source) => filter === 'all' || accessGroup(source) === filter);
   const reportRegion = report?.region ?? region;
-  const regionName = REGIONS.find(([code]) => code === reportRegion)?.[1] ?? reportRegion;
-  const selectedRegionName = REGIONS.find(([code]) => code === region)?.[1] ?? region;
+  const reportRegionLabel = reportRegion === 'ALL' ? t('search.region.worldwide') : countryName(reportRegion, regionName) ?? reportRegion;
+  const selectedRegionLabel = region === 'ALL' ? t('search.region.worldwide') : countryName(region, regionName) ?? region;
   const allAccessUnconfirmed = sources.length > 0 && sources.every((source) => accessGroup(source) === 'unknown');
-  const checkLocation = countryName(report?.availabilityChecks?.country);
-  const batchCheckedAt = formatCheckedAt(report?.availabilityChecks?.checkedAt);
+  const checkLocation = countryName(report?.availabilityChecks?.country, regionName);
+  const batchCheckedAt = formatDateTime(report?.availabilityChecks?.checkedAt);
 
   const search = (nextQuery: string) => {
     if (!nextQuery.trim()) return;
@@ -987,58 +1004,58 @@ export const SearchScoutPanel: React.FC<SearchScoutPanelProps> = ({
     <section className="scout-panel" aria-labelledby="movie-search-heading" aria-busy={searching}>
       <div className="movie-search-heading">
         <div>
-          <h2 id="movie-search-heading">{kind === 'audio' ? 'Find recordings across open audio catalogs.' : kind === 'image' ? 'Find pictures across open media catalogs.' : kind === 'document' ? 'Find documents across open text collections.' : 'Find full-length movies across the web.'}</h2>
+          <h2 id="movie-search-heading">{kind === 'audio' ? t('search.heading.audio') : kind === 'image' ? t('search.heading.image') : kind === 'document' ? t('search.heading.document') : t('search.heading.video')}</h2>
           <p className="scout-description">{kind === 'audio'
-            ? 'Search the Internet Archive’s audio collections by title, with the performer if known. Each listing shows its performer, year and length; files are checked for reach, and up to two get a short muted sample.'
+            ? t('search.intro.audio')
             : kind === 'image'
-              ? 'Search Wikimedia Commons by what the picture shows, with the artist if known. Each file is fetched for its dimensions and hashed, so the same picture is recognised under any name.'
+              ? t('search.intro.image')
               : kind === 'document'
-                ? 'Search the Internet Archive’s texts by title, with the author if known. Each PDF is fetched at both ends for its format and page count, and its text is fingerprinted, so the same text is recognised under any title.'
+                ? t('search.intro.document')
                 : region === 'ALL'
-              ? 'Search recent releases, popular titles and independent cinema globally. Find free and paid options; playback samples show which supported free sources actually start.'
-              : `Search globally with a preference for ${selectedRegionName}. Playback badges show the actual test location; prices and full playback still need confirmation.`}</p>
+              ? t('search.intro.video.worldwide')
+              : t('search.intro.video.region', { region: selectedRegionLabel })}</p>
         </div>
         <button type="button" className="btn btn-theater scout-benchmark" disabled={searching}
-          onClick={onRunBenchmark} title="Check the ad-blocking engine against the local security benchmark">
-          <Sparkles size={13} aria-hidden="true" /> Test ad blocking
+          onClick={onRunBenchmark} title={t('search.benchmark.title')}>
+          <Sparkles size={13} aria-hidden="true" /> {t('search.benchmark')}
         </button>
       </div>
 
-      <div className="preset-chips movie-kind-toggle" role="group" aria-label="What to find">
+      <div className="preset-chips movie-kind-toggle" role="group" aria-label={t('search.kind.group')}>
         <button type="button" className={`chip${kind === 'video' ? ' scout-filter-active' : ''}`} aria-pressed={kind === 'video'} onClick={() => setKind('video')}>
-          <Film size={12} aria-hidden="true" /> Movies
+          <Film size={12} aria-hidden="true" /> {t('search.kind.video')}
         </button>
         <button type="button" className={`chip${kind === 'audio' ? ' scout-filter-active' : ''}`} aria-pressed={kind === 'audio'} onClick={() => setKind('audio')}>
-          <Music size={12} aria-hidden="true" /> Audio
+          <Music size={12} aria-hidden="true" /> {t('search.kind.audio')}
         </button>
         <button type="button" className={`chip${kind === 'image' ? ' scout-filter-active' : ''}`} aria-pressed={kind === 'image'} onClick={() => setKind('image')}>
-          <ImageIcon size={12} aria-hidden="true" /> Pictures
+          <ImageIcon size={12} aria-hidden="true" /> {t('search.kind.image')}
         </button>
         <button type="button" className={`chip${kind === 'document' ? ' scout-filter-active' : ''}`} aria-pressed={kind === 'document'} onClick={() => setKind('document')}>
-          <FileText size={12} aria-hidden="true" /> Documents
+          <FileText size={12} aria-hidden="true" /> {t('search.kind.document')}
         </button>
       </div>
 
       <form className="search-row movie-search-form" onSubmit={(event) => { event.preventDefault(); search(query); }}>
         <label className="movie-query-field">
-          <span className="scout-field-label">{kind === 'audio' ? 'Recording title, with the performer if known' : kind === 'image' ? 'What the picture shows, with the artist if known' : kind === 'document' ? 'Document title, with the author if known' : 'Movie title or keywords'}</span>
+          <span className="scout-field-label">{kind === 'audio' ? t('search.field.audio') : kind === 'image' ? t('search.field.image') : kind === 'document' ? t('search.field.document') : t('search.field.video')}</span>
           <input className="search-input" value={query} onChange={(event) => setQuery(event.target.value)}
-            placeholder={kind === 'audio' ? 'Title by performer, e.g. Kind of Blue by Miles Davis' : kind === 'image' ? 'Subject by artist, e.g. Starry Night by Van Gogh' : kind === 'document' ? 'Title by author, e.g. Alice in Wonderland by Lewis Carroll' : 'Movie title and year, or a movie page URL'} maxLength={500} required />
+            placeholder={kind === 'audio' ? t('search.placeholder.audio') : kind === 'image' ? t('search.placeholder.image') : kind === 'document' ? t('search.placeholder.document') : t('search.placeholder.video')} maxLength={500} required />
         </label>
         <label className="movie-region-field">
-          <span className="scout-field-label">Region preference (optional)</span>
+          <span className="scout-field-label">{t('search.region')}</span>
           <select className="search-input" value={region} onChange={(event) => setRegion(event.target.value)}>
-            {REGIONS.map(([code, label]) => <option key={code} value={code}>{code === 'ALL' ? label : countryName(code) ?? label}</option>)}
+            {REGIONS.map(([code, label]) => <option key={code} value={code}>{code === 'ALL' ? t('search.region.worldwide') : countryName(code, regionName) ?? label}</option>)}
           </select>
         </label>
         <button type="submit" className="btn btn-primary movie-search-submit" disabled={!query.trim()}>
-          <Search size={14} aria-hidden="true" /> {searching ? 'Search again' : kind === 'audio' ? 'Find recordings' : kind === 'image' ? 'Find pictures' : kind === 'document' ? 'Find documents' : 'Find movie pages'}
+          <Search size={14} aria-hidden="true" /> {searching ? t('search.submit.again') : kind === 'audio' ? t('search.submit.audio') : kind === 'image' ? t('search.submit.image') : kind === 'document' ? t('search.submit.document') : t('search.submit.video')}
         </button>
         {kind === 'video' && (
           <label className="movie-length-preference">
             <input type="checkbox" checked={fullLengthOnly} onChange={(event) => setFullLengthOnly(event.target.checked)}
               aria-describedby="movie-length-help" />
-            <span><strong>Full-length movies</strong><span id="movie-length-help" className="scout-muted">Show listings of 40 minutes or longer. Missing runtimes stay marked length unconfirmed. Turn off to include shorts.</span></span>
+            <span><strong>{t('search.fullLength')}</strong><span id="movie-length-help" className="scout-muted">{t('search.fullLength.help')}</span></span>
           </label>
         )}
       </form>
@@ -1047,138 +1064,145 @@ export const SearchScoutPanel: React.FC<SearchScoutPanelProps> = ({
         <>
           <MovieDiscoveryShelf region={region} onSelect={(title) => { setQuery(title); search(title); }} />
           <div>
-            <div className="preset-chips" role="group" aria-label="Try supported free catalogs">
-              <span className="scout-muted">Try supported free catalogs:</span>
+            <div className="preset-chips" role="group" aria-label={t('search.examples.group')}>
+              <span className="scout-muted">{t('search.examples.label')}</span>
               {FREE_CATALOG_EXAMPLES.map((title) => <button key={title} type="button" className="chip" onClick={() => { setQuery(title); search(title); }}>{title}</button>)}
             </div>
-            <p className="scout-muted">Film examples; search to see access checks and any confirmed playback sample.</p>
+            <p className="scout-muted">{t('search.examples.note')}</p>
           </div>
         </>
       ) : kind === 'audio' ? (
-        <p className="scout-muted">Audio results come from the Internet Archive’s audio collections, read through the same driver runtime as the movie catalogs. A recording is matched by its title, performer and length, its files are checked for reach and sampled, and a multi-track item plays in order through the relay. The sample takes an acoustic fingerprint of the file’s beginning; the index compares it with every fingerprint it holds, so two listings of the same recording are matched by what they sound like, and a different recording under the same tags is kept apart.</p>
+        <p className="scout-muted">{t('search.note.audio')}</p>
       ) : kind === 'image' ? (
-        <p className="scout-muted">Picture results come from Wikimedia Commons, read through the same driver runtime as the other catalogs. Each file is fetched for its header, which gives the dimensions and format, and its thumbnail is decoded for a perceptual hash; the index compares the hash with every picture it has seen, so the same picture is matched under any file name and a different picture under the same name is kept apart. A picture opens in the zoomable viewer through the relay.</p>
+        <p className="scout-muted">{t('search.note.image')}</p>
       ) : (
-        <p className="scout-muted">Document results come from the Internet Archive’s texts, read through the same driver runtime as the other catalogs. Each item’s metadata names its PDF and the OCR text beside it; the PDF is fetched at both ends for its format and its own page count, and the text is fingerprinted, so the index matches the same text under any title and keeps a different text under the same title apart. A PDF opens in the reader through the relay; other formats open in the protected browser.</p>
+        <p className="scout-muted">{t('search.note.document')}</p>
       )}
       <details className="scout-provider-details format-matrix-details">
-        <summary>Formats this console presents, probes, samples and renders</summary>
+        <summary>{t('search.formats.summary')}</summary>
         <FormatMatrix />
       </details>
-      <p className="scout-protection-note"><Shield size={14} aria-hidden="true" /> Sites open in ITEMBA's browser with ad and tracker blocking enabled. Some ads may remain; subscriptions and regional restrictions still apply.</p>
-      {kind === 'video' && <p className="scout-muted">Native samples cover supported free catalogs, including NASA+, NFB, creator-authorized Catsuka and matching Fawesome movie pages. Provider checks can report restrictions for Pluto TV and Filmzie. Playback badges require decoded movie content; pages, ads and trailers do not qualify.</p>}
+      <p className="scout-protection-note"><Shield size={14} aria-hidden="true" /> {t('search.protection')}</p>
+      {kind === 'video' && <p className="scout-muted">{t('search.nativeSamples')}</p>}
 
       {searchError && <p className="scout-error" role="alert">{searchError}</p>}
       {launchError && <p className="scout-error" role="alert">{launchError}</p>}
-      {searching && <p className="scout-empty" role="status">{kind === 'audio' ? 'Finding recordings in open audio catalogs and checking their files…' : kind === 'image' ? 'Finding pictures in open media catalogs and decoding their files…' : kind === 'document' ? 'Finding documents in open text collections and reading their files…' : 'Finding global movie sources and testing free playback…'}</p>}
+      {searching && <p className="scout-empty" role="status">{kind === 'audio' ? t('search.status.audio') : kind === 'image' ? t('search.status.image') : kind === 'document' ? t('search.status.document') : t('search.status.video')}</p>}
 
       {(report || searching) && <IndexResolution query={report?.query ?? query} />}
       <RankedLocations known={known} merged={merged} report={report} searching={searching} launchingUrl={launchingUrl} onLaunchRbi={onLaunchRbi} />
 
       {report && !searching && !searchError && report.kind === 'audio' && (
-        <AudioResults report={report} sources={sources} filter={filter} onFilter={setFilter} regionName={regionName}
+        <AudioResults report={report} sources={sources} filter={filter} onFilter={setFilter} regionLabel={reportRegionLabel}
           checkLocation={checkLocation} batchCheckedAt={batchCheckedAt} launchingUrl={launchingUrl} onLaunchRbi={onLaunchRbi} onPlayRelay={onPlayRelay} />
       )}
 
       {report && !searching && !searchError && report.kind === 'image' && (
-        <ImageResults report={report} sources={sources} filter={filter} onFilter={setFilter} regionName={regionName}
+        <ImageResults report={report} sources={sources} filter={filter} onFilter={setFilter} regionLabel={reportRegionLabel}
           checkLocation={checkLocation} batchCheckedAt={batchCheckedAt} launchingUrl={launchingUrl} onLaunchRbi={onLaunchRbi} onPlayRelay={onPlayRelay} />
       )}
 
       {report && !searching && !searchError && report.kind === 'document' && (
-        <DocumentResults report={report} sources={sources} filter={filter} onFilter={setFilter} regionName={regionName}
+        <DocumentResults report={report} sources={sources} filter={filter} onFilter={setFilter} regionLabel={reportRegionLabel}
           checkLocation={checkLocation} batchCheckedAt={batchCheckedAt} launchingUrl={launchingUrl} onLaunchRbi={onLaunchRbi} onPlayRelay={onPlayRelay} />
       )}
 
       {report && !searching && !searchError && report.kind !== 'audio' && report.kind !== 'image' && report.kind !== 'document' && (
         <>
           <div className="movie-results-summary" role="status">
-            <div><strong>{sources.length} {sources.length === 1 ? 'movie page' : 'movie pages'}</strong> for “{report.query}”<span className="scout-muted"> · {regionName}</span></div>
+            <div><strong>{t(sources.length === 1 ? 'search.summary.moviePages.one' : 'search.summary.moviePages.other', { count: sources.length })}</strong> {t('search.summary.for', { query: report.query })}<span className="scout-muted"> · {reportRegionLabel}</span></div>
             <span className="scout-muted scout-duration"><Clock size={12} aria-hidden="true" /> {(report.durationMs / 1000).toFixed(1)}s</span>
           </div>
-          {report.fullLengthOnly === true && <p className="scout-muted">Full-length search · Known runtimes of 40+ minutes; unknown lengths remain unconfirmed.</p>}
-          {report.region === 'ALL' && <p className="scout-muted">Worldwide discovery searches configured web sources, open catalogs and selected storefronts. Results are not limited to the playback check location. Each listing shows its market when known.</p>}
+          {report.fullLengthOnly === true && <p className="scout-muted">{t('search.fullLengthNote')}</p>}
+          {report.region === 'ALL' && <p className="scout-muted">{t('search.worldwideNote')}</p>}
           {report.providers && report.providers.length > 0 && (
             <details className="scout-provider-details" open={report.providers.some((provider) => provider.status === 'error' || provider.status === 'not_configured')}>
-              <summary>Search coverage{report.providers.some((provider) => provider.status === 'error' || provider.status === 'not_configured') ? ' · some sources unavailable' : ''}</summary>
+              <summary>{t('search.coverage')}{report.providers.some((provider) => provider.status === 'error' || provider.status === 'not_configured') ? t('search.coverage.unavailable') : ''}</summary>
               <ul>{report.providers.map((provider) => (
                 <li key={provider.name}>
-                  <strong>{provider.name}</strong>: {provider.detail || (provider.status === 'ok' ? 'Search completed.' : provider.status === 'empty' ? 'No matching listings.' : provider.status === 'not_configured' ? 'Not configured.' : 'Could not search this source.')}
+                  <strong>{provider.name}</strong>: {provider.detail || (provider.status === 'ok' ? t('search.coverage.ok') : provider.status === 'empty' ? t('search.coverage.empty') : provider.status === 'not_configured' ? t('search.coverage.notConfigured') : t('search.coverage.failed'))}
                 </li>
               ))}</ul>
             </details>
           )}
           {report.availabilityChecks && (
             <div className="scout-link-check-summary">
-              <p><strong>Automatic link checks</strong> · {report.availabilityChecks.checkedCount} checked{checkLocation ? ` from ${checkLocation}` : ' · check location unconfirmed'}</p>
-              {report.availabilityChecks.playbackCheckedCount !== undefined && <p><strong>Free playback samples</strong> · {report.availabilityChecks.playbackCheckedCount} attempted{report.availabilityChecks.playbackStartedCount !== undefined ? ` · ${report.availabilityChecks.playbackStartedCount} started` : ''}. Short samples do not verify the full movie.</p>}
-              {(report.availabilityChecks.providerCheckedCount ?? 0) > 0 && <p><strong>Provider access checks</strong> · {report.availabilityChecks.providerCheckedCount}. These detect restrictions; movie playback requires a separate decoded sample.</p>}
-              {reportRegion === 'ALL' && <p>{checkLocation ? `Playback checks run from ${checkLocation}.` : 'Playback check location is unconfirmed.'} Availability elsewhere remains untested.</p>}
+              <p><strong>{t('search.linkChecks')}</strong> · {t('search.linkChecks.checked.other', { count: report.availabilityChecks.checkedCount })}{checkLocation ? t('search.linkChecks.from', { location: checkLocation }) : t('search.linkChecks.locationUnknown')}</p>
+              {report.availabilityChecks.playbackCheckedCount !== undefined && <p><strong>{t('search.sample.freePlayback')}</strong> · {t('search.sample.attempted.other', { count: report.availabilityChecks.playbackCheckedCount })}{report.availabilityChecks.playbackStartedCount !== undefined ? t('search.sample.started', { count: report.availabilityChecks.playbackStartedCount }) : ''}{t('search.sample.shortMovie')}</p>}
+              {(report.availabilityChecks.providerCheckedCount ?? 0) > 0 && <p><strong>{t('search.sample.providerChecks')}</strong> · {report.availabilityChecks.providerCheckedCount}{t('search.sample.providerChecksNote')}</p>}
+              {reportRegion === 'ALL' && <p>{checkLocation ? t('search.playbackFrom', { location: checkLocation }) : t('search.playbackLocationUnknown')}{t('search.playbackElsewhere')}</p>}
               {report.availabilityChecks.detail && <p>{report.availabilityChecks.detail}</p>}
-              {batchCheckedAt && <p>Checked <time dateTime={report.availabilityChecks.checkedAt}>{batchCheckedAt}</time></p>}
+              {batchCheckedAt && <p>{t('search.checked')} <time dateTime={report.availabilityChecks.checkedAt}>{batchCheckedAt}</time></p>}
             </div>
           )}
-          <div className="preset-chips" role="group" aria-label="Filter by access type">
-            {FILTERS.map(({ value, label }) => (
+          <div className="preset-chips" role="group" aria-label={t('search.filters.group')}>
+            {FILTERS.map((value) => (
               <button key={value} type="button" className={`chip${filter === value ? ' scout-filter-active' : ''}`}
                 aria-pressed={filter === value} onClick={() => setFilter(value)}>
-                {label} ({value === 'all' ? sampledSources.length : sampledSources.filter((source) => accessGroup(source) === value).length})
+                {t(FILTER_KEYS[value])} ({value === 'all' ? sampledSources.length : sampledSources.filter((source) => accessGroup(source) === value).length})
               </button>
             ))}
           </div>
           <label className="movie-length-preference">
             <input type="checkbox" checked={playbackOnly} onChange={(event) => setPlaybackOnly(event.target.checked)} aria-describedby="movie-playback-filter-help" />
-            <span><strong>Playback started only</strong><span id="movie-playback-filter-help" className="scout-muted">Show passed short samples. Complete movie playback remains unverified.</span></span>
+            <span><strong>{t('search.playbackOnly')}</strong><span id="movie-playback-filter-help" className="scout-muted">{t('search.playbackOnly.help')}</span></span>
           </label>
-          {allAccessUnconfirmed && <p className="scout-muted">No free or paid movie offers are confirmed in these results. Access remains unconfirmed until checked on the movie page.</p>}
+          {allAccessUnconfirmed && <p className="scout-muted">{t('search.allUnconfirmed')}</p>}
 
           {visibleSources.length === 0 ? (
             <div className="scout-empty" role="status">
-              <strong>{sources.length === 0 ? `No direct movie pages found ${reportRegion === 'ALL' ? 'across the covered markets' : `for ${regionName}`}.` : playbackOnly ? 'No started playback samples match these filters.' : filter === 'unknown' ? 'No pages with unconfirmed access in these results.' : `No listings marked ${filter} in these results.`}</strong>
-              <p>{sources.length === 0 ? `Try the exact movie title and release year${report.fullLengthOnly ? ', or turn off Full-length movies to include shorts' : ', or choose another region'}. Search coverage is shown above.` : playbackOnly ? 'Choose All or Free, or clear Playback started only to view unverified options. Automatic samples cover supported free media.' : 'Choose another filter or try another region. Access labels reflect the evidence available for each source.'}</p>
+              <strong>{sources.length === 0
+                ? (reportRegion === 'ALL' ? t('search.empty.video.worldwide') : t('search.empty.video.region', { region: reportRegionLabel }))
+                : playbackOnly ? t('search.empty.video.playbackOnly')
+                : filter === 'unknown' ? t('search.empty.video.unknown')
+                : t('search.empty.video.filtered', { filter: t(FILTER_KEYS[filter]) })}</strong>
+              <p>{sources.length === 0
+                ? t('search.empty.video.help.noSources', { fullLength: report.fullLengthOnly ? t('search.empty.video.help.noSourcesFullLength') : t('search.empty.video.help.noSourcesRegion') })
+                : playbackOnly ? t('search.empty.video.help.playbackOnly')
+                : t('search.empty.video.help.other')}</p>
             </div>
           ) : (
             <div className="sources-grid movie-sources-grid">
               {visibleSources.map((source) => {
                 const check = source.availabilityCheck;
-                const checkedAt = formatCheckedAt(check?.checkedAt);
-                const checkCountry = countryName(check?.country);
+                const checkedAt = formatDateTime(check?.checkedAt);
+                const checkCountry = countryName(check?.country, regionName);
                 const listingMarket = marketCode(source.region);
                 const playback = source.playbackCheck;
                 const movieIdentity = report.atlas?.identities?.[source.url] ?? source.identity;
-                const movieFingerprintNote = playback ? fingerprintLabel(playback) : null;
+                const movieFingerprintNote = playback ? fingerprintLabel(playback, t) : null;
                 const providerPreflight = playback?.method === 'provider_playback_preflight';
                 const sampleStarted = playbackSampleStarted(source);
-                const sampleCountry = countryName(playback?.country);
+                const sampleCountry = countryName(playback?.country, regionName);
                 const sampleMatchesRegion = Boolean(sampleStarted && (reportRegion === 'ALL' || (sampleCountry && marketCode(playback?.country) === reportRegion)));
                 const regionHeadline = sampleStarted
-                  ? reportRegion === 'ALL' ? 'Playback sample passed' : sampleCountry
-                    ? sampleMatchesRegion ? `Playback started in ${sampleCountry}` : `Sample in ${sampleCountry} · ${regionName} unconfirmed`
-                    : 'Sample started · check location unconfirmed'
-                  : availabilityLabel(source, reportRegion, regionName);
-                const sampleCheckedAt = formatCheckedAt(playback?.checkedAt);
-                const sampleMetrics = playbackMetrics(source);
+                  ? reportRegion === 'ALL' ? t('card.reach.samplePassed') : sampleCountry
+                    ? sampleMatchesRegion ? t('playback.startedFrom', { location: sampleCountry }) : t('availability.sampleElsewhere', { market: sampleCountry, country: reportRegionLabel })
+                    : t('playback.startedLocationUnknown')
+                  : availabilityLabel(source, reportRegion, reportRegionLabel, t, regionName);
+                const sampleCheckedAt = formatDateTime(playback?.checkedAt);
+                const sampleMetrics = playbackMetrics(source, t, formatNumber);
                 const sampleDuration = playback?.method === 'isolated_video_sample' ? playback.durationSeconds : undefined;
                 const measuredRuntime = typeof sampleDuration === 'number' && Number.isFinite(sampleDuration) && sampleDuration > 0 ? sampleDuration : null;
                 const listedRuntime = runtimeSeconds(source.duration);
                 const movieRuntime = measuredRuntime ?? listedRuntime;
                 const showReleaseYear = source.releaseYear && !source.title.includes(String(source.releaseYear));
                 const description = source.id.startsWith('ref-') && source.verificationStatus !== 'media_reachable'
-                  ? 'Reference catalog entry. Current media availability has not been confirmed; open the source to check.'
+                  ? t('card.referenceEntry')
                   : source.description;
                 const canRelay = canTryFreeMedia(source);
                 const evidenceLinks = [
-                  { label: 'Open access evidence', url: source.accessEvidenceUrl },
-                  { label: 'Open regional evidence', url: source.availabilityEvidenceUrl },
-                  { label: 'Open checked page', url: check?.evidenceUrl },
-                  { label: 'Open playback evidence', url: playback?.evidenceUrl },
+                  { label: t('card.evidence.access'), url: source.accessEvidenceUrl },
+                  { label: t('card.evidence.regional'), url: source.availabilityEvidenceUrl },
+                  { label: t('card.evidence.page'), url: check?.evidenceUrl },
+                  { label: t('card.evidence.playback'), url: playback?.evidenceUrl },
                 ].filter((evidence): evidence is { label: string; url: string } => Boolean(evidence.url && evidence.url !== source.url))
                   .filter((evidence, index, entries) => entries.findIndex((entry) => entry.url === evidence.url) === index);
                 return (
                   <article key={source.id} className="source-card movie-source-card">
                     <div>
                       <div className="movie-source-badges">
-                        <span className={`pill-badge${source.accessType === 'free' ? ' live' : ''}`}>{ACCESS_LABELS[source.accessType ?? 'unknown']}</span>
+                        <span className={`pill-badge${source.accessType === 'free' ? ' live' : ''}`}>{t(ACCESS_KEYS[source.accessType ?? 'unknown'])}</span>
                         <span className={`scout-muted${sampleMatchesRegion ? ' scout-media-status' : ''}`}>{regionHeadline}</span>
                       </div>
                       <div className="movie-source-title">
@@ -1188,47 +1212,47 @@ export const SearchScoutPanel: React.FC<SearchScoutPanelProps> = ({
                           <h3>{source.title}{showReleaseYear ? <span className="scout-muted"> ({source.releaseYear})</span> : null}</h3>
                           <p className="movie-source-provider">{source.provider}</p>
                           <p className="scout-muted movie-source-host">{sourceHost(source.url)}</p>
-                          <p className="scout-muted movie-source-runtime">{movieRuntime === null ? 'Length unconfirmed' : `${measuredRuntime !== null ? 'Media runtime' : 'Listed runtime'}: ${formatRuntime(movieRuntime)} · ${movieRuntime >= 40 * 60 ? measuredRuntime !== null ? 'Feature-length media' : 'Feature-length listing' : 'Short film / clip'}`}</p>
-                          {source.provider === 'Fawesome' && !source.releaseYear && <p className="scout-muted">Original release year unconfirmed</p>}
+                          <p className="scout-muted movie-source-runtime">{movieRuntime === null ? t('card.lengthUnconfirmed') : `${t(measuredRuntime !== null ? 'card.mediaRuntime' : 'card.listedRuntime', { runtime: formatRuntime(movieRuntime, t) })} · ${t(movieRuntime >= 40 * 60 ? measuredRuntime !== null ? 'card.featureLengthMedia' : 'card.featureLengthListing' : 'card.shortFilm')}`}</p>
+                          {source.provider === 'Fawesome' && !source.releaseYear && <p className="scout-muted">{t('card.originalYear')}</p>}
                         </div>
                       </div>
                       <div className={`movie-playback-check${sampleStarted ? ' sample-started' : ''}`}>
-                        <p className="movie-check-status">{playbackCheckLabel(source, reportRegion)}</p>
-                        {sampleStarted ? <p className="scout-muted">Short sample; full movie not verified.</p> : (
+                        <p className="movie-check-status">{playbackCheckLabel(source, reportRegion, t, regionName)}</p>
+                        {sampleStarted ? <p className="scout-muted">{t('card.shortSample')}</p> : (
                           <p className="scout-muted">{source.accessType !== 'free'
-                            ? 'Automatic playback tests cover free media only. Sign-in and payment are not tested.'
-                            : playback?.detail || 'No playback sample was tested for this result.'}</p>
+                            ? t('card.paidNotTested')
+                            : playback?.detail || t('card.noSample')}</p>
                         )}
-                        {providerPreflight && <p className="scout-muted">Provider access check; main movie playback was not verified.</p>}
+                        {providerPreflight && <p className="scout-muted">{t('card.providerPreflightNote')}</p>}
                         {sampleMetrics && <p className="scout-muted">{sampleMetrics}</p>}
                         {movieFingerprintNote && <p className="scout-muted">{movieFingerprintNote}</p>}
                         {movieIdentity && (
                           <p className={`audio-identity identity-${movieIdentity.effect ?? movieIdentity.verdict ?? 'none'}`}>
-                            <span className="ladder-identity"><Fingerprint size={11} aria-hidden="true" /> {identityLabel(movieIdentity)}</span>
+                            <span className="ladder-identity"><Fingerprint size={11} aria-hidden="true" /> {identityLabel(movieIdentity, t)}</span>
                             {movieIdentity.detail && <span className="scout-muted">{movieIdentity.detail}</span>}
                           </p>
                         )}
-                        {playback && (reportRegion === 'ALL' || !sampleStarted) && source.accessType === 'free' && <p className="scout-muted">Test location: {sampleCountry ?? 'unconfirmed'}</p>}
-                        {sampleCheckedAt && <p className="scout-muted">{providerPreflight ? 'Provider checked' : 'Playback checked'} <time dateTime={playback?.checkedAt}>{sampleCheckedAt}</time></p>}
+                        {playback && (reportRegion === 'ALL' || !sampleStarted) && source.accessType === 'free' && <p className="scout-muted">{t('card.testLocation', { location: sampleCountry ?? t('card.testLocationUnknown') })}</p>}
+                        {sampleCheckedAt && <p className="scout-muted">{providerPreflight ? t('card.providerChecked') : t('card.playbackChecked')} <time dateTime={playback?.checkedAt}>{sampleCheckedAt}</time></p>}
                       </div>
                       {description && <p className="scout-description movie-source-description">{description}</p>}
                       <div className="movie-source-facts">
-                        <p>{accessSummary(source)}</p>
+                        <p>{accessSummary(source, t)}</p>
                         {source.accessNote && <p className="scout-muted">{source.accessNote}</p>}
-                        {listingMarket && <p className="scout-muted">Listing market: {listingMarket}</p>}
+                        {listingMarket && <p className="scout-muted">{t('card.listingMarket', { market: listingMarket })}</p>}
                         {source.availabilityNote && <p className="scout-muted">{source.availabilityNote}</p>}
                         <div className="movie-access-check">
-                          <p className={`movie-check-status check-${check?.status ?? 'unchecked'}`}>{accessCheckLabel(check)}</p>
+                          <p className={`movie-check-status check-${check?.status ?? 'unchecked'}`}>{accessCheckLabel(check, t, regionName)}</p>
                           {check?.detail && <p className="scout-muted">{check.detail}</p>}
-                          {check && !['page_reachable', 'media_reachable'].includes(check.status) && <p className="scout-muted">Check location: {checkCountry ?? 'unconfirmed'}</p>}
-                          {!check && source.verificationStatus === 'media_reachable' && <p className="scout-muted">Media URL reachable during discovery; regional access unchecked.</p>}
-                          <p className="scout-muted">A reachable link does not confirm playback.</p>
-                          {checkedAt && <p className="scout-muted">Link checked <time dateTime={check?.checkedAt}>{checkedAt}</time></p>}
+                          {check && !['page_reachable', 'media_reachable'].includes(check.status) && <p className="scout-muted">{t('card.checkLocation', { location: checkCountry ?? t('card.testLocationUnknown') })}</p>}
+                          {!check && source.verificationStatus === 'media_reachable' && <p className="scout-muted">{t('card.reachableDuringDiscovery')}</p>}
+                          <p className="scout-muted">{t('card.reachableNoPlayback')}</p>
+                          {checkedAt && <p className="scout-muted">{t('card.linkChecked')} <time dateTime={check?.checkedAt}>{checkedAt}</time></p>}
                         </div>
                       </div>
                       {evidenceLinks.length > 0 && (
                         <details className="scout-provider-details movie-source-evidence">
-                          <summary>Access and regional evidence</summary>
+                          <summary>{t('card.evidence')}</summary>
                           <div className="movie-evidence-actions">{evidenceLinks.map((evidence) => (
                             <button key={evidence.url} type="button" className="btn" disabled={launchingUrl !== null}
                               onClick={() => onLaunchRbi(evidence.url, false)}>
@@ -1241,10 +1265,10 @@ export const SearchScoutPanel: React.FC<SearchScoutPanelProps> = ({
                     <div className="movie-source-actions">
                       <button type="button" className="btn btn-primary" disabled={launchingUrl !== null}
                         onClick={() => onLaunchRbi(source.url, false)}>
-                        <Globe size={14} aria-hidden="true" /> {launchingUrl === source.url ? 'Opening protected browser…' : 'Open movie page with ad blocking'}
+                        <Globe size={14} aria-hidden="true" /> {launchingUrl === source.url ? t('card.opening') : t('card.openMovieProtected')}
                       </button>
                       {canRelay && <button type="button" className="btn" onClick={() => handleSelectRelay(source)}>
-                        <Play size={13} aria-hidden="true" /> {sampleStarted ? 'Play sampled free media' : 'Try free media playback'}
+                        <Play size={13} aria-hidden="true" /> {sampleStarted ? t('card.playSampledMovie') : t('card.tryFreeMovie')}
                       </button>}
                     </div>
                   </article>
@@ -1254,8 +1278,8 @@ export const SearchScoutPanel: React.FC<SearchScoutPanelProps> = ({
           )}
           {(report.prunedSources?.length ?? 0) > 0 && (
             <details className="scout-provider-details">
-              <summary>{report.prunedSources.length} sources excluded after checking</summary>
-              <ul>{report.prunedSources.map((source) => <li key={source.id}><strong>{source.title}</strong>: {source.prunedReason || 'Unavailable at last check.'}</li>)}</ul>
+              <summary>{t(report.prunedSources.length === 1 ? 'card.excluded.one' : 'card.excluded.other', { count: report.prunedSources.length })}</summary>
+              <ul>{report.prunedSources.map((source) => <li key={source.id}><strong>{source.title}</strong>: {source.prunedReason || t('card.excluded.default')}</li>)}</ul>
             </details>
           )}
         </>

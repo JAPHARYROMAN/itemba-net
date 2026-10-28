@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { FileText, Globe, Headphones, Image, ListVideo, MonitorPlay, Radio, Repeat, X } from 'lucide-react';
 import { ActiveRelayStream, MediaKind } from '../../types';
-import { KIND_LABELS, kindOf, relayUrl } from '../../media/media';
+import { KIND_KEYS, kindOf, relayUrl } from '../../media/media';
 import { VideoPlayer } from './VideoPlayer';
 import { AudioPlayer } from './AudioPlayer';
 import { ImageViewer } from './ImageViewer';
 import { DocumentViewer } from './DocumentViewer';
 import { QueueControls } from './ControlBar';
+import { useI18n } from '../../i18n/core';
 import './player.css';
 
 interface MediaStageProps {
@@ -28,6 +29,7 @@ const KIND_ICONS: Record<MediaKind, React.ReactNode> = {
 // selection starts protected, and a failure never switches the path on its
 // own; the operator chooses, and the choice is visible on the stage.
 export const MediaStage: React.FC<MediaStageProps> = ({ stream, onSelectStream, onOpenInVault }) => {
+  const { t } = useI18n();
   const [queue, setQueue] = useState<ActiveRelayStream[]>([]);
   const [queueOpen, setQueueOpen] = useState(false);
   const [autoAdvance, setAutoAdvance] = useState(true);
@@ -50,7 +52,7 @@ export const MediaStage: React.FC<MediaStageProps> = ({ stream, onSelectStream, 
         streamUrl: track.url,
         pageUrl: stream.pageUrl,
         provider: stream.provider,
-        format: track.format ? `Direct ${track.format}` : stream.format,
+        format: track.format ? t('stage.directFormat', { format: track.format }) : stream.format,
         useZeroTrustProxy: stream.useZeroTrustProxy,
         kind: 'audio',
         poster: stream.poster,
@@ -100,36 +102,36 @@ export const MediaStage: React.FC<MediaStageProps> = ({ stream, onSelectStream, 
       <button
         type="button"
         className={`btn mp-action ${protectedPath ? 'btn-theater' : 'btn-danger'}`}
-        aria-label={protectedPath ? 'Ad filtering is on. Use direct playback for this item.' : 'Ad filtering is off. Protect this item with ad filtering.'}
+        aria-label={protectedPath ? t('stage.protectedOnAria') : t('stage.protectedOffAria')}
         aria-pressed={protectedPath}
-        title="Every request for this item goes through the relay with Shield applied. Direct mode bypasses that filtering for this item only."
+        title={t('stage.protectedTitle')}
         onClick={() => setProtection({ stream: current, enabled: !protectedPath })}
       >
         <Radio size={13} aria-hidden="true" />
-        <span className="mp-action-label">{protectedPath ? 'Ad filtering: ON' : 'Direct · filtering off'}</span>
+        <span className="mp-action-label">{protectedPath ? t('stage.protectedOn') : t('stage.protectedOff')}</span>
       </button>
       {current.pageUrl && (
         <button
           type="button"
           className="btn mp-action"
-          aria-label="Open the source page with ad blocking"
-          title="Open the source page in the protected browser"
+          aria-label={t('stage.openPageAria')}
+          title={t('stage.openPageTitle')}
           onClick={() => onOpenInVault(current.pageUrl as string)}
         >
           <Globe size={13} aria-hidden="true" />
-          <span className="mp-action-label">Open page with ad blocking</span>
+          <span className="mp-action-label">{t('stage.openPage')}</span>
         </button>
       )}
       <button
         type="button"
         className={`btn mp-action ${queueOpen ? 'btn-primary' : ''}`}
-        aria-label={`Session queue, ${queue.length} item${queue.length === 1 ? '' : 's'}`}
+        aria-label={t(queue.length === 1 ? 'stage.queueAria.one' : 'stage.queueAria.other', { count: queue.length })}
         aria-pressed={queueOpen}
-        title="Items played this session"
+        title={t('stage.queueTitle')}
         onClick={() => setQueueOpen((open) => !open)}
       >
         <ListVideo size={13} aria-hidden="true" />
-        <span className="mp-action-label">Queue · {queue.length}</span>
+        <span className="mp-action-label">{t('stage.queue', { count: queue.length })}</span>
         {compact && <span className="mp-action-count" aria-hidden="true">{queue.length}</span>}
       </button>
     </>
@@ -140,10 +142,9 @@ export const MediaStage: React.FC<MediaStageProps> = ({ stream, onSelectStream, 
       <div className="media-stage media-stage--empty">
         <div className="media-empty">
           <Radio size={34} color="#38bdf8" />
-          <h3>Protected media player</h3>
+          <h3>{t('stage.empty.title')}</h3>
           <p>
-            Choose a free, reachable source below and <strong>Try playback</strong>, pick an observed stream from the sandbox, or paste a media address above.
-            Video and audio play through the relay with Shield on every request; images open in the zoomable viewer and PDFs in the reader.
+            {t('stage.empty.lead')} <strong>{t('stage.empty.strong')}</strong>{t('stage.empty.rest')}
           </p>
         </div>
       </div>
@@ -183,7 +184,7 @@ export const MediaStage: React.FC<MediaStageProps> = ({ stream, onSelectStream, 
       {kind !== 'video' && (
         <div className="media-now">
           <div className="media-now-meta">
-            <span className="media-now-kind">{KIND_ICONS[kind]} {KIND_LABELS[kind]}</span>
+            <span className="media-now-kind">{KIND_ICONS[kind]} {t(KIND_KEYS[kind])}</span>
             <strong className="media-now-title" title={stream.title}>{stream.title}</strong>
             <span className="scout-muted">{stream.provider} · {stream.format}{stream.resolution ? ` · ${stream.resolution}` : ''}</span>
           </div>
@@ -192,12 +193,12 @@ export const MediaStage: React.FC<MediaStageProps> = ({ stream, onSelectStream, 
       )}
 
       {queueOpen && (
-        <div className="media-queue" aria-label="Session queue">
+        <div className="media-queue" aria-label={t('stage.queueHeading')}>
           <div className="media-queue-head">
-            <span className="scout-muted">Items selected this session play in order. The current item cannot be removed.</span>
+            <span className="scout-muted">{t('stage.queueNote')}</span>
             <label className="media-queue-toggle">
               <input type="checkbox" checked={autoAdvance} onChange={(event) => setAutoAdvance(event.target.checked)} />
-              <Repeat size={12} aria-hidden="true" /> Play next when finished
+              <Repeat size={12} aria-hidden="true" /> {t('stage.playNext')}
             </label>
           </div>
           <ol>
@@ -217,7 +218,7 @@ export const MediaStage: React.FC<MediaStageProps> = ({ stream, onSelectStream, 
                   <button
                     type="button"
                     className="mp-btn"
-                    aria-label={`Remove ${item.title} from the queue`}
+                    aria-label={t('stage.remove', { title: item.title })}
                     disabled={current}
                     onClick={() => setQueue((items) => items.filter((entry) => entry.streamUrl !== item.streamUrl))}
                   >

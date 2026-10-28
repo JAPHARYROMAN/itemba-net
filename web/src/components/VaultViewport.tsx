@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, Globe, MonitorPlay, Play, RotateCw, ShieldCheck, Sparkles, Trash2, Tv } from 'lucide-react';
 import { ActiveRelayStream, SniffedStream, VaultStatus } from '../types';
 import { streamFromPastedUrl } from '../media/media';
+import { Translate, useI18n } from '../i18n/core';
 import { MediaStage } from './player/MediaStage';
 import { RbiViewer } from './RbiViewer';
 
@@ -31,11 +32,11 @@ const hostnameOf = (raw: string | undefined): string => {
 // A media request the sandbox observed, offered to the player as it was
 // seen: it may be the film, a trailer or an advertisement, and the badge on
 // the card says so until the player has actually decoded it.
-const observedStream = (vault: VaultStatus, observed: SniffedStream): ActiveRelayStream => ({
-  title: vault.pageTitle || hostnameOf(vault.currentUrl) || 'Observed media request',
+const observedStream = (vault: VaultStatus, observed: SniffedStream, t: Translate): ActiveRelayStream => ({
+  title: vault.pageTitle || hostnameOf(vault.currentUrl) || t('vault.observed.defaultTitle'),
   streamUrl: observed.url,
   pageUrl: vault.currentUrl,
-  provider: `${hostnameOf(vault.currentUrl) || 'sandbox'} · observed request`,
+  provider: t('vault.observed.provider', { host: hostnameOf(vault.currentUrl) || t('vault.observed.sandbox') }),
   format: observed.format,
   resolution: observed.resolution,
   useZeroTrustProxy: true,
@@ -56,6 +57,7 @@ export const VaultViewport: React.FC<VaultViewportProps> = ({
   onDestroyVault,
   onPlayRelayStream,
 }) => {
+  const { t } = useI18n();
   const [urlInput, setUrlInput] = useState(vault.currentUrl || '');
 
   useEffect(() => {
@@ -74,9 +76,9 @@ export const VaultViewport: React.FC<VaultViewportProps> = ({
             style={{ padding: '6px 11px', fontSize: 11.5 }}
             onClick={() => setViewportMode('relay')}
             aria-pressed={viewportMode === 'relay'}
-            title="Video, audio, images and documents through the Shield-filtered relay"
+            title={t('vault.player.title')}
           >
-            <MonitorPlay size={13} /> Media player {activeRelay ? '●' : ''}
+            <MonitorPlay size={13} /> {t('vault.player')} {activeRelay ? '●' : ''}
           </button>
           <button
             type="button"
@@ -84,22 +86,22 @@ export const VaultViewport: React.FC<VaultViewportProps> = ({
             style={{ padding: '6px 11px', fontSize: 11.5 }}
             onClick={() => setViewportMode('rbi')}
             aria-pressed={viewportMode === 'rbi'}
-            title="Interactive remote browser isolation (Chromium + CDP + Pion WebRTC)"
+            title={t('vault.browser.title')}
           >
-            <Globe size={13} /> Protected browser {vault.active ? '●' : ''}
+            <Globe size={13} /> {t('vault.browser')} {vault.active ? '●' : ''}
           </button>
           {viewportMode === 'rbi' && vault.adBlockingEnabled && (
-            <span className="pill-badge live" role="status"><ShieldCheck size={12} /> Ad blocking enabled</span>
+            <span className="pill-badge live" role="status"><ShieldCheck size={12} /> {t('vault.adBlocking')}</span>
           )}
           {viewportMode === 'rbi' && (
-            <div style={{ display: 'flex', gap: 4, marginLeft: 4 }}>
-              <button type="button" className="btn" style={{ padding: '6px 8px' }} disabled={!vault.active} onClick={() => onVaultControl('back')} title="Back" aria-label="Back">
+            <div style={{ display: 'flex', gap: 4, marginInlineStart: 4 }}>
+              <button type="button" className="btn" style={{ padding: '6px 8px' }} disabled={!vault.active} onClick={() => onVaultControl('back')} title={t('vault.back')} aria-label={t('vault.back')}>
                 <ArrowLeft size={13} />
               </button>
-              <button type="button" className="btn" style={{ padding: '6px 8px' }} disabled={!vault.active} onClick={() => onVaultControl('forward')} title="Forward" aria-label="Forward">
+              <button type="button" className="btn" style={{ padding: '6px 8px' }} disabled={!vault.active} onClick={() => onVaultControl('forward')} title={t('vault.forward')} aria-label={t('vault.forward')}>
                 <ArrowRight size={13} />
               </button>
-              <button type="button" className="btn" style={{ padding: '6px 8px' }} disabled={!vault.active} onClick={() => onVaultControl('reload')} title="Reload sandbox page" aria-label="Reload">
+              <button type="button" className="btn" style={{ padding: '6px 8px' }} disabled={!vault.active} onClick={() => onVaultControl('reload')} title={t('vault.reload.title')} aria-label={t('vault.reload')}>
                 <RotateCw size={13} />
               </button>
             </div>
@@ -112,7 +114,7 @@ export const VaultViewport: React.FC<VaultViewportProps> = ({
             event.preventDefault();
             const trimmed = urlInput.trim();
             if (!trimmed) return;
-            const pasted = streamFromPastedUrl(trimmed);
+            const pasted = streamFromPastedUrl(trimmed, t);
             if (pasted) onPlayRelayStream(pasted);
             else onLaunchUrl(trimmed, false);
           }}
@@ -122,11 +124,11 @@ export const VaultViewport: React.FC<VaultViewportProps> = ({
             className="vault-address-input"
             value={urlInput}
             onChange={(event) => setUrlInput(event.target.value)}
-            aria-label="Address"
-            placeholder="Paste a page URL for the protected browser, or a media URL (.m3u8, .mp4, .mp3, .jpg, .pdf …) for the player"
+            aria-label={t('vault.address')}
+            placeholder={t('vault.address.placeholder')}
           />
           <button type="submit" className="btn" style={{ padding: '3px 10px', fontSize: 11 }}>
-            Open
+            {t('vault.open')}
           </button>
         </form>
 
@@ -137,18 +139,18 @@ export const VaultViewport: React.FC<VaultViewportProps> = ({
               className="btn btn-theater"
               disabled={!vault.active}
               onClick={onActivateTheater}
-              title="Promote the <video> element inside the remote Chromium sandbox to full-viewport cinema mode"
+              title={t('vault.theater.title')}
             >
-              <Tv size={13} /> Isolate DOM &lt;video&gt;
+              <Tv size={13} /> {t('vault.theater')}
             </button>
             <button
               type="button"
               className="btn btn-danger"
               disabled={!vault.active}
               onClick={onDestroyVault}
-              title="Destroy the isolated container/process and wipe its ephemeral profile"
+              title={t('vault.destroy.title')}
             >
-              <Trash2 size={13} /> Destroy Vault
+              <Trash2 size={13} /> {t('vault.destroy')}
             </button>
           </div>
         )}
@@ -158,15 +160,15 @@ export const VaultViewport: React.FC<VaultViewportProps> = ({
         <div className="vault-observed">
           <div className="vault-observed-head">
             <Sparkles size={14} color="#10b981" />
-            <strong>{observed.length} observed media request{observed.length === 1 ? '' : 's'} · full playback unverified</strong>
-            <span className="scout-muted">Observed requests can be trailers, previews or advertisements. Trying one plays it through the protected relay.</span>
+            <strong>{t(observed.length === 1 ? 'vault.observed.head.one' : 'vault.observed.head.other', { count: observed.length })}</strong>
+            <span className="scout-muted">{t('vault.observed.note')}</span>
           </div>
           <ul className="vault-observed-list">
             {observed.slice(0, 3).map((item) => (
               <li key={item.url}>
                 <span className="vault-observed-url">[{item.format}] {item.url}</span>
-                <button type="button" className="btn" style={{ padding: '4px 9px', fontSize: 11 }} onClick={() => onPlayRelayStream(observedStream(vault, item))}>
-                  <Play size={12} aria-hidden="true" /> Try in player
+                <button type="button" className="btn" style={{ padding: '4px 9px', fontSize: 11 }} onClick={() => onPlayRelayStream(observedStream(vault, item, t))}>
+                  <Play size={12} aria-hidden="true" /> {t('vault.observed.try')}
                 </button>
               </li>
             ))}
@@ -184,21 +186,20 @@ export const VaultViewport: React.FC<VaultViewportProps> = ({
             <div style={{ textAlign: 'center', padding: 36, maxWidth: 620 }}>
               <Globe size={36} color="#38bdf8" style={{ marginBottom: 12 }} />
               <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: '#f8fafc' }}>
-                Open a movie site with ad blocking
+                {t('vault.empty.title')}
               </h3>
               <p style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.6, marginBottom: 18 }}>
-                Search below and choose <strong>Open with ad blocking</strong> to browse a source with ad and tracker
-                protection enabled. Paid providers may require a sign-in, subscription, rental, or purchase.
+                {t('vault.empty.lead')} <strong>{t('vault.empty.strong')}</strong> {t('vault.empty.rest')}
               </p>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
                 <button className="btn btn-primary" onClick={() => onLaunchUrl('https://archive.org/embed/night_of_the_living_dead', false)}>
-                  <Globe size={14} /> Isolate Internet Archive Player in RBI Vault
+                  <Globe size={14} /> {t('vault.empty.archive')}
                 </button>
                 <button
                   className="btn btn-theater"
                   onClick={() => onLaunchUrl(`${window.location.protocol}//${window.location.hostname}:8080/testbench/sketchy-cinema?q=Adversarial+Sandbox+Test`, false)}
                 >
-                  <ShieldCheck size={14} /> Launch Adversarial Ad-Trap Testbench in Vault
+                  <ShieldCheck size={14} /> {t('vault.empty.testbench')}
                 </button>
               </div>
             </div>

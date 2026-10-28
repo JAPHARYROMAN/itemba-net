@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
 import { clamp, loadPlayerPrefs, savePlayerPrefs } from './media';
+import { Translate } from '../i18n/core';
 
 // The playback engine behind the video and audio players. It attaches one
 // HTMLMediaElement to one source, through hls.js for HLS playlists and the
@@ -90,6 +91,9 @@ export interface EngineOptions {
   // The message shown for a load or decode failure; the caller knows whether
   // the bytes came through the protected relay or straight from a CDN.
   failureMessage: string;
+  // The interface's translator, so error suffixes and fallback labels follow
+  // the chosen locale.
+  translate: Translate;
   onEnded?: () => void;
 }
 
@@ -127,15 +131,15 @@ const INITIAL_STATE: EngineState = {
   autoplayBlocked: false,
 };
 
-const describeMediaError = (element: HTMLMediaElement, fallback: string): string => {
+const describeMediaError = (element: HTMLMediaElement, fallback: string, t: Translate): string => {
   const code = element.error?.code;
   switch (code) {
     case MediaError.MEDIA_ERR_NETWORK:
-      return `${fallback} The connection dropped while loading.`;
+      return `${fallback}${t('player.error.network')}`;
     case MediaError.MEDIA_ERR_DECODE:
-      return `${fallback} The browser could not decode this media.`;
+      return `${fallback}${t('player.error.decode')}`;
     case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
-      return `${fallback} The source was refused or its format is not supported by this browser.`;
+      return `${fallback}${t('player.error.unsupported')}`;
     default:
       return fallback;
   }
@@ -159,21 +163,21 @@ const bufferAheadOf = (element: HTMLMediaElement): number => {
   return 0;
 };
 
-const levelLabel = (height: number, bitrateKbps: number): string => {
-  const res = height > 0 ? `${height}p` : 'unknown size';
+const levelLabel = (height: number, bitrateKbps: number, t: Translate): string => {
+  const res = height > 0 ? `${height}p` : t('player.unknownSize');
   return bitrateKbps > 0 ? `${res} · ${bitrateKbps >= 1000 ? `${(bitrateKbps / 1000).toFixed(1)} Mbps` : `${bitrateKbps} kbps`}` : res;
 };
 
-const trackLabel = (name: string | undefined, lang: string | undefined, index: number): string =>
-  name?.trim() || (lang ? lang.toUpperCase() : `Track ${index + 1}`);
+const trackLabel = (name: string | undefined, lang: string | undefined, index: number, t: Translate): string =>
+  name?.trim() || (lang ? lang.toUpperCase() : t('player.trackFallback', { index: index + 1 }));
 
-const nativeTextTracks = (element: HTMLMediaElement): TrackOption[] => {
+const nativeTextTracks = (element: HTMLMediaElement, t: Translate): TrackOption[] => {
   const options: TrackOption[] = [];
   const tracks = element.textTracks;
   for (let i = 0; i < tracks.length; i += 1) {
     const track = tracks[i];
     if (track.kind !== 'subtitles' && track.kind !== 'captions') continue;
-    options.push({ id: i, label: trackLabel(track.label, track.language, i), lang: track.language || undefined });
+    options.push({ id: i, label: trackLabel(track.label, track.language, i, t), lang: track.language || undefined });
   }
   return options;
 };
@@ -253,7 +257,7 @@ export const useMediaEngine = (
 
     const refreshNativeSubtitles = () => {
       if (subtitleModeRef.current !== 'native') return;
-      const tracks = nativeTextTracks(element);
+      const tracks = nativeTextTracks(element, optionsRef.current.translate);
       let showing = -1;
       for (let i = 0; i < element.textTracks.length; i += 1) {
         if (element.textTracks[i].mode === 'showing') showing = i;
@@ -299,7 +303,7 @@ export const useMediaEngine = (
       safePatch({ rate: element.playbackRate });
       savePlayerPrefs({ volume: element.volume, muted: element.muted, rate: element.playbackRate });
     });
-    on('error', () => fail(describeMediaError(element, optionsRef.current.failureMessage)));
+    on('error', () => fail(describeMediaError(element, optionsRef.current.failureMessage, optionsRef.current.translate)));
 
     const textTracks = element.textTracks;
     const onTracksChanged = () => refreshNativeSubtitles();
@@ -320,7 +324,7 @@ export const useMediaEngine = (
       hls.on(Hls.Events.MANIFEST_PARSED, (_event, data) => {
         const levels: LevelOption[] = data.levels.map((level, index) => {
           const bitrateKbps = Math.round((level.bitrate || 0) / 1000);
-          return { id: index, width: level.width || 0, height: level.height || 0, bitrateKbps, label: levelLabel(level.height || 0, bitrateKbps) };
+          return { id: index, width: level.width || 0, height: level.height || 0, bitrateKbps, label: levelLabel(level.height || 0, bitrateKbps, optionsRef.current.translate) };
         });
         safePatch({ levels, levelChoice: -1 });
         tryAutoplay();
@@ -331,7 +335,7 @@ export const useMediaEngine = (
       });
       hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, (_event, data) => {
         safePatch({
-          audioTracks: data.audioTracks.map((track, index) => ({ id: track.id, label: trackLabel(track.name, track.lang, index), lang: track.lang || undefined })),
+          audioTracks: data.audioTracks.map((track, index) => ({ id: track.id, label: trackLabel(track.name, track.lang, index, optionsRef.current.translate), lang: track.lang || undefined })),
           audioTrack: hls?.audioTrack ?? -1,
         });
       });
@@ -345,7 +349,7 @@ export const useMediaEngine = (
         subtitleModeRef.current = 'hls';
         if (hls) hls.subtitleDisplay = false;
         safePatch({
-          subtitleTracks: data.subtitleTracks.map((track, index) => ({ id: track.id, label: trackLabel(track.name, track.lang, index), lang: track.lang || undefined })),
+          subtitleTracks: data.subtitleTracks.map((track, index) => ({ id: track.id, label: trackLabel(track.name, track.lang, index, optionsRef.current.translate), lang: track.lang || undefined })),
           subtitleTrack: -1,
         });
       });
@@ -363,9 +367,9 @@ export const useMediaEngine = (
         hls?.stopLoad();
         element.pause();
         const detail = data.type === Hls.ErrorTypes.NETWORK_ERROR
-          ? ' A playlist or segment request failed.'
+          ? optionsRef.current.translate('player.error.hlsNetwork')
           : data.type === Hls.ErrorTypes.MEDIA_ERROR
-            ? ' The stream could not be decoded.'
+            ? optionsRef.current.translate('player.error.hlsMedia')
             : '';
         fail(`${optionsRef.current.failureMessage}${detail}`);
       });

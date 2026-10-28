@@ -1,6 +1,7 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { BufferedRange } from '../../media/useMediaEngine';
 import { clamp, formatTime } from '../../media/media';
+import { useI18n } from '../../i18n/core';
 
 interface SeekBarProps {
   currentTime: number;
@@ -16,6 +17,7 @@ interface SeekBarProps {
 // leaves the bar; the seek is committed on release so a long scrub does not
 // fire a seek per pixel.
 export const SeekBar: React.FC<SeekBarProps> = ({ currentTime, duration, buffered, live, disabled, onSeek }) => {
+  const { t } = useI18n();
   const barRef = useRef<HTMLDivElement | null>(null);
   const [hoverRatio, setHoverRatio] = useState<number | null>(null);
   const [scrubRatio, setScrubRatio] = useState<number | null>(null);
@@ -38,11 +40,11 @@ export const SeekBar: React.FC<SeekBarProps> = ({ currentTime, duration, buffere
       ref={barRef}
       className={`mp-seek ${seekable ? '' : 'mp-seek--inert'} ${scrubRatio !== null ? 'mp-seek--scrubbing' : ''}`}
       role="slider"
-      aria-label="Seek"
+      aria-label={t('player.seek')}
       aria-valuemin={0}
       aria-valuemax={seekable ? Math.round(duration) : 0}
       aria-valuenow={seekable ? Math.round(currentTime) : 0}
-      aria-valuetext={seekable ? `${formatTime(currentTime)} of ${formatTime(duration)}` : live ? 'Live' : 'Not seekable'}
+      aria-valuetext={seekable ? t('player.of', { current: formatTime(currentTime), duration: formatTime(duration) }) : live ? t('player.live') : t('player.notSeekable')}
       aria-disabled={!seekable}
       tabIndex={-1}
       onPointerMove={(event) => {
@@ -81,7 +83,7 @@ export const SeekBar: React.FC<SeekBarProps> = ({ currentTime, duration, buffere
       {seekable && tooltipRatio !== null && (
         <div className="mp-seek-tooltip" style={{ left: `${tooltipRatio * 100}%` }}>{formatTime(tooltipRatio * duration)}</div>
       )}
-      {live && <span className="mp-seek-live">LIVE</span>}
+      {live && <span className="mp-seek-live">{t('player.live')}</span>}
     </div>
   );
 };

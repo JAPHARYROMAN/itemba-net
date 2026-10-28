@@ -1,59 +1,68 @@
 import { IdentityMatch, MoviePlaybackCheck } from './types';
+import { MessageKey, Translate } from './i18n/core';
 
 // What the fingerprint said, in a chip's words: the acoustic fingerprint of
 // a recording, the perceptual hash of a picture, the text fingerprint of a
 // document or the frame fingerprint of a film. The detail the server
 // composed says the rest.
-const methodNoun = (method: string): string => {
-  switch (method) {
-    case 'perceptual_hash': return 'image hash';
-    case 'text_fingerprint': return 'text fingerprint';
-    case 'frame_fingerprint': return 'frame fingerprint';
-    default: return 'fingerprint';
-  }
+const methodKeys: Record<string, MessageKey> = {
+  perceptual_hash: 'identity.imageHash',
+  text_fingerprint: 'identity.textFingerprint',
+  frame_fingerprint: 'identity.frameFingerprint',
 };
 
-export const identityLabel = (identity: IdentityMatch): string => {
-  const by = methodNoun(identity.method);
+const methodNoun = (method: string, t: Translate): string => t(methodKeys[method] ?? 'identity.fingerprint');
+
+export const identityLabel = (identity: IdentityMatch, t: Translate): string => {
+  const by = methodNoun(identity.method, t);
   switch (identity.effect) {
-    case 'joined': return `Matched by ${by}`;
-    case 'confirmed': return `Confirmed by ${by}`;
-    case 'kept_apart': return `Separated by ${by}`;
+    case 'joined': return t('identity.matchedBy', { method: by });
+    case 'confirmed': return t('identity.confirmedBy', { method: by });
+    case 'kept_apart': return t('identity.separatedBy', { method: by });
   }
   switch (identity.verdict) {
-    case 'same': return identity.method === 'perceptual_hash' ? 'Same picture by hash' : identity.method === 'text_fingerprint' ? 'Same text by fingerprint' : identity.method === 'frame_fingerprint' ? 'Same beginning by frames' : 'Same beginning by fingerprint';
-    case 'different': return `Different by ${by}`;
-    default: return identity.method === 'perceptual_hash' ? 'Hashed' : 'Fingerprinted';
+    case 'same':
+      return identity.method === 'perceptual_hash'
+        ? t('identity.samePicture')
+        : identity.method === 'text_fingerprint'
+          ? t('identity.sameText')
+          : identity.method === 'frame_fingerprint'
+            ? t('identity.sameBeginningFrames')
+            : t('identity.sameBeginningFingerprint');
+    case 'different': return t('identity.differentBy', { method: by });
+    default: return identity.method === 'perceptual_hash' ? t('identity.hashed') : t('identity.fingerprinted');
   }
 };
 
 // How the sample's fingerprint went, for the recording or movie card: the
 // acoustic fingerprint of an audio sample, the frame fingerprint of a
 // video sample.
-export const fingerprintLabel = (check: MoviePlaybackCheck): string | null => {
-  if (check.method !== 'isolated_audio_sample') return frameFingerprintLabel(check);
+export const fingerprintLabel = (check: MoviePlaybackCheck, t: Translate): string | null => {
+  if (check.method !== 'isolated_audio_sample') return frameFingerprintLabel(check, t);
   switch (check.fingerprintStatus) {
     case undefined:
     case '':
       return null;
     case 'computed': {
       const seconds = check.fingerprint?.seconds;
-      return seconds ? `Acoustic fingerprint taken over ${seconds.toFixed(0)}s of the beginning (${check.fingerprint?.frames ?? 0} frames).` : 'Acoustic fingerprint taken.';
+      return seconds
+        ? t('identity.acousticTaken', { seconds: seconds.toFixed(0), frames: check.fingerprint?.frames ?? 0 })
+        : t('identity.acousticTakenShort');
     }
     case 'pending':
     case 'timeout':
-      return 'The acoustic fingerprint did not finish within the sample.';
-    case 'fetch_failed': return 'No acoustic fingerprint: the file’s beginning could not be fetched for decoding.';
-    case 'decode_failed': return 'No acoustic fingerprint: the beginning could not be decoded offline (AAC in MP4 with a trailing index decodes only in the player).';
-    case 'too_short': return 'No acoustic fingerprint: too little audio decoded.';
-    case 'unsupported': return 'No acoustic fingerprint: the isolated browser cannot decode offline.';
-    case 'invalid': return 'No acoustic fingerprint: the page returned a malformed one.';
-    default: return 'No acoustic fingerprint: the computation failed.';
+      return t('identity.acousticPending');
+    case 'fetch_failed': return t('identity.acousticFetchFailed');
+    case 'decode_failed': return t('identity.acousticDecodeFailed');
+    case 'too_short': return t('identity.acousticTooShort');
+    case 'unsupported': return t('identity.acousticUnsupported');
+    case 'invalid': return t('identity.acousticInvalid');
+    default: return t('identity.acousticFailed');
   }
 };
 
 // How a video sample's frame fingerprint went.
-const frameFingerprintLabel = (check: MoviePlaybackCheck): string | null => {
+const frameFingerprintLabel = (check: MoviePlaybackCheck, t: Translate): string | null => {
   switch (check.fingerprintStatus) {
     case undefined:
     case '':
@@ -61,10 +70,12 @@ const frameFingerprintLabel = (check: MoviePlaybackCheck): string | null => {
     case 'computed': {
       const seconds = check.fingerprint?.seconds;
       const frames = Math.floor((check.fingerprint?.frames ?? 0) / 8);
-      return seconds ? `Frame fingerprint taken over ${seconds.toFixed(1)}s of the beginning (${frames} frames, half a second apart); the index compares it with every film sampled.` : 'Frame fingerprint taken.';
+      return seconds
+        ? t('identity.frameTaken', { seconds: seconds.toFixed(1), frames })
+        : t('identity.frameTakenShort');
     }
-    case 'too_short': return 'No frame fingerprint: too few frames were captured before the sample ended.';
-    case 'unsupported': return 'No frame fingerprint: the isolated browser could not read the decoded frames.';
-    default: return 'No frame fingerprint: the capture failed.';
+    case 'too_short': return t('identity.frameTooShort');
+    case 'unsupported': return t('identity.frameUnsupported');
+    default: return t('identity.frameFailed');
   }
 };

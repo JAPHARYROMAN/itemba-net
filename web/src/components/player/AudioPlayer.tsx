@@ -4,6 +4,7 @@ import { ActiveRelayStream } from '../../types';
 import { useMediaEngine } from '../../media/useMediaEngine';
 import { isHlsUrl } from '../../media/media';
 import { ControlBar, QueueControls } from './ControlBar';
+import { useI18n } from '../../i18n/core';
 
 interface AudioPlayerProps {
   stream: ActiveRelayStream;
@@ -29,15 +30,14 @@ const BAR_COUNT = 48;
 // silent once routed through the Web Audio graph, so direct playback is left
 // untouched and simply has no meter.
 export const AudioPlayer: React.FC<AudioPlayerProps> = ({ stream, src, isProtected, attempt, autoplay, onRetryProtected, onEnded, queue }) => {
+  const { t } = useI18n();
   const [audioEl, setAudioEl] = useState<HTMLAudioElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [statsOpen, setStatsOpen] = useState(false);
 
   const source = useMemo(() => ({ url: src, hls: isHlsUrl(stream.streamUrl) }), [src, stream.streamUrl]);
-  const failureMessage = isProtected
-    ? "This audio could not load or decode through ITEMBA's protected relay. Ad filtering remains enabled."
-    : 'Direct CDN playback failed. Retry through ITEMBA with ad filtering enabled.';
-  const { state, actions } = useMediaEngine(audioEl, source, { autoplay, attempt, failureMessage, onEnded });
+  const failureMessage = isProtected ? t('player.error.protectedAudio') : t('player.error.directAudio');
+  const { state, actions } = useMediaEngine(audioEl, source, { autoplay, attempt, failureMessage, onEnded, translate: t });
 
   const meterable = isProtected && src.startsWith('/');
 
@@ -92,7 +92,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ stream, src, isProtect
   }, [audioEl, meterable, state.status]);
 
   return (
-    <div className="mp-player mp-player--audio" aria-label={`Audio player: ${stream.title}`}>
+    <div className="mp-player mp-player--audio" aria-label={t('player.aria.audio', { title: stream.title })}>
       {/* The element is keyed by path so a direct retry gets an element the audio graph has never touched. */}
       <audio key={isProtected ? 'relay' : 'direct'} ref={setAudioEl} preload="metadata" />
       {/* The next queued track loads its beginning now, muted and silent, so the
@@ -105,27 +105,27 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ stream, src, isProtect
         </div>
         <div className="mp-audio-meta">
           <strong>{stream.title}</strong>
-          <span className="scout-muted">{stream.provider} · {stream.format}{queue && queue.length > 1 ? ` · track ${queue.position + 1} of ${queue.length}` : ''}</span>
+          <span className="scout-muted">{stream.provider} · {stream.format}{queue && queue.length > 1 ? t('player.trackOf', { position: queue.position + 1, count: queue.length }) : ''}</span>
           <span className={`mp-badge ${isProtected ? 'mp-badge--protected' : 'mp-badge--direct'}`}>
             {isProtected ? <ShieldCheck size={12} /> : <ShieldOff size={12} />}
-            {isProtected ? 'Protected relay · Shield on' : 'Direct CDN · filtering off'}
+            {isProtected ? t('player.protectedRelayShield') : t('player.directCdn')}
           </span>
           {state.error && (
             <div className="mp-audio-error" role="alert">
               <p>{state.error}</p>
-              <button type="button" className="btn" onClick={onRetryProtected}><RotateCw size={13} aria-hidden="true" /> Retry with ad filtering</button>
+              <button type="button" className="btn" onClick={onRetryProtected}><RotateCw size={13} aria-hidden="true" /> {t('player.retry')}</button>
             </div>
           )}
         </div>
         <div className="mp-audio-meter" aria-hidden="true">
-          {meterable ? <canvas ref={canvasRef} width={480} height={96} /> : <span className="scout-muted">Level meter is only available through the relay.</span>}
+          {meterable ? <canvas ref={canvasRef} width={480} height={96} /> : <span className="scout-muted">{t('player.meterRelayOnly')}</span>}
         </div>
       </div>
       {statsOpen && (
         <dl className="mp-audio-stats">
-          <dt>Engine</dt><dd>{state.engine === 'hls.js' ? 'hls.js (MSE)' : state.engine === 'native' ? 'Browser decoder' : '—'}</dd>
-          <dt>Buffer ahead</dt><dd>{state.stats.bufferAheadSec.toFixed(1)} s</dd>
-          <dt>Source</dt><dd className="mp-panel-url">{stream.streamUrl}</dd>
+          <dt>{t('audioStats.engine')}</dt><dd>{state.engine === 'hls.js' ? t('player.stat.hls') : state.engine === 'native' ? t('player.stat.native') : t('player.stat.none')}</dd>
+          <dt>{t('audioStats.buffer')}</dt><dd>{t('player.stat.bufferValue', { seconds: state.stats.bufferAheadSec.toFixed(1) })}</dd>
+          <dt>{t('audioStats.source')}</dt><dd className="mp-panel-url">{stream.streamUrl}</dd>
         </dl>
       )}
       <ControlBar

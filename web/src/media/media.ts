@@ -1,4 +1,5 @@
 import { ActiveRelayStream, MediaKind } from '../types';
+import { Translate } from '../i18n/core';
 import { FORMATS, FormatEntry } from './formats.generated';
 
 // Media-kind detection, relay addressing and the small formatting helpers the
@@ -66,16 +67,16 @@ export const kindOf = (stream: ActiveRelayStream): MediaKind => stream.kind ?? d
 // Shield to the target, strips cookies and rewrites HLS playlists onto itself.
 export const relayUrl = (raw: string): string => `/api/relay/stream?url=${encodeURIComponent(raw)}`;
 
-export const KIND_LABELS: Record<MediaKind, string> = {
-  video: 'Video',
-  audio: 'Audio',
-  image: 'Image',
-  document: 'Document',
+export const KIND_KEYS: Record<MediaKind, 'kind.video' | 'kind.audio' | 'kind.image' | 'kind.document'> = {
+  video: 'kind.video',
+  audio: 'kind.audio',
+  image: 'kind.image',
+  document: 'kind.document',
 };
 
 // A pasted address becomes a relay item when its extension names a media
 // type the console presents itself; anything else is a page for the sandbox.
-export const streamFromPastedUrl = (raw: string): ActiveRelayStream | null => {
+export const streamFromPastedUrl = (raw: string, t: Translate): ActiveRelayStream | null => {
   const ext = extensionOf(raw);
   if (!VIDEO_EXT.has(ext) && !AUDIO_EXT.has(ext) && !IMAGE_EXT.has(ext) && !DOCUMENT_EXT.has(ext)) return null;
   const kind = detectMediaKind(raw);
@@ -86,8 +87,8 @@ export const streamFromPastedUrl = (raw: string): ActiveRelayStream | null => {
   return {
     title: name,
     streamUrl: raw,
-    provider: host ? `Pasted address · ${host}` : 'Pasted address',
-    format: ext === 'm3u8' ? 'HLS (.m3u8)' : ext === 'mpd' ? 'DASH (.mpd)' : `${KIND_LABELS[kind]} (.${ext})`,
+    provider: host ? t('pasted.addressHost', { host }) : t('pasted.address'),
+    format: ext === 'm3u8' ? 'HLS (.m3u8)' : ext === 'mpd' ? 'DASH (.mpd)' : `${t(KIND_KEYS[kind])} (.${ext})`,
     useZeroTrustProxy: true,
     kind,
   };

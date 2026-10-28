@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Shield, ShieldCheck, Cpu, Network, Wifi, WifiOff, Loader } from 'lucide-react';
+import { Shield, ShieldCheck, Cpu, Network, Wifi, WifiOff, Loader, Languages } from 'lucide-react';
+import { LOCALES, Locale, Translate, useI18n } from './i18n/core';
 import { ActiveRelayStream, SearchKind, SearchKnownEvent, SearchMergedEvent, SearchReport, TelemetrySnapshot, VaultStatus } from './types';
 import { readSearchStream, searchStreamUrl } from './searchStream';
 import { VaultViewport } from './components/VaultViewport';
@@ -22,23 +23,27 @@ type WsConnection =
   | { phase: 'live' }
   | { phase: 'reconnecting'; retryInMs?: number };
 
-const describeWsConnection = (conn: WsConnection): { label: string; title: string } => {
+const describeWsConnection = (conn: WsConnection, t: Translate): { label: string; title: string } => {
   switch (conn.phase) {
     case 'live':
-      return { label: 'Live', title: 'Console WebSocket open: frames and shield events are streaming.' };
+      return { label: t('app.console.live'), title: t('app.console.liveTitle') };
     case 'reconnecting': {
       if (conn.retryInMs === undefined) {
-        return { label: 'Reconnecting…', title: 'Console WebSocket closed; a reconnect attempt is in flight.' };
+        return { label: t('app.console.reconnecting'), title: t('app.console.reconnectingTitle') };
       }
       const secs = `${Math.round(conn.retryInMs / 1000)}s`;
-      return { label: `Reconnecting in ${secs}`, title: `Console WebSocket closed; retrying in ${secs}.` };
+      return {
+        label: t('app.console.reconnectingIn', { secs }),
+        title: t('app.console.reconnectingInTitle', { secs }),
+      };
     }
     default:
-      return { label: 'Connecting', title: 'Opening the console WebSocket (/api/ws).' };
+      return { label: t('app.console.connecting'), title: t('app.console.connectingTitle') };
   }
 };
 
 export const App: React.FC = () => {
+  const { t, locale, setLocale } = useI18n();
   const [vault, setVault] = useState<VaultStatus>({
     active: false,
     theaterActive: false,
@@ -225,7 +230,7 @@ export const App: React.FC = () => {
         });
       } catch (error) {
         if (current()) {
-          setSearchError(error instanceof Error ? error.message : 'Could not run the search. Check the server connection and try again.');
+          setSearchError(error instanceof Error ? error.message : t('app.error.search'));
         }
       } finally {
         if (current()) {
@@ -234,7 +239,7 @@ export const App: React.FC = () => {
         }
       }
     },
-    [fetchStatus]
+    [fetchStatus, t]
   );
 
   const handleRunBenchmark = async () => {
@@ -246,14 +251,14 @@ export const App: React.FC = () => {
     setMerged(null);
     try {
       const res = await fetch('/api/shield/benchmark', { method: 'POST' });
-      if (!res.ok) throw new Error(`The ad-blocking benchmark failed (${res.status}).`);
+      if (!res.ok) throw new Error(t('app.error.benchmark', { status: res.status }));
       const data = await res.json();
       if (sequence === searchSequenceRef.current) {
         if (data.report) setReport(data.report);
         if (data.shield) setShield(data.shield);
       }
     } catch (error) {
-      if (sequence === searchSequenceRef.current) setSearchError(error instanceof Error ? error.message : 'Could not run the ad-blocking benchmark.');
+      if (sequence === searchSequenceRef.current) setSearchError(error instanceof Error ? error.message : t('app.error.benchmarkGeneric'));
     } finally {
       if (sequence === searchSequenceRef.current) setSearching(false);
     }
@@ -271,18 +276,18 @@ export const App: React.FC = () => {
       });
       if (!res.ok) {
         const detail = await res.json().catch(() => null);
-        throw new Error(detail?.error || `The protected browser could not open this site (${res.status}). Try again.`);
+        throw new Error(detail?.error || t('app.error.launch', { status: res.status }));
       }
       const data = await res.json();
-      if (!data.vault?.active) throw new Error('The protected browser did not start. Try opening the site again.');
-      if (data.vault.adBlockingEnabled !== true) throw new Error('The browser could not confirm that ad blocking is enabled. Try opening the site again.');
+      if (!data.vault?.active) throw new Error(t('app.error.launchNoStart'));
+      if (data.vault.adBlockingEnabled !== true) throw new Error(t('app.error.launchNoAdBlock'));
       if (data.vault) setVault(data.vault);
       if (data.shield) setShield(data.shield);
       setLatestFrame(null);
       setViewportMode('rbi');
       viewportRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (error) {
-      setLaunchError(error instanceof Error ? error.message : 'Could not open the site in the protected browser. Check the server connection and try again.');
+      setLaunchError(error instanceof Error ? error.message : t('app.error.launchGeneric'));
     } finally {
       setLaunchingUrl(null);
     }
@@ -345,7 +350,7 @@ export const App: React.FC = () => {
     return null;
   };
 
-  const wsBadge = describeWsConnection(wsConnection);
+  const wsBadge = describeWsConnection(wsConnection, t);
   const wsBadgeTone = { connecting: '', live: 'live', reconnecting: 'amber' }[wsConnection.phase];
 
   return (
@@ -355,9 +360,7 @@ export const App: React.FC = () => {
           <img className="brand-logo" src="/brand/itemba-mark.svg" alt="" width={34} height={34} />
           <div>
             <div className="brand-title">ITEMBA NET</div>
-            <div className="brand-subtitle">
-              itemba-scout (CDP Verifier) • itemba-vault (WebRTC RBI & Stream Relay) • itemba-shield (3-Layer Ad Engine)
-            </div>
+            <div className="brand-subtitle">{t('app.brand.subtitle')}</div>
           </div>
         </div>
 
@@ -367,14 +370,14 @@ export const App: React.FC = () => {
             className={`pill-badge ${preferDocker ? 'cyan' : 'live'}`}
             style={{ cursor: 'pointer' }}
             onClick={() => setPreferDocker(!preferDocker)}
-            title="Toggle Vault Sandbox Runtime (Hybrid Local Isolated Chromium vs Docker Linux Container)"
+            title={t('app.runtime.title')}
           >
             <Cpu size={12} />
-            Runtime: {preferDocker ? 'Docker Container (Local Fallback)' : 'Isolated Chromium Engine'}
+            {t('app.runtime.label')} {preferDocker ? t('app.runtime.docker') : t('app.runtime.chromium')}
           </button>
 
           <span className="pill-badge cyan">
-            <Shield size={12} /> Threats Blocked: <strong>{shield.totalBlocked}</strong>
+            <Shield size={12} /> {t('app.threats')} <strong>{shield.totalBlocked}</strong>
           </span>
 
           <span
@@ -390,21 +393,37 @@ export const App: React.FC = () => {
             ) : (
               <Loader size={12} />
             )}
-            Console: <strong>{wsBadge.label}</strong>
+            {t('app.console')} <strong>{wsBadge.label}</strong>
           </span>
 
           <button type="button" className="btn" onClick={() => setShowTopology(true)}>
-            <Network size={13} /> Architecture Topology
+            <Network size={13} /> {t('app.topology')}
           </button>
 
           <button
             type="button"
             className="btn"
             onClick={() => setShowTrust(true)}
-            title="What ITEMBA NET records, sends and claims about the media it finds"
+            title={t('app.trust.title')}
           >
-            <ShieldCheck size={13} /> Data &amp; trust
+            <ShieldCheck size={13} /> {t('app.trust')}
           </button>
+
+          <label className="language-select" title={t('app.language')}>
+            <Languages size={13} aria-hidden="true" />
+            <span className="visually-hidden">{t('app.language')}</span>
+            <select
+              value={locale}
+              aria-label={t('app.language')}
+              onChange={(event) => setLocale(event.target.value as Locale)}
+            >
+              {LOCALES.map((entry) => (
+                <option key={entry.id} value={entry.id} lang={entry.id} dir={entry.dir}>
+                  {entry.label}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
       </header>
 

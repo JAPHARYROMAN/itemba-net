@@ -60,7 +60,7 @@
 }
 
 .ladder-card-main .btn {
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 
 .ladder-badge {
@@ -82,8 +82,8 @@
 .ladder-level-3 { color: #34d399; border-color: rgba(16, 185, 129, 0.45); background: rgba(16, 185, 129, 0.1); }
 .ladder-level-4 { color: var(--accent-purple); border-color: rgba(168, 85, 247, 0.45); background: rgba(168, 85, 247, 0.1); }
 
-.ladder-origin-index { border-left: 3px solid var(--accent-cyan); }
-.ladder-origin-both { border-left: 3px solid var(--accent-emerald); }
+.ladder-origin-index { border-inline-start: 3px solid var(--accent-cyan); }
+.ladder-origin-both { border-inline-start: 3px solid var(--accent-emerald); }
 
 .ladder-evidence {
   margin-top: 8px;
