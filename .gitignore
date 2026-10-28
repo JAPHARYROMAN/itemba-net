@@ -11,3 +11,5 @@ web/dist/
 
 # Local dev-server launch configuration (carries the local database URL)
 .claude/launch.json
+web/test-results/
+web/playwright-report/

@@ -627,7 +627,7 @@ body {
 
 /* The format matrix: one table per kind, marks for what this host can do. */
 .format-matrix-details { margin-bottom: 10px; }
-.format-matrix { display: grid; gap: 12px; margin-top: 8px; }
+.format-matrix { display: grid; gap: 12px; margin-top: 8px; overflow-x: auto; }
 .format-table { width: 100%; border-collapse: collapse; font-size: 11px; line-height: 1.5; }
 .format-table caption { text-align: start; color: #cbd5e1; font-weight: 600; padding: 4px 0; }
 .format-table th, .format-table td { text-align: start; vertical-align: top; padding: 4px 8px 4px 0; border-top: 1px solid #1e293b; }

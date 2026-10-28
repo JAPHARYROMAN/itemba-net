@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Shield, ShieldCheck, Cpu, Network, Wifi, WifiOff, Loader, Languages } from 'lucide-react';
 import { LOCALES, Locale, Translate, useI18n } from './i18n/core';
 import { ActiveRelayStream, SearchKind, SearchKnownEvent, SearchMergedEvent, SearchReport, TelemetrySnapshot, VaultStatus } from './types';
@@ -7,8 +7,11 @@ import { VaultViewport } from './components/VaultViewport';
 import './ladder.css';
 import { SearchScoutPanel } from './components/SearchScoutPanel';
 import { ShieldTelemetry } from './components/ShieldTelemetry';
-import { SystemTopologyModal } from './components/SystemTopologyModal';
-import { TrustDataModal } from './components/TrustDataModal';
+
+// The modals and the player carry copy and code an operator does not need
+// until they ask for it; lazy keeps them out of the entry chunk.
+const SystemTopologyModal = lazy(() => import('./components/SystemTopologyModal').then(({ SystemTopologyModal }) => ({ default: SystemTopologyModal })));
+const TrustDataModal = lazy(() => import('./components/TrustDataModal').then(({ TrustDataModal }) => ({ default: TrustDataModal })));
 
 // Backoff for reopening the console socket: it starts at the minimum, doubles
 // after each failed attempt up to the cap, and resets once a connection opens.
@@ -467,8 +470,10 @@ export const App: React.FC = () => {
         />
       </div>
 
-      {showTopology && <SystemTopologyModal onClose={() => setShowTopology(false)} />}
-      {showTrust && <TrustDataModal onClose={() => setShowTrust(false)} />}
+      <Suspense fallback={null}>
+        {showTopology && <SystemTopologyModal onClose={() => setShowTopology(false)} />}
+        {showTrust && <TrustDataModal onClose={() => setShowTrust(false)} />}
+      </Suspense>
     </div>
   );
 };

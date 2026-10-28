@@ -1,5 +1,6 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { MessageKey, useI18n } from '../i18n/core';
+import { useDialog } from './useDialog';
 
 interface TrustDataModalProps {
   onClose: () => void;
@@ -25,22 +26,17 @@ const SECTIONS: Section[] = [
 
 export const TrustDataModal: React.FC<TrustDataModalProps> = ({ onClose }) => {
   const { t } = useI18n();
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
+  const dialogRef = useDialog<HTMLDivElement>(onClose);
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div
+        ref={dialogRef}
         className="modal-card"
         role="dialog"
         aria-modal="true"
         aria-labelledby="trust-data-title"
+        tabIndex={-1}
         onClick={(event) => event.stopPropagation()}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 18 }}>

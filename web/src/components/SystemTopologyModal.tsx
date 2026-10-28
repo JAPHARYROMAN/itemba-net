@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { MessageKey, useI18n } from '../i18n/core';
+import { useDialog } from './useDialog';
 
 interface SystemTopologyModalProps {
   onClose: () => void;
@@ -25,22 +26,31 @@ const TOPOLOGY_STEPS: TopologyStep[] = [
 export const SystemTopologyModal: React.FC<SystemTopologyModalProps> = ({ onClose }) => {
   const { t } = useI18n();
   const [activeStep, setActiveStep] = useState<number>(1);
+  const dialogRef = useDialog<HTMLDivElement>(onClose);
 
   const current = TOPOLOGY_STEPS.find((step) => step.step === activeStep) || TOPOLOGY_STEPS[0];
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-card" onClick={(event) => event.stopPropagation()}>
+      <div
+        ref={dialogRef}
+        className="modal-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="topology-title"
+        tabIndex={-1}
+        onClick={(event) => event.stopPropagation()}
+      >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
           <div>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: '#f8fafc' }}>
+            <h2 id="topology-title" style={{ fontSize: 18, fontWeight: 800, color: '#f8fafc' }}>
               {t('topology.title')}
             </h2>
             <p style={{ fontSize: 12.5, color: '#94a3b8', marginTop: 2 }}>
               {t('topology.intro')}
             </p>
           </div>
-          <button className="btn" onClick={onClose}>
+          <button type="button" className="btn" onClick={onClose}>
             ✕ {t('app.close')}
           </button>
         </div>
@@ -57,8 +67,10 @@ export const SystemTopologyModal: React.FC<SystemTopologyModalProps> = ({ onClos
           {TOPOLOGY_STEPS.map((item) => {
             const isSelected = item.step === activeStep;
             return (
-              <div
+              <button
                 key={item.step}
+                type="button"
+                aria-pressed={isSelected}
                 onClick={() => setActiveStep(item.step)}
                 style={{
                   background: isSelected ? 'rgba(56, 189, 248, 0.12)' : '#111726',
@@ -67,10 +79,15 @@ export const SystemTopologyModal: React.FC<SystemTopologyModalProps> = ({ onClos
                   padding: 12,
                   cursor: 'pointer',
                   transition: 'all 0.15s',
+                  textAlign: 'start',
+                  width: '100%',
+                  font: 'inherit',
+                  color: 'inherit',
                 }}
               >
-                <div
+                <span
                   style={{
+                    display: 'block',
                     fontSize: 10,
                     fontFamily: 'monospace',
                     fontWeight: 800,
@@ -79,9 +96,9 @@ export const SystemTopologyModal: React.FC<SystemTopologyModalProps> = ({ onClos
                   }}
                 >
                   {t('topology.stage', { step: item.step })} • {item.daemon}
-                </div>
-                <div style={{ fontSize: 12.5, fontWeight: 700, color: '#f1f5f9' }}>{t(item.title)}</div>
-              </div>
+                </span>
+                <span style={{ display: 'block', fontSize: 12.5, fontWeight: 700, color: '#f1f5f9' }}>{t(item.title)}</span>
+              </button>
             );
           })}
         </div>

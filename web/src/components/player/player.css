@@ -1128,3 +1128,15 @@
     height: auto;
   }
 }
+
+/* The player's fades and slides are decoration; an operator who asks the
+   system for reduced motion gets none of them. */
+@media (prefers-reduced-motion: reduce) {
+  .mp-player *,
+  .mp-player *::before,
+  .mp-player *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

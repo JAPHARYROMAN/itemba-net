@@ -1,0 +1,134 @@
+import { expect, test, type Page } from '@playwright/test';
+
+// One shelf answer for every test: a single chart title, so result chrome
+// (markets, release date, the action line) renders without a backend.
+const DISCOVERY = {
+  mode: 'popular',
+  region: 'ALL',
+  checkedAt: '2026-10-28T12:29:00Z',
+  cached: true,
+  detail: '',
+  providers: [{ name: 'Apple movie charts', status: 'ok', detail: '' }],
+  items: [
+    {
+      id: 'test-pattern-feature',
+      title: 'Test Pattern Feature',
+      query: 'Test Pattern Feature 2018',
+      sourceUrl: 'https://tv.apple.com/us/movie/test-pattern-feature/umc.cmc.test',
+      sourceName: 'Apple movie charts',
+      markets: ['US'],
+      releaseDate: '2018-09-20',
+    },
+  ],
+};
+
+const stubConsole = async (page: Page) => {
+  await page.route('**/api/status', (route) => route.fulfill({ json: {} }));
+  await page.route('**/api/scout/discover**', (route) => route.fulfill({ json: DISCOVERY }));
+  await page.route('**/api/formats', (route) =>
+    route.fulfill({ json: { host: { converters: [], hls: true, browser: false }, formats: [] } }),
+  );
+  await page.route('**/api/vault/**', (route) => route.fulfill({ status: 503, body: '' }));
+};
+
+const shelfCard = (page: Page) => page.getByRole('button', { name: /Test Pattern Feature/ });
+
+test.beforeEach(async ({ page }) => {
+  await stubConsole(page);
+});
+
+test('opens in English with the shelf rendered', async ({ page }) => {
+  await page.goto('/');
+
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
+  await expect(page.getByRole('heading', { level: 2, name: 'Find full-length movies across the web.' })).toBeVisible();
+  await expect(shelfCard(page)).toBeVisible();
+  await expect(shelfCard(page)).toContainText('Find watch options');
+  await expect(page.getByRole('combobox', { name: 'Language' })).toHaveValue('en');
+});
+
+test('switches to Arabic, mirrors the page and keeps the shelf', async ({ page }) => {
+  let discoverRequests = 0;
+  page.on('request', (request) => {
+    if (request.url().includes('/api/scout/discover')) discoverRequests += 1;
+  });
+
+  await page.goto('/');
+  await expect(shelfCard(page)).toContainText('Find watch options');
+  expect(discoverRequests).toBe(1);
+
+  await page.getByRole('combobox', { name: 'Language' }).selectOption('ar');
+
+  await expect(page.locator('html')).toHaveAttribute('lang', 'ar');
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+  await expect(page.getByRole('heading', { level: 2, name: 'اعثر على أفلام كاملة عبر الويب.' })).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'اللغة' })).toHaveValue('ar');
+  await expect(page.getByRole('combobox', { name: 'تفضيل المنطقة (اختياري)' })).toBeVisible();
+  await expect(shelfCard(page)).toContainText('اعثر على خيارات المشاهدة');
+
+  // A language switch re-renders the shelf; it must not restart discovery.
+  expect(discoverRequests).toBe(1);
+});
+
+test('remembers the chosen locale across a reload', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('combobox', { name: 'Language' }).selectOption('ar');
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+
+  await page.reload();
+
+  await expect(page.locator('html')).toHaveAttribute('lang', 'ar');
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+  await expect(page.getByRole('combobox', { name: 'اللغة' })).toHaveValue('ar');
+});
+
+test('switches to Kiswahili and returns to left-to-right', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('combobox', { name: 'Language' }).selectOption('ar');
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+
+  await page.getByRole('combobox', { name: 'اللغة' }).selectOption('sw');
+
+  await expect(page.locator('html')).toHaveAttribute('lang', 'sw');
+  await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
+  await expect(page.getByRole('heading', { level: 2, name: 'Pata filamu kamili kote mtandaoni.' })).toBeVisible();
+  await expect(shelfCard(page)).toContainText('Pata chaguo za kutazama');
+});
+
+test('closes the data and trust dialog with Escape and restores focus', async ({ page }) => {
+  await page.goto('/');
+  const trigger = page.getByRole('button', { name: 'Data & trust' });
+  await trigger.click();
+
+  const dialog = page.getByRole('dialog', { name: 'Data, evidence and trust' });
+  await expect(dialog).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Close data and trust' })).toBeFocused();
+
+  await page.keyboard.press('Escape');
+
+  await expect(dialog).toBeHidden();
+  await expect(trigger).toBeFocused();
+});
+
+test('traps focus in the topology dialog and restores it on Escape', async ({ page }) => {
+  await page.goto('/');
+  const trigger = page.getByRole('button', { name: 'Architecture Topology' });
+  await trigger.click();
+
+  const dialog = page.getByRole('dialog', { name: /Interactive Isolation Topology/ });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('button', { name: /Close/ })).toBeFocused();
+
+  // Shift+Tab from the first control wraps to the last, not out of the page.
+  await page.keyboard.press('Shift+Tab');
+  await expect(dialog.getByRole('button', { name: /STAGE 05/ })).toBeFocused();
+
+  await dialog.getByRole('button', { name: /Layer 1/ }).click();
+  await expect(dialog).toContainText('Container / Socket Boundary');
+
+  await page.keyboard.press('Escape');
+
+  await expect(dialog).toBeHidden();
+  await expect(trigger).toBeFocused();
+});

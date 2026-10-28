@@ -1,10 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, Globe, MonitorPlay, Play, RotateCw, ShieldCheck, Sparkles, Trash2, Tv } from 'lucide-react';
 import { ActiveRelayStream, SniffedStream, VaultStatus } from '../types';
 import { streamFromPastedUrl } from '../media/media';
 import { Translate, useI18n } from '../i18n/core';
-import { MediaStage } from './player/MediaStage';
 import { RbiViewer } from './RbiViewer';
+
+// The player pulls in hls.js and the media viewers; it loads when the
+// operator switches to the media stage, not with the console shell.
+const MediaStage = lazy(() => import('./player/MediaStage').then(({ MediaStage }) => ({ default: MediaStage })));
 
 interface VaultViewportProps {
   vault: VaultStatus;
@@ -177,7 +180,9 @@ export const VaultViewport: React.FC<VaultViewportProps> = ({
       )}
 
       {viewportMode === 'relay' ? (
-        <MediaStage stream={activeRelay} onSelectStream={onPlayRelayStream} onOpenInVault={(url) => onLaunchUrl(url, false)} />
+        <Suspense fallback={<div className="media-stage media-stage--empty" aria-busy="true" />}>
+          <MediaStage stream={activeRelay} onSelectStream={onPlayRelayStream} onOpenInVault={(url) => onLaunchUrl(url, false)} />
+        </Suspense>
       ) : (
         <div className="viewport-stage">
           {vault.active ? (
