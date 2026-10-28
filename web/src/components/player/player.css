@@ -1013,6 +1013,10 @@
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /* Page titles are often in the opposite language to the console, so let the
+     title's own first strong character decide where it starts. */
+  unicode-bidi: plaintext;
+  text-align: start;
 }
 
 .rbi-top-actions {
@@ -1126,6 +1130,18 @@
   .media-stage--video.media-stage--theater .media-stage-view {
     aspect-ratio: 16 / 9;
     height: auto;
+  }
+
+  /* On a 16:9 phone stage the header alone is over half the height; an error
+     keeps only the message and its retry action. */
+  .mp-player--error .mp-header {
+    display: none;
+  }
+
+  .mp-player--error .mp-overlay--error {
+    gap: 10px;
+    padding: 12px;
+    font-size: 12px;
   }
 }
 

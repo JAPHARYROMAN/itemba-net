@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import Hls from 'hls.js';
+import type Hls from 'hls.js';
 import { clamp, loadPlayerPrefs, savePlayerPrefs } from './media';
 import { Translate } from '../i18n/core';
+
+// hls.js is half a megabyte, so it is fetched only when an HLS playlist is
+// actually played. Images, documents, audio and direct MP4s never load it.
+type HlsConstructor = typeof import('hls.js').default;
 
 // The playback engine behind the video and audio players. It attaches one
 // HTMLMediaElement to one source, through hls.js for HLS playlists and the
@@ -222,7 +226,9 @@ export const useMediaEngine = (
     setState({
       ...INITIAL_STATE,
       status: 'loading',
-      engine: source.hls && Hls.isSupported() ? 'hls.js' : 'native',
+      // The HLS engine is chosen once its module arrives; until then the
+      // source is loading and no engine has been selected.
+      engine: source.hls ? null : 'native',
       volume: prefs.volume,
       muted: prefs.muted,
       rate: prefs.rate,
@@ -317,11 +323,20 @@ export const useMediaEngine = (
     });
 
     let hls: Hls | null = null;
-    if (source.hls && Hls.isSupported()) {
-      hls = new Hls({ enableWorker: true, backBufferLength: 90 });
-      hlsRef.current = hls;
 
-      hls.on(Hls.Events.MANIFEST_PARSED, (_event, data) => {
+    const startNative = () => {
+      safePatch({ engine: 'native' });
+      element.src = source.url;
+      element.load();
+      tryAutoplay();
+    };
+
+    const startHls = (HlsLib: HlsConstructor) => {
+      const instance = new HlsLib({ enableWorker: true, backBufferLength: 90 });
+      hls = instance;
+      hlsRef.current = instance;
+
+      instance.on(HlsLib.Events.MANIFEST_PARSED, (_event, data) => {
         const levels: LevelOption[] = data.levels.map((level, index) => {
           const bitrateKbps = Math.round((level.bitrate || 0) / 1000);
           return { id: index, width: level.width || 0, height: level.height || 0, bitrateKbps, label: levelLabel(level.height || 0, bitrateKbps, optionsRef.current.translate) };
@@ -329,57 +344,71 @@ export const useMediaEngine = (
         safePatch({ levels, levelChoice: -1 });
         tryAutoplay();
       });
-      hls.on(Hls.Events.LEVEL_SWITCHED, (_event, data) => {
-        const level = hls?.levels[data.level];
+      instance.on(HlsLib.Events.LEVEL_SWITCHED, (_event, data) => {
+        const level = instance.levels[data.level];
         safePatch({ activeLevel: data.level, stats: { ...stateRef.current.stats, levelBitrateKbps: level ? Math.round(level.bitrate / 1000) : null } });
       });
-      hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, (_event, data) => {
+      instance.on(HlsLib.Events.AUDIO_TRACKS_UPDATED, (_event, data) => {
         safePatch({
           audioTracks: data.audioTracks.map((track, index) => ({ id: track.id, label: trackLabel(track.name, track.lang, index, optionsRef.current.translate), lang: track.lang || undefined })),
-          audioTrack: hls?.audioTrack ?? -1,
+          audioTrack: instance.audioTrack,
         });
       });
-      hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, (_event, data) => safePatch({ audioTrack: data.id }));
-      hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED, (_event, data) => {
+      instance.on(HlsLib.Events.AUDIO_TRACK_SWITCHED, (_event, data) => safePatch({ audioTrack: data.id }));
+      instance.on(HlsLib.Events.SUBTITLE_TRACKS_UPDATED, (_event, data) => {
         if (data.subtitleTracks.length === 0) {
           subtitleModeRef.current = 'native';
           refreshNativeSubtitles();
           return;
         }
         subtitleModeRef.current = 'hls';
-        if (hls) hls.subtitleDisplay = false;
+        instance.subtitleDisplay = false;
         safePatch({
           subtitleTracks: data.subtitleTracks.map((track, index) => ({ id: track.id, label: trackLabel(track.name, track.lang, index, optionsRef.current.translate), lang: track.lang || undefined })),
           subtitleTrack: -1,
         });
       });
-      hls.on(Hls.Events.SUBTITLE_TRACK_SWITCH, (_event, data) => {
-        if (subtitleModeRef.current === 'hls') safePatch({ subtitleTrack: hls?.subtitleDisplay ? data.id : -1 });
+      instance.on(HlsLib.Events.SUBTITLE_TRACK_SWITCH, (_event, data) => {
+        if (subtitleModeRef.current === 'hls') safePatch({ subtitleTrack: instance.subtitleDisplay ? data.id : -1 });
       });
-      hls.on(Hls.Events.FRAG_BUFFERED, (_event, data) => {
+      instance.on(HlsLib.Events.FRAG_BUFFERED, (_event, data) => {
         const loading = data.frag.stats?.loading;
         if (loading && loading.end > 0 && loading.start > 0) {
           safePatch({ stats: { ...stateRef.current.stats, lastFragmentLoadMs: Math.round(loading.end - loading.start) } });
         }
       });
-      hls.on(Hls.Events.ERROR, (_event, data) => {
+      instance.on(HlsLib.Events.ERROR, (_event, data) => {
         if (!data.fatal) return;
-        hls?.stopLoad();
+        instance.stopLoad();
         element.pause();
-        const detail = data.type === Hls.ErrorTypes.NETWORK_ERROR
+        const detail = data.type === HlsLib.ErrorTypes.NETWORK_ERROR
           ? optionsRef.current.translate('player.error.hlsNetwork')
-          : data.type === Hls.ErrorTypes.MEDIA_ERROR
+          : data.type === HlsLib.ErrorTypes.MEDIA_ERROR
             ? optionsRef.current.translate('player.error.hlsMedia')
             : '';
         fail(`${optionsRef.current.failureMessage}${detail}`);
       });
 
-      hls.loadSource(source.url);
-      hls.attachMedia(element);
+      instance.loadSource(source.url);
+      instance.attachMedia(element);
+    };
+
+    if (source.hls) {
+      void import('hls.js')
+        .then((module) => {
+          if (disposed) return;
+          if (module.default.isSupported()) {
+            safePatch({ engine: 'hls.js' });
+            startHls(module.default);
+          } else {
+            startNative();
+          }
+        })
+        .catch(() => {
+          if (!disposed) fail(optionsRef.current.failureMessage);
+        });
     } else {
-      element.src = source.url;
-      element.load();
-      tryAutoplay();
+      startNative();
     }
 
     const statsTimer = window.setInterval(() => {

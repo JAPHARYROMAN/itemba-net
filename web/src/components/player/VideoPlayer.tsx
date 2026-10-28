@@ -233,7 +233,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   return (
     <div
       ref={rootRef}
-      className={`mp-player mp-player--video ${idle ? 'mp-player--idle' : ''} ${fullscreen ? 'mp-player--fullscreen' : ''}`}
+      className={`mp-player mp-player--video ${idle ? 'mp-player--idle' : ''} ${fullscreen ? 'mp-player--fullscreen' : ''} ${errorMessage ? 'mp-player--error' : ''}`}
       tabIndex={0}
       aria-label={t('player.aria.video', { title: stream.title })}
       onKeyDown={onKeyDown}
@@ -324,22 +324,26 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         </div>
       )}
 
-      <ControlBar
-        state={state}
-        actions={actions}
-        features={{ quality: true, captions: true, audioTracks: true, pictureInPicture: pipSupported, theater: true, fullscreen: true, stats: true, help: true }}
-        queue={queue}
-        theater={theater}
-        onToggleTheater={onToggleTheater}
-        fullscreen={fullscreen}
-        onToggleFullscreen={toggleFullscreen}
-        pictureInPicture={pip}
-        onTogglePictureInPicture={togglePip}
-        statsOpen={statsOpen}
-        onToggleStats={() => setStatsOpen((open) => !open)}
-        helpOpen={helpOpen}
-        onToggleHelp={() => setHelpOpen((open) => !open)}
-      />
+      {/* A fatal error replaces the transport: on a phone-sized stage the
+          overlay and the wrapped control rows would otherwise collide. */}
+      {!errorMessage && (
+        <ControlBar
+          state={state}
+          actions={actions}
+          features={{ quality: true, captions: true, audioTracks: true, pictureInPicture: pipSupported, theater: true, fullscreen: true, stats: true, help: true }}
+          queue={queue}
+          theater={theater}
+          onToggleTheater={onToggleTheater}
+          fullscreen={fullscreen}
+          onToggleFullscreen={toggleFullscreen}
+          pictureInPicture={pip}
+          onTogglePictureInPicture={togglePip}
+          statsOpen={statsOpen}
+          onToggleStats={() => setStatsOpen((open) => !open)}
+          helpOpen={helpOpen}
+          onToggleHelp={() => setHelpOpen((open) => !open)}
+        />
+      )}
     </div>
   );
 };

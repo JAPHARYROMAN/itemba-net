@@ -2,6 +2,10 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Activity, Maximize, Maximize2, Minimize, ShieldCheck } from 'lucide-react';
 import { VaultStatus } from '../types';
 import { useI18n } from '../i18n/core';
+// The chrome overlay lives beside the player styles. Import it here too so the
+// protected-browser tab is laid out correctly even when the lazily loaded
+// media stage has never been opened.
+import './player/player.css';
 
 interface RbiViewerProps {
   vault: VaultStatus;
