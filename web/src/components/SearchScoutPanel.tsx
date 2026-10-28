@@ -5,6 +5,7 @@ import { RankedLocations } from './RankedLocations';
 import { FormatMatrix } from './FormatMatrix';
 import { IndexResolution } from './IndexResolution';
 import { fingerprintLabel, identityLabel } from '../identity';
+import { formatDateTime, regionName } from '../locale';
 import { isConvertibleUrl, isPdfUrl } from '../media/media';
 
 interface SearchScoutPanelProps {
@@ -26,7 +27,6 @@ const REGIONS = [
   ['IN', 'India'], ['ZA', 'South Africa'], ['KE', 'Kenya'], ['TZ', 'Tanzania'],
   ['CA', 'Canada'], ['AU', 'Australia'], ['DE', 'Germany'], ['FR', 'France'],
 ];
-const COUNTRY_NAMES = typeof Intl.DisplayNames === 'function' ? new Intl.DisplayNames(['en'], { type: 'region' }) : null;
 const FREE_CATALOG_EXAMPLES = ['Seder-Masochism 2018', 'Planetary Defenders 2025', 'The Secret Wife 2024'];
 const PROVIDER_MOVIE_BASES = new Set(['filmzie_movie_metadata', 'nasa_movie_metadata', 'creator_movie_metadata', 'fawesome_movie_metadata', 'nfb_movie_metadata']);
 const ACCESS_LABELS = {
@@ -65,8 +65,7 @@ const marketCode = (market?: string): string | null => {
 const countryName = (country?: string): string | null => {
   const code = marketCode(country);
   if (!code) return null;
-  const name = COUNTRY_NAMES?.of(code) ?? REGIONS.find(([region]) => region === code)?.[1];
-  return name && name !== code && name !== 'Unknown Region' ? name : null;
+  return regionName(code, REGIONS.find(([region]) => region === code)?.[1]);
 };
 
 const accessSummary = (source: VerifiedSource): string => {
@@ -81,11 +80,11 @@ const accessSummary = (source: VerifiedSource): string => {
   return source.accessType === 'free' ? 'Listed as free; current movie offer unconfirmed.' : 'Price and current movie offer unconfirmed.';
 };
 
-const availabilityLabel = (source: VerifiedSource, country: string, countryName: string): string => {
+const availabilityLabel = (source: VerifiedSource, country: string, countryLabel: string): string => {
   const market = marketCode(source.region);
   if (country === 'ALL') {
     switch (source.availabilityStatus) {
-      case 'regional_listing': return market ? `Listed in ${REGIONS.find(([code]) => code === market)?.[1] ?? market}` : 'Regional listing';
+      case 'regional_listing': return market ? `Listed in ${countryName(market) ?? market}` : 'Regional listing';
       case 'service_available': return 'Service supported · movie unconfirmed';
       case 'other_region': return market ? `${market} offer · availability varies` : 'Other market · availability unconfirmed';
       case 'unavailable': return 'Service availability restricted';
@@ -93,11 +92,11 @@ const availabilityLabel = (source: VerifiedSource, country: string, countryName:
     }
   }
   switch (source.availabilityStatus) {
-    case 'regional_listing': return market && market !== country ? `${market} offer · ${countryName} unconfirmed` : `Listed in ${countryName}`;
-    case 'service_available': return `Service in ${countryName} · movie unconfirmed`;
-    case 'other_region': return `${market || 'Other country'} offer · ${countryName} unconfirmed`;
-    case 'unavailable': return `Not supported in ${countryName}`;
-    default: return `${countryName} availability unconfirmed`;
+    case 'regional_listing': return market && market !== country ? `${market} offer · ${countryLabel} unconfirmed` : `Listed in ${countryLabel}`;
+    case 'service_available': return `Service in ${countryLabel} · movie unconfirmed`;
+    case 'other_region': return `${market || 'Other country'} offer · ${countryLabel} unconfirmed`;
+    case 'unavailable': return `Not supported in ${countryLabel}`;
+    default: return `${countryLabel} availability unconfirmed`;
   }
 };
 
@@ -105,11 +104,7 @@ const sourceHost = (url: string): string => {
   try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; }
 };
 
-const formatCheckedAt = (timestamp?: string): string | null => {
-  if (!timestamp) return null;
-  const checked = new Date(timestamp);
-  return Number.isNaN(checked.getTime()) ? null : checked.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
-};
+const formatCheckedAt = (timestamp?: string): string | null => formatDateTime(timestamp);
 
 const runtimeSeconds = (value?: string): number | null => {
   if (!value?.trim()) return null;
@@ -1033,7 +1028,7 @@ export const SearchScoutPanel: React.FC<SearchScoutPanelProps> = ({
         <label className="movie-region-field">
           <span className="scout-field-label">Region preference (optional)</span>
           <select className="search-input" value={region} onChange={(event) => setRegion(event.target.value)}>
-            {REGIONS.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+            {REGIONS.map(([code, label]) => <option key={code} value={code}>{code === 'ALL' ? label : countryName(code) ?? label}</option>)}
           </select>
         </label>
         <button type="submit" className="btn btn-primary movie-search-submit" disabled={!query.trim()}>

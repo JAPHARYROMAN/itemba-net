@@ -2,6 +2,7 @@ import React from 'react';
 import { Database, Fingerprint, Globe } from 'lucide-react';
 import { AtlasEvidence, IdentityMatch, LocationOrigin, SearchKnownEvent, SearchMergedEvent, SearchReport, VerifiedSource } from '../types';
 import { identityLabel } from '../identity';
+import { formatDateTime, formatRelativeTime, regionName } from '../locale';
 
 interface RankedLocationsProps {
   known: SearchKnownEvent | null;
@@ -24,26 +25,6 @@ const ACCESS_LABELS: Record<string, string> = {
   free: 'Free', subscription: 'Paid · Subscription', rental: 'Paid · Rent', purchase: 'Paid · Buy', paid: 'Paid', unknown: 'Access unconfirmed',
 };
 const ORIGIN_LABELS: Record<LocationOrigin, string> = { index: 'from index', fresh: 'fresh discovery', both: 'index + fresh' };
-const COUNTRY_NAMES = typeof Intl.DisplayNames === 'function' ? new Intl.DisplayNames(['en'], { type: 'region' }) : null;
-
-const countryName = (code?: string): string | null => {
-  if (!code) return null;
-  try {
-    return COUNTRY_NAMES?.of(code.toUpperCase()) ?? code;
-  } catch {
-    return code;
-  }
-};
-
-const formatAge = (seconds: number): string => {
-  if (seconds < 45) return 'just now';
-  const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 48) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
-  const days = Math.round(hours / 24);
-  return `${days} day${days === 1 ? '' : 's'} ago`;
-};
 
 const ageFromIso = (iso?: string): number | null => {
   if (!iso) return null;
@@ -110,8 +91,8 @@ const rowsFromMerged = (merged: SearchMergedEvent, known: SearchKnownEvent | nul
 };
 
 const LocationCard: React.FC<{ row: Row; launchingUrl: string | null; onLaunchRbi: (url: string, theaterMode: boolean) => void }> = ({ row, launchingUrl, onLaunchRbi }) => {
-  const egress = countryName(row.egress);
-  const age = row.ageSeconds === null ? null : formatAge(row.ageSeconds);
+  const egress = regionName(row.egress, row.egress?.toUpperCase());
+  const age = row.ageSeconds === null ? null : formatRelativeTime(row.ageSeconds);
   const check = row.source?.availabilityCheck;
   const playback = row.source?.playbackCheck;
   const help = LEVEL_HELP[row.levelName] ?? '';
@@ -156,7 +137,7 @@ const LocationCard: React.FC<{ row: Row; launchingUrl: string | null; onLaunchRb
             <dt>Fingerprint</dt><dd>{identityLabel(row.identity)}. {row.identity.detail}</dd>
           </>)}
           <dt>Egress</dt><dd>{egress ?? 'unknown'}</dd>
-          <dt>Observed</dt><dd>{row.observedAt ? new Date(row.observedAt).toLocaleString() : 'not recorded'}</dd>
+          <dt>Observed</dt><dd>{formatDateTime(row.observedAt) ?? 'not recorded'}</dd>
           <dt>Location</dt><dd className="ladder-url">{row.url}</dd>
         </dl>
       </details>

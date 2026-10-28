@@ -94,9 +94,7 @@ var wsUpgrader = websocket.Upgrader{
 	HandshakeTimeout: wsWriteWait,
 	ReadBufferSize:   65536,
 	WriteBufferSize:  1048576,
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
+	CheckOrigin:      sameOrigin,
 }
 
 // Dependencies are the subsystems the console exposes to the operator.
@@ -173,8 +171,8 @@ func (s *Server) HTTPServer(addr string) *http.Server {
 }
 
 // Handler returns the complete HTTP handler: API routes, testbenches, the
-// WebSocket multiplexer, metrics, the dashboard and permissive CORS for local
-// tooling.
+// WebSocket multiplexer, metrics and the dashboard, restricted to its own
+// browser origin.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	registerTestbenchRoutes(mux)
@@ -644,8 +642,16 @@ func rootResponseWriter(w http.ResponseWriter) http.ResponseWriter {
 
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		origin := r.Header.Get("Origin")
+		if origin != "" {
+			if !sameOrigin(r) {
+				writeJSON(w, http.StatusForbidden, map[string]string{"error": "Use ITEMBA NET from its own origin."})
+				return
+			}
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Add("Vary", "Origin")
+		}
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Range")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)

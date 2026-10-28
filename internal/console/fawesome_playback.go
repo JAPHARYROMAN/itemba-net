@@ -30,7 +30,7 @@ func fawesomeShelfPlaybackHandler(service fawesomeShelfPlaybackService) http.Han
 			writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "Use POST to start shelf checks, GET for progress, or DELETE to cancel."})
 			return
 		}
-		if r.Method != http.MethodGet && !sameShelfPlaybackOrigin(r) {
+		if r.Method != http.MethodGet && !sameOrigin(r) {
 			writeJSON(w, http.StatusForbidden, map[string]string{"error": "Start or cancel playback checks from ITEMBA NET."})
 			return
 		}
@@ -84,15 +84,12 @@ func fawesomeShelfPlaybackHandler(service fawesomeShelfPlaybackService) http.Han
 	}
 }
 
-func sameShelfPlaybackOrigin(r *http.Request) bool {
+func sameOrigin(r *http.Request) bool {
 	origin := r.Header.Get("Origin")
 	if origin == "" {
 		return true
 	}
 	u, err := url.Parse(origin)
-	scheme := "http"
-	if r.TLS != nil {
-		scheme = "https"
-	}
-	return err == nil && u.Scheme == scheme && u.User == nil && u.Path == "" && u.RawQuery == "" && u.Fragment == "" && strings.EqualFold(u.Host, r.Host)
+	// TLS may terminate at a proxy, so the origin and request schemes can differ.
+	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.User == nil && u.Path == "" && u.RawQuery == "" && u.Fragment == "" && strings.EqualFold(u.Host, r.Host)
 }

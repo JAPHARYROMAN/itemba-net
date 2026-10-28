@@ -111,6 +111,26 @@ func readWebSocket(ws *websocket.Conn) (<-chan []byte, <-chan error) {
 	return messages, readErr
 }
 
+func TestWebSocketAllowsOnlyItsOwnBrowserOrigin(t *testing.T) {
+	srv, _ := newTestConsole(t, nil)
+	addr, _ := serveTestConsole(t, srv)
+
+	foreign, response, err := websocket.DefaultDialer.Dial("ws://"+addr+"/api/ws", http.Header{"Origin": []string{"https://foreign.example"}})
+	if foreign != nil {
+		foreign.Close()
+		t.Fatal("foreign browser origin opened the console websocket")
+	}
+	if err == nil || response == nil || response.StatusCode != http.StatusForbidden {
+		t.Fatalf("foreign websocket handshake: response=%+v err=%v", response, err)
+	}
+
+	same, _, err := websocket.DefaultDialer.Dial("ws://"+addr+"/api/ws", http.Header{"Origin": []string{"http://" + addr}})
+	if err != nil {
+		t.Fatalf("same-origin websocket handshake failed: %v", err)
+	}
+	same.Close()
+}
+
 // TestHTTPServerBoundsSlowClientsWithoutCuttingLongWorkOrTheWebSocket proves
 // the console's connection bounds at their real values: a client that never
 // finishes its headers, never finishes its body or holds an idle keep-alive

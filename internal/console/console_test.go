@@ -55,8 +55,8 @@ func TestHandlerServesStatusTestbenchMetricsAndCORSWithoutADashboard(t *testing.
 	if status.Atlas.Configured || status.Atlas.Connected {
 		t.Fatal("without a database the status route must report atlas as unconfigured")
 	}
-	if got := response.Header().Get("Access-Control-Allow-Origin"); got != "*" {
-		t.Fatalf("unexpected CORS origin header %q", got)
+	if got := response.Header().Get("Access-Control-Allow-Origin"); got != "" {
+		t.Fatalf("request without an Origin received CORS origin header %q", got)
 	}
 
 	response = httptest.NewRecorder()
@@ -82,6 +82,32 @@ func TestHandlerServesStatusTestbenchMetricsAndCORSWithoutADashboard(t *testing.
 	body := response.Body.String()
 	if response.Code != http.StatusOK || !strings.Contains(body, `itemba_http_requests_total{code="200",method="GET",route="/api/status"} 1`) {
 		t.Fatalf("metrics route returned %d or did not count the status request:\n%s", response.Code, body)
+	}
+}
+
+func TestHandlerAllowsOnlyItsOwnBrowserOrigin(t *testing.T) {
+	handler := newTestHandler(t, t.TempDir())
+	for _, test := range []struct {
+		name, method, origin, allowOrigin string
+		wantStatus                        int
+	}{
+		{"non-browser client", http.MethodGet, "", "", http.StatusOK},
+		{"same origin", http.MethodGet, "http://example.com", "http://example.com", http.StatusOK},
+		{"TLS terminated upstream", http.MethodGet, "https://example.com", "https://example.com", http.StatusOK},
+		{"foreign origin", http.MethodGet, "https://foreign.example", "", http.StatusForbidden},
+		{"malformed origin", http.MethodGet, "null", "", http.StatusForbidden},
+		{"same-origin preflight", http.MethodOptions, "https://example.com", "https://example.com", http.StatusNoContent},
+		{"foreign preflight", http.MethodOptions, "https://foreign.example", "", http.StatusForbidden},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			req := httptest.NewRequest(test.method, "/api/status", nil)
+			req.Header.Set("Origin", test.origin)
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, req)
+			if response.Code != test.wantStatus || response.Header().Get("Access-Control-Allow-Origin") != test.allowOrigin {
+				t.Fatalf("status=%d allow-origin=%q, want %d %q", response.Code, response.Header().Get("Access-Control-Allow-Origin"), test.wantStatus, test.allowOrigin)
+			}
+		})
 	}
 }
 
