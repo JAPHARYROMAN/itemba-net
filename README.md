@@ -1,3 +1,5 @@
+<p><img src="web/public/brand/itemba-logo.svg" alt="ITEMBA NET" width="288"></p>
+
 # ITEMBA NET
 
 The [ITEMBA NET White Paper](WHITEPAPER.md) defines the direction of this project: a sandboxed, object-centric search engine for every kind of media, with independent and unrestricted discovery, at most one hundred candidate locations per query, and ad-free access inside an isolated sandbox. The architecture, principles and phases in the white paper guide future development. The [Implementation Plan](IMPLEMENTATION-PLAN.md) sequences that work into phases with exit criteria.

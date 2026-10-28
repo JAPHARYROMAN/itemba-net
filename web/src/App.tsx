@@ -352,7 +352,7 @@ export const App: React.FC = () => {
     <div className="app-shell">
       <header className="top-navbar">
         <div className="brand-group">
-          <div className="brand-logo">IN</div>
+          <img className="brand-logo" src="/brand/itemba-mark.svg" alt="" width={34} height={34} />
           <div>
             <div className="brand-title">ITEMBA NET</div>
             <div className="brand-subtitle">

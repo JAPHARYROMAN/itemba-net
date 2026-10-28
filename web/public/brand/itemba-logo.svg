@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 288 80" width="288" height="80" role="img" aria-labelledby="itemba-logo-title">
+  <title id="itemba-logo-title">ITEMBA NET</title>
+  <defs>
+    <linearGradient id="itemba-tile" x1="8" y1="4" x2="56" y2="60" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#38bdf8"/>
+      <stop offset="0.52" stop-color="#0ea5e9"/>
+      <stop offset="1" stop-color="#10b981"/>
+    </linearGradient>
+    <linearGradient id="itemba-play" x1="27" y1="24" x2="42" y2="40" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7dd3fc"/>
+      <stop offset="1" stop-color="#34d399"/>
+    </linearGradient>
+    <linearGradient id="itemba-net" x1="205" y1="26" x2="266" y2="52" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#38bdf8"/>
+      <stop offset="1" stop-color="#34d399"/>
+    </linearGradient>
+  </defs>
+  <rect x="0.5" y="0.5" width="287" height="79" rx="16" fill="#070c15" stroke="#1e293b"/>
+  <g transform="translate(12 12) scale(0.875)">
+    <rect x="1" y="1" width="62" height="62" rx="15" fill="url(#itemba-tile)"/>
+    <path d="M32 12.6 47.6 18.5v14c0 8.9-6.7 15.2-15.6 17.4-8.9-2.2-15.6-8.5-15.6-17.4v-14Z" fill="#04121b"/>
+    <path d="M27.4 24.2 41.6 32 27.4 39.8Z" fill="url(#itemba-play)" stroke="url(#itemba-play)" stroke-width="1.8" stroke-linejoin="round"/>
+  </g>
+  <text x="80" y="49" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="26" font-weight="800" letter-spacing="2.6">
+    <tspan fill="#f8fafc">ITEMBA</tspan>
+    <tspan fill="url(#itemba-net)" dx="4">NET</tspan>
+  </text>
+</svg>
