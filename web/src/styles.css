@@ -37,14 +37,16 @@ body {
 
 /* Header */
 .top-navbar {
-  height: 62px;
+  min-height: 62px;
   background: rgba(12, 16, 27, 0.92);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border-subtle);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 22px;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 10px 22px;
   position: sticky;
   top: 0;
   z-index: 40;
@@ -54,6 +56,7 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
 }
 
 .brand-logo {
@@ -81,12 +84,28 @@ body {
   font-size: 11px;
   color: var(--text-secondary);
   font-family: 'JetBrains Mono', Consolas, monospace;
+  max-width: min(46vw, 620px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .nav-badges {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 10px;
+}
+
+@media (max-width: 1100px) {
+  .brand-subtitle { display: none; }
+}
+
+@media (max-width: 900px) {
+  .top-navbar { padding: 10px 12px; }
+  .nav-badges { gap: 6px; }
+  .nav-badges .pill-badge, .nav-badges .btn { font-size: 10px; padding: 5px 8px; }
 }
 
 .pill-badge {

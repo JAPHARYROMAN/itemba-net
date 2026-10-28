@@ -391,3 +391,11 @@ npm run dev
 docker compose up -d --build
 ```
 Once built, toggle the **Runtime** badge in the top navigation bar to **Docker Container** to spawn hardened Linux containers (`--cap-drop=ALL`, `--security-opt=no-new-privileges`, CoreDNS `0.0.0.0` sinkhole).
+
+### 3. Exposure, headers and data disclosure
+
+The console is an operator tool and this build has no login. Keep it on loopback or put it behind your own authenticated reverse proxy: `/api/status`, `/api/ws`, `/metrics` and the media relay answer anyone who can reach the port.
+
+Every response carries `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: no-referrer`, a Permissions-Policy denying camera, microphone, geolocation, payment and USB, and `Cross-Origin-Opener-Policy: same-origin`. A request that arrived over TLS, directly or through a proxy that sets `X-Forwarded-Proto: https`, also receives `Strict-Transport-Security`. The built dashboard adds a content policy that allows scripts only from its own bundle while permitting provider-hosted images, media and document frames, which direct playback needs. The testbench pages are deliberately exempt, since their inline scripts are the behaviour they exist to exercise.
+
+The **Data & trust** button in the navigation bar states the same facts in the product: what a configured Atlas keeps and that it has no automatic expiry, what is never sent to the browser, what leaves the machine during a search or a playback, and what an evidence level does not claim.

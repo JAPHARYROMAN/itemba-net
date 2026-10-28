@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Shield, Cpu, Network, Wifi, WifiOff, Loader } from 'lucide-react';
+import { Shield, ShieldCheck, Cpu, Network, Wifi, WifiOff, Loader } from 'lucide-react';
 import { ActiveRelayStream, SearchKind, SearchKnownEvent, SearchMergedEvent, SearchReport, TelemetrySnapshot, VaultStatus } from './types';
 import { readSearchStream, searchStreamUrl } from './searchStream';
 import { VaultViewport } from './components/VaultViewport';
@@ -7,6 +7,7 @@ import './ladder.css';
 import { SearchScoutPanel } from './components/SearchScoutPanel';
 import { ShieldTelemetry } from './components/ShieldTelemetry';
 import { SystemTopologyModal } from './components/SystemTopologyModal';
+import { TrustDataModal } from './components/TrustDataModal';
 
 // Backoff for reopening the console socket: it starts at the minimum, doubles
 // after each failed attempt up to the cap, and resets once a connection opens.
@@ -85,6 +86,7 @@ export const App: React.FC = () => {
   const [launchingUrl, setLaunchingUrl] = useState<string | null>(null);
   const [preferDocker, setPreferDocker] = useState<boolean>(false);
   const [showTopology, setShowTopology] = useState<boolean>(false);
+  const [showTrust, setShowTrust] = useState<boolean>(false);
   const [latestFrame, setLatestFrame] = useState<{ data: string; ts: number; url?: string } | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -394,6 +396,15 @@ export const App: React.FC = () => {
           <button type="button" className="btn" onClick={() => setShowTopology(true)}>
             <Network size={13} /> Architecture Topology
           </button>
+
+          <button
+            type="button"
+            className="btn"
+            onClick={() => setShowTrust(true)}
+            title="What ITEMBA NET records, sends and claims about the media it finds"
+          >
+            <ShieldCheck size={13} /> Data &amp; trust
+          </button>
         </div>
       </header>
 
@@ -438,6 +449,7 @@ export const App: React.FC = () => {
       </div>
 
       {showTopology && <SystemTopologyModal onClose={() => setShowTopology(false)} />}
+      {showTrust && <TrustDataModal onClose={() => setShowTrust(false)} />}
     </div>
   );
 };

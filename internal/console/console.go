@@ -97,6 +97,32 @@ var wsUpgrader = websocket.Upgrader{
 	CheckOrigin:      sameOrigin,
 }
 
+// dashboardCSP is the content policy for the built dashboard only. The
+// testbench pages are exempt: they exist to run inline scripts and inline
+// handlers on purpose, and a policy strict enough to protect the dashboard
+// would disable the very behaviour they are there to exercise.
+//
+// Scripts come from the bundle alone, which is the protection that matters:
+// an injected inline script or a third-party script host is refused. Styles
+// need 'unsafe-inline' because React and the player set style attributes.
+// Images, media, frames and connections allow http(s) hosts because the
+// operator can play a source directly instead of through the relay, and
+// provider artwork is loaded from the provider. Workers and blobs cover
+// hls.js, and data:/blob: cover the vault's frame images.
+const dashboardCSP = "default-src 'self'; " +
+	"script-src 'self'; " +
+	"style-src 'self' 'unsafe-inline'; " +
+	"img-src 'self' data: blob: https: http:; " +
+	"media-src 'self' data: blob: https: http:; " +
+	"frame-src 'self' https: http:; " +
+	"connect-src 'self' ws: wss: https: http:; " +
+	"font-src 'self' data:; " +
+	"worker-src 'self' blob:; " +
+	"object-src 'none'; " +
+	"base-uri 'self'; " +
+	"form-action 'self'; " +
+	"frame-ancestors 'self'"
+
 // Dependencies are the subsystems the console exposes to the operator.
 type Dependencies struct {
 	Shield *shield.Shield
@@ -219,7 +245,7 @@ func (s *Server) Handler() http.Handler {
 
 	if s.staticDir != "" {
 		if _, err := os.Stat(filepath.Join(s.staticDir, "index.html")); err == nil {
-			mux.Handle("/", http.FileServer(http.Dir(s.staticDir)))
+			mux.Handle("/", dashboardHandler(http.FileServer(http.Dir(s.staticDir))))
 		}
 	}
 
@@ -227,7 +253,39 @@ func (s *Server) Handler() http.Handler {
 	if s.metrics != nil {
 		handler = s.metrics.Middleware(handler)
 	}
-	return corsMiddleware(handler)
+	return securityHeaders(corsMiddleware(handler))
+}
+
+// dashboardHandler serves the built dashboard with the dashboard content
+// policy. Assets receive the policy too; it costs nothing there and keeps one
+// rule for everything the bundle serves.
+func dashboardHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Security-Policy", dashboardCSP)
+		next.ServeHTTP(w, r)
+	})
+}
+
+// securityHeaders applies the console's browser-boundary defaults to every
+// response, including the CORS refusal and the relay's. They are deliberately
+// conservative: nothing in the console is meant to be framed by another site,
+// sniffed into another type, send a referrer to a provider, or use a device
+// permission. HSTS is set only when the request arrived over TLS, directly or
+// through a proxy that says it terminated TLS, so a plain-HTTP development
+// host never teaches a browser to upgrade it.
+func securityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		header := w.Header()
+		header.Set("X-Content-Type-Options", "nosniff")
+		header.Set("X-Frame-Options", "SAMEORIGIN")
+		header.Set("Referrer-Policy", "no-referrer")
+		header.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()")
+		header.Set("Cross-Origin-Opener-Policy", "same-origin")
+		if r.TLS != nil || strings.EqualFold(strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")), "https") {
+			header.Set("Strict-Transport-Security", "max-age=31536000")
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (s *Server) status(w http.ResponseWriter, r *http.Request) {

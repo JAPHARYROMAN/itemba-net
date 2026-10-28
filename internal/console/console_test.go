@@ -125,6 +125,99 @@ func TestHandlerServesTheBuiltDashboardWhenPresent(t *testing.T) {
 	}
 }
 
+// TestHandlerSendsSecurityHeaders proves the defaults reach every response,
+// that the dashboard additionally carries a policy locking scripts to its own
+// bundle, and that the testbench pages stay free of a policy, since their
+// inline scripts and handlers are what they are there to exercise.
+func TestHandlerSendsSecurityHeaders(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("<!doctype html><title>ITEMBA NET</title>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	handler := newTestHandler(t, dir)
+
+	for _, test := range []struct {
+		name       string
+		path       string
+		wantPolicy bool
+	}{
+		{"api response", "/api/status", false},
+		{"dashboard", "/", true},
+		{"testbench page", "/testbench/clean-cinema", false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, test.path, nil))
+			header := response.Header()
+			for name, want := range map[string]string{
+				"X-Content-Type-Options":     "nosniff",
+				"X-Frame-Options":            "SAMEORIGIN",
+				"Referrer-Policy":            "no-referrer",
+				"Permissions-Policy":         "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+				"Cross-Origin-Opener-Policy": "same-origin",
+			} {
+				if got := header.Get(name); got != want {
+					t.Errorf("%s = %q, want %q", name, got, want)
+				}
+			}
+			if got := header.Get("Strict-Transport-Security"); got != "" {
+				t.Errorf("plain HTTP response taught HSTS: %q", got)
+			}
+			policy := header.Get("Content-Security-Policy")
+			if !test.wantPolicy {
+				if policy != "" {
+					t.Errorf("unexpected content policy on %s: %q", test.path, policy)
+				}
+				return
+			}
+			for _, directive := range []string{
+				"script-src 'self'",
+				"object-src 'none'",
+				"base-uri 'self'",
+				"frame-ancestors 'self'",
+			} {
+				if !strings.Contains(policy, directive) {
+					t.Errorf("dashboard policy lacks %q: %q", directive, policy)
+				}
+			}
+		})
+	}
+}
+
+// TestSecurityHeadersFinishRefusalsAndTLSRequests proves the headers are set
+// before the CORS refusal and that HSTS is added when TLS terminated
+// upstream, which the console itself cannot see on the request.
+func TestSecurityHeadersFinishRefusalsAndTLSRequests(t *testing.T) {
+	handler := newTestHandler(t, "")
+
+	refused := httptest.NewRequest(http.MethodGet, "/api/status", nil)
+	refused.Header.Set("Origin", "https://foreign.example")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, refused)
+	if response.Code != http.StatusForbidden || response.Header().Get("X-Content-Type-Options") != "nosniff" {
+		t.Fatalf("refused cross-origin request returned %d without the security headers", response.Code)
+	}
+
+	for _, test := range []struct {
+		name       string
+		forwarded  string
+		wantHeader string
+	}{
+		{"TLS terminated upstream", "https", "max-age=31536000"},
+		{"proxy reports plain HTTP", "http", ""},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodGet, "/api/status", nil)
+			request.Header.Set("X-Forwarded-Proto", test.forwarded)
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if got := response.Header().Get("Strict-Transport-Security"); got != test.wantHeader {
+				t.Fatalf("Strict-Transport-Security = %q, want %q", got, test.wantHeader)
+			}
+		})
+	}
+}
+
 func TestSearchRouteValidatesInputBeforeTouchingProviders(t *testing.T) {
 	handler := newTestHandler(t, "")
 
