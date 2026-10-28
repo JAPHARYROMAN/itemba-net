@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Maximize, Maximize2, Minimize } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Activity, Maximize, Maximize2, Minimize, ShieldCheck } from 'lucide-react';
 import { VaultStatus } from '../types';
 
 interface RbiViewerProps {
@@ -26,6 +26,28 @@ export const RbiViewer: React.FC<RbiViewerProps> = ({ vault, latestFrame, sendWs
   const [fps, setFps] = useState(0);
   const [frameAgeMs, setFrameAgeMs] = useState<number | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
+  const [chromeVisible, setChromeVisible] = useState(true);
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+  const hideTimerRef = useRef<number | null>(null);
+
+  const revealChrome = useCallback(() => {
+    setChromeVisible(true);
+    if (hideTimerRef.current !== null) window.clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = window.setTimeout(() => setChromeVisible(false), 2800);
+  }, []);
+
+  useEffect(() => () => {
+    if (hideTimerRef.current !== null) window.clearTimeout(hideTimerRef.current);
+  }, []);
+
+  useEffect(() => {
+    if (diagnosticsOpen) {
+      if (hideTimerRef.current !== null) window.clearTimeout(hideTimerRef.current);
+      setChromeVisible(true);
+    } else {
+      revealChrome();
+    }
+  }, [diagnosticsOpen, revealChrome]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -159,7 +181,17 @@ export const RbiViewer: React.FC<RbiViewerProps> = ({ vault, latestFrame, sendWs
   const transport = rtcStatus === 'webrtc-connected' || rtcStatus === 'connected' ? 'Pion WebRTC data channel' : 'Console socket';
 
   return (
-    <div ref={rootRef} className={`rbi-viewer ${fullscreen ? 'rbi-viewer--fullscreen' : ''}`}>
+    <div
+      ref={rootRef}
+      className={`rbi-viewer ${fullscreen ? 'rbi-viewer--fullscreen' : ''} ${chromeVisible ? '' : 'rbi-viewer--idle'} ${diagnosticsOpen ? 'rbi-viewer--diagnostics' : ''}`}
+      onPointerMove={revealChrome}
+      onPointerDown={revealChrome}
+      onPointerLeave={() => {
+        if (!diagnosticsOpen) setChromeVisible(false);
+      }}
+      onFocusCapture={revealChrome}
+      onKeyDown={revealChrome}
+    >
       <canvas
         ref={canvasRef}
         width={REMOTE_WIDTH}
@@ -194,19 +226,55 @@ export const RbiViewer: React.FC<RbiViewerProps> = ({ vault, latestFrame, sendWs
         }}
         onContextMenu={(event) => event.preventDefault()}
       />
-      <div className="viewport-hud">
-        <span className="hud-tag">{transport}</span>
-        {frameAgeMs !== null && <span className="hud-tag">frame age {frameAgeMs} ms</span>}
-        <span className="hud-tag">{REMOTE_WIDTH}×{REMOTE_HEIGHT} · {fps} fps</span>
-        {vault.theaterActive && (
-          <span className="hud-tag" style={{ borderColor: '#a855f7', color: '#c084fc' }}>
-            <Maximize2 size={11} /> DOM theater isolated
-          </span>
+
+      <div className="rbi-chrome">
+        <div className="rbi-topbar">
+          <div className="rbi-title">
+            <ShieldCheck size={17} aria-hidden="true" />
+            <div>
+              <span>Protected browser</span>
+              <strong>{vault.pageTitle || vault.currentUrl || 'Remote session'}</strong>
+            </div>
+          </div>
+          <div className="rbi-top-actions">
+            {vault.theaterActive && (
+              <span className="rbi-theater"><Maximize2 size={12} /> DOM theater</span>
+            )}
+            <button
+              type="button"
+              className={`mp-btn rbi-chrome-button ${diagnosticsOpen ? 'mp-btn--active' : ''}`}
+              aria-label="Toggle stream diagnostics"
+              aria-expanded={diagnosticsOpen}
+              aria-controls="rbi-stream-diagnostics"
+              title="Stream diagnostics"
+              onClick={() => setDiagnosticsOpen((open) => !open)}
+            >
+              <Activity size={18} />
+            </button>
+          </div>
+        </div>
+
+        {diagnosticsOpen && (
+          <div className="rbi-diagnostics" id="rbi-stream-diagnostics" role="status">
+            <span>{transport}</span>
+            {frameAgeMs !== null && <span>Frame age {frameAgeMs} ms</span>}
+            <span>{REMOTE_WIDTH}×{REMOTE_HEIGHT} · {fps} fps</span>
+          </div>
         )}
+
+        <div className="rbi-control-deck">
+          <span>Click the picture to control the protected browser</span>
+          <button
+            type="button"
+            className="mp-btn rbi-chrome-button"
+            aria-label={fullscreen ? 'Exit full screen' : 'Full screen'}
+            title={fullscreen ? 'Exit full screen' : 'Full screen'}
+            onClick={toggleFullscreen}
+          >
+            {fullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
+          </button>
+        </div>
       </div>
-      <button type="button" className="rbi-fullscreen mp-btn" aria-label={fullscreen ? 'Exit full screen' : 'Full screen'} title="Full screen" onClick={toggleFullscreen}>
-        {fullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
-      </button>
     </div>
   );
 };

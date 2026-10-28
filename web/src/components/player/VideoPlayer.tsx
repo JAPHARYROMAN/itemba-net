@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Loader, Play, RotateCcw, RotateCw, ShieldCheck, ShieldOff, X } from 'lucide-react';
+import { Loader, Play, RotateCcw, RotateCw, X } from 'lucide-react';
 import { ActiveRelayStream } from '../../types';
 import { useMediaEngine } from '../../media/useMediaEngine';
 import { formatKbps, formatTime, isDashUrl, isHlsUrl, relayUrl } from '../../media/media';
@@ -12,6 +12,7 @@ interface VideoPlayerProps {
   attempt: number;
   autoplay: boolean;
   theater: boolean;
+  headerActions?: React.ReactNode;
   onToggleTheater: () => void;
   onRetryProtected: () => void;
   onEnded?: () => void;
@@ -41,7 +42,8 @@ const SHORTCUTS: Array<[string, string]> = [
 // The protected video player: a bare <video> driven by the playback engine,
 // with the console's own controls drawn over it. Nothing it shows is
 // estimated: resolution, frames, bitrates and buffer come from the element
-// and hls.js, and the relay badge states which path the bytes take.
+// and hls.js. The path and source actions live in the immersive header, so
+// the picture itself remains uncluttered while playback continues.
 export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   stream,
   src,
@@ -49,6 +51,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   attempt,
   autoplay,
   theater,
+  headerActions,
   onToggleTheater,
   onRetryProtected,
   onEnded,
@@ -254,12 +257,12 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         ))}
       </video>
 
-      <div className="mp-badges">
-        <span className={`mp-badge ${isProtected ? 'mp-badge--protected' : 'mp-badge--direct'}`}>
-          {isProtected ? <ShieldCheck size={12} /> : <ShieldOff size={12} />}
-          {isProtected ? 'Protected relay · Shield on' : 'Direct CDN · filtering off'}
-        </span>
-        {state.engine && <span className="mp-badge">{state.engine === 'hls.js' ? 'HLS' : 'Native'}{state.width > 0 ? ` · ${state.width}×${state.height}` : ''}</span>}
+      <div className="mp-header">
+        <div className="mp-header-copy">
+          <strong title={stream.title}>{stream.title}</strong>
+          <span>{stream.provider} · {stream.format}</span>
+        </div>
+        {headerActions && <div className="mp-header-actions">{headerActions}</div>}
       </div>
 
       {showSpinner && (

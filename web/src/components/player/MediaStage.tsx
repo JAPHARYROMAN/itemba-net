@@ -95,6 +95,46 @@ export const MediaStage: React.FC<MediaStageProps> = ({ stream, onSelectStream, 
     if (autoAdvance && queueControls?.hasNext) queueControls.onNext();
   };
 
+  const streamActions = (current: ActiveRelayStream, protectedPath: boolean, compact = false) => (
+    <>
+      <button
+        type="button"
+        className={`btn mp-action ${protectedPath ? 'btn-theater' : 'btn-danger'}`}
+        aria-label={protectedPath ? 'Ad filtering is on. Use direct playback for this item.' : 'Ad filtering is off. Protect this item with ad filtering.'}
+        aria-pressed={protectedPath}
+        title="Every request for this item goes through the relay with Shield applied. Direct mode bypasses that filtering for this item only."
+        onClick={() => setProtection({ stream: current, enabled: !protectedPath })}
+      >
+        <Radio size={13} aria-hidden="true" />
+        <span className="mp-action-label">{protectedPath ? 'Ad filtering: ON' : 'Direct · filtering off'}</span>
+      </button>
+      {current.pageUrl && (
+        <button
+          type="button"
+          className="btn mp-action"
+          aria-label="Open the source page with ad blocking"
+          title="Open the source page in the protected browser"
+          onClick={() => onOpenInVault(current.pageUrl as string)}
+        >
+          <Globe size={13} aria-hidden="true" />
+          <span className="mp-action-label">Open page with ad blocking</span>
+        </button>
+      )}
+      <button
+        type="button"
+        className={`btn mp-action ${queueOpen ? 'btn-primary' : ''}`}
+        aria-label={`Session queue, ${queue.length} item${queue.length === 1 ? '' : 's'}`}
+        aria-pressed={queueOpen}
+        title="Items played this session"
+        onClick={() => setQueueOpen((open) => !open)}
+      >
+        <ListVideo size={13} aria-hidden="true" />
+        <span className="mp-action-label">Queue · {queue.length}</span>
+        {compact && <span className="mp-action-count" aria-hidden="true">{queue.length}</span>}
+      </button>
+    </>
+  );
+
   if (!stream || !kind) {
     return (
       <div className="media-stage media-stage--empty">
@@ -122,6 +162,7 @@ export const MediaStage: React.FC<MediaStageProps> = ({ stream, onSelectStream, 
             attempt={attempt}
             autoplay
             theater={theater}
+            headerActions={streamActions(stream, isProtected, true)}
             onToggleTheater={() => setTheater((value) => !value)}
             onRetryProtected={retryProtected}
             onEnded={onEnded}
@@ -139,32 +180,16 @@ export const MediaStage: React.FC<MediaStageProps> = ({ stream, onSelectStream, 
         )}
       </div>
 
-      <div className="media-now">
-        <div className="media-now-meta">
-          <span className="media-now-kind">{KIND_ICONS[kind]} {KIND_LABELS[kind]}</span>
-          <strong className="media-now-title" title={stream.title}>{stream.title}</strong>
-          <span className="scout-muted">{stream.provider} · {stream.format}{stream.resolution ? ` · ${stream.resolution}` : ''}</span>
+      {kind !== 'video' && (
+        <div className="media-now">
+          <div className="media-now-meta">
+            <span className="media-now-kind">{KIND_ICONS[kind]} {KIND_LABELS[kind]}</span>
+            <strong className="media-now-title" title={stream.title}>{stream.title}</strong>
+            <span className="scout-muted">{stream.provider} · {stream.format}{stream.resolution ? ` · ${stream.resolution}` : ''}</span>
+          </div>
+          <div className="media-now-actions">{streamActions(stream, isProtected)}</div>
         </div>
-        <div className="media-now-actions">
-          <button
-            type="button"
-            className={`btn ${isProtected ? 'btn-theater' : 'btn-danger'}`}
-            aria-pressed={isProtected}
-            title="Every request for this item goes through the relay with Shield applied. Direct mode bypasses that filtering for this item only."
-            onClick={() => setProtection({ stream, enabled: !isProtected })}
-          >
-            <Radio size={13} aria-hidden="true" /> {isProtected ? 'Ad filtering: ON' : 'Direct · filtering off'}
-          </button>
-          {stream.pageUrl && (
-            <button type="button" className="btn" title="Open the source page in the protected browser" onClick={() => onOpenInVault(stream.pageUrl as string)}>
-              <Globe size={13} aria-hidden="true" /> Open page with ad blocking
-            </button>
-          )}
-          <button type="button" className={`btn ${queueOpen ? 'btn-primary' : ''}`} aria-pressed={queueOpen} onClick={() => setQueueOpen((open) => !open)} title="Items played this session">
-            <ListVideo size={13} aria-hidden="true" /> Queue · {queue.length}
-          </button>
-        </div>
-      </div>
+      )}
 
       {queueOpen && (
         <div className="media-queue" aria-label="Session queue">
