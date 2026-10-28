@@ -17,8 +17,19 @@ export default defineConfig({
   projects: [
     {
       name: 'desktop',
-      testIgnore: /mobile\.spec\.ts/,
+      testIgnore: /(mobile|tablet)\.spec\.ts/,
       use: { viewport: { width: 1280, height: 900 } },
+    },
+    {
+      // Below 1120px the workspace is one column; a tablet is the widest
+      // layout on that path and still has room for the full header.
+      name: 'tablet',
+      testMatch: /tablet\.spec\.ts/,
+      use: {
+        viewport: { width: 768, height: 1024 },
+        deviceScaleFactor: 2,
+        hasTouch: true,
+      },
     },
     {
       name: 'mobile',

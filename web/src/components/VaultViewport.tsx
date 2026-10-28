@@ -184,7 +184,7 @@ export const VaultViewport: React.FC<VaultViewportProps> = ({
           <MediaStage stream={activeRelay} onSelectStream={onPlayRelayStream} onOpenInVault={(url) => onLaunchUrl(url, false)} />
         </Suspense>
       ) : (
-        <div className="viewport-stage">
+        <div className={vault.active ? 'viewport-stage' : 'viewport-stage viewport-stage--empty'}>
           {vault.active ? (
             <RbiViewer vault={vault} latestFrame={latestFrame} sendWsInput={sendWsInput} />
           ) : (

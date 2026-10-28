@@ -18,6 +18,11 @@ const TrustDataModal = lazy(() => import('./components/TrustDataModal').then(({ 
 const WS_RECONNECT_MIN_MS = 1000;
 const WS_RECONNECT_MAX_MS = 15000;
 
+// Long jumps across the page are motion too, so a reader who asked the system
+// for less of it is moved instantly instead of being carried past the content.
+const scrollBehavior = (): ScrollBehavior =>
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+
 // What the navbar badge shows about the console socket. 'connecting' covers
 // page load until the first open; 'reconnecting' carries the backoff delay
 // while a retry is scheduled and drops it once that retry is in flight.
@@ -288,7 +293,7 @@ export const App: React.FC = () => {
       if (data.shield) setShield(data.shield);
       setLatestFrame(null);
       setViewportMode('rbi');
-      viewportRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      viewportRef.current?.scrollIntoView({ behavior: scrollBehavior(), block: 'start' });
     } catch (error) {
       setLaunchError(error instanceof Error ? error.message : t('app.error.launchGeneric'));
     } finally {
@@ -328,7 +333,7 @@ export const App: React.FC = () => {
   const handlePlayRelayStream = (stream: ActiveRelayStream) => {
     setActiveRelay(stream);
     setViewportMode('relay');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: scrollBehavior() });
   };
 
   const handleAddCustomRule = async (pattern: string) => {
@@ -358,6 +363,7 @@ export const App: React.FC = () => {
 
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#main-content">{t('app.skip')}</a>
       <header className="top-navbar">
         <div className="brand-group">
           <img className="brand-logo" src="/brand/itemba-mark.svg" alt="" width={34} height={34} />
@@ -431,7 +437,7 @@ export const App: React.FC = () => {
       </header>
 
       <div className="workspace-grid">
-        <main className="main-column">
+        <main id="main-content" className="main-column" tabIndex={-1}>
           <div ref={viewportRef} className="movie-viewport-anchor">
             <VaultViewport
               vault={vault}

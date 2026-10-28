@@ -19,6 +19,7 @@ const SECTIONS: Section[] = [
   { title: 'trust.s1.title', intro: 'trust.s1.intro', points: [] },
   { title: 'trust.s2.title', intro: 'trust.s2.intro', points: ['trust.s2.p1', 'trust.s2.p2', 'trust.s2.p3', 'trust.s2.p4'] },
   { title: 'trust.s3.title', points: ['trust.s3.p1', 'trust.s3.p2', 'trust.s3.p3'] },
+  { title: 'trust.browser.title', points: ['trust.browser.p1', 'trust.browser.p2', 'trust.browser.p3'] },
   { title: 'trust.s4.title', points: ['trust.s4.p1', 'trust.s4.p2', 'trust.s4.p3'] },
   { title: 'trust.s5.title', points: ['trust.s5.p1', 'trust.s5.p2'] },
   { title: 'trust.s6.title', points: ['trust.s6.p1', 'trust.s6.p2'] },

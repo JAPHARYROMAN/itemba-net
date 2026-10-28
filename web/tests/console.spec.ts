@@ -96,6 +96,37 @@ test('switches to Kiswahili and returns to left-to-right', async ({ page }) => {
   await expect(shelfCard(page)).toContainText('Pata chaguo za kutazama');
 });
 
+test('offers a skip link that moves focus past the header', async ({ page }) => {
+  await page.goto('/');
+
+  await page.keyboard.press('Tab');
+  const skip = page.getByRole('link', { name: 'Skip to main content' });
+  await expect(skip).toBeFocused();
+
+  await page.keyboard.press('Enter');
+
+  await expect(page.locator('#main-content')).toBeFocused();
+  await expect(page).toHaveURL(/#main-content$/);
+});
+
+test('sets no cookies of its own', async ({ page, context }) => {
+  await page.goto('/');
+  await expect(shelfCard(page)).toBeVisible();
+
+  expect(await context.cookies()).toEqual([]);
+  expect(await page.evaluate(() => document.cookie)).toBe('');
+});
+
+test('discloses the two browser-storage keys in the trust dialog', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Data & trust' }).click();
+
+  const dialog = page.getByRole('dialog', { name: 'Data, evidence and trust' });
+  await expect(dialog.getByRole('heading', { name: 'What stays in your browser' })).toBeVisible();
+  await expect(dialog).toContainText('itemba.locale');
+  await expect(dialog).toContainText('itemba.player.prefs');
+});
+
 test('closes the data and trust dialog with Escape and restores focus', async ({ page }) => {
   await page.goto('/');
   const trigger = page.getByRole('button', { name: 'Data & trust' });

@@ -7,7 +7,7 @@
   --border-active: #38bdf8;
   --text-primary: #f1f5f9;
   --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+  --text-muted: #7e8ca3;
   --accent-cyan: #38bdf8;
   --accent-emerald: #10b981;
   --accent-amber: #f59e0b;
@@ -33,6 +33,34 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+}
+
+/* Skipping the six header controls is the first keyboard affordance on the
+   page, so the link is always rendered and only slides into view on focus. */
+.skip-link {
+  position: fixed;
+  inset-inline-start: 16px;
+  top: 8px;
+  z-index: 60;
+  padding: 9px 14px;
+  border-radius: 8px;
+  background: var(--accent-cyan);
+  color: #04121e;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  transform: translateY(-180%);
+}
+
+.skip-link:focus-visible {
+  transform: none;
+}
+
+/* Keyboard focus is a first-class state. The scout panel used to be the only
+   area with a ring, which left the header and dialogs without one. */
+:where(a, button, input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--accent-cyan);
+  outline-offset: 2px;
 }
 
 /* Header */
@@ -316,6 +344,15 @@ body {
   align-items: center;
   justify-content: center;
   overflow: hidden;
+}
+
+/* With no sandbox open the stage holds a message, not a 16:9 frame. On a phone
+   the frame is too short for the message and would clip the second action. */
+@media (max-width: 650px) {
+  .viewport-stage--empty {
+    aspect-ratio: auto;
+    padding-block: 24px;
+  }
 }
 
 .viewport-canvas {

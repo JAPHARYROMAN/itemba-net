@@ -82,6 +82,27 @@ test('keeps the protected browser chrome inside the stage', async ({ page }) => 
   expect(fit.doc).toBe(fit.inner);
 });
 
+test('keeps both launch actions reachable with no sandbox open', async ({ page }) => {
+  // Registered after the shared stub, so it wins for this test only.
+  await page.route('**/api/status', (route) => route.fulfill({ json: { vault: { ...VAULT, active: false } } }));
+  await page.goto('/');
+
+  const archive = page.getByRole('button', { name: /Isolate Internet Archive Player/ });
+  const testbench = page.getByRole('button', { name: /Adversarial Ad-Trap Testbench/ });
+  await expect(archive).toBeVisible();
+  await expect(testbench).toBeVisible();
+
+  const stage = await rect(page, '.viewport-stage');
+  for (const button of [archive, testbench]) {
+    const bounds = await button.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return { top: r.top, bottom: r.bottom };
+    });
+    expect(bounds.top).toBeGreaterThanOrEqual(stage.top - 1);
+    expect(bounds.bottom).toBeLessThanOrEqual(stage.bottom + 1);
+  }
+});
+
 test('switches to Arabic on a phone without widening the page', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('combobox', { name: 'Language' }).selectOption('ar');
