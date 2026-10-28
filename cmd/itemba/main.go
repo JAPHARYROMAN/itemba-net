@@ -76,10 +76,16 @@ func main() {
 	sc.UseDrivers(drivers)
 
 	var crawl *crawler.Crawler
+	var crawlDone <-chan struct{}
 	if role.RunsCrawler() {
 		crawl = openCrawler(role, store, drivers, measures)
 		if crawl != nil {
-			go crawl.Run(ctx)
+			done := make(chan struct{})
+			crawlDone = done
+			go func() {
+				defer close(done)
+				crawl.Run(ctx)
+			}()
 		}
 	}
 
@@ -104,11 +110,8 @@ func main() {
 		sigCh := make(chan os.Signal, 1)
 		signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 		<-sigCh
-		log.Println("[ITEMBA-NET] Shutting down and destroying active sandboxes...")
+		log.Println("[ITEMBA-NET] Shutting down; waiting for active work to stop...")
 		stop()
-		vlt.Destroy()
-		sc.Close()
-		store.Close()
 		if server != nil {
 			_ = server.Close()
 		}
@@ -131,10 +134,26 @@ func main() {
 	if server == nil {
 		// Crawler-only process: run until a signal arrives.
 		<-ctx.Done()
+		waitForCrawler(crawlDone, 15*time.Second)
 		return
 	}
-	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	err = server.ListenAndServe()
+	stop()
+	waitForCrawler(crawlDone, 15*time.Second)
+	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("server error: %v", err)
+	}
+}
+
+func waitForCrawler(done <-chan struct{}, timeout time.Duration) {
+	if done == nil {
+		return
+	}
+	select {
+	case <-done:
+		log.Println("[ITEMBA-NET] Crawler stopped cleanly")
+	case <-time.After(timeout):
+		log.Printf("[ITEMBA-NET] Crawler did not stop within %s; closing resources", timeout)
 	}
 }
 

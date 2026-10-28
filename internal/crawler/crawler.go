@@ -370,7 +370,9 @@ func (c *Crawler) processPage(ctx context.Context, entry atlas.FrontierEntry) ou
 }
 
 func (c *Crawler) complete(ctx context.Context, entry atlas.FrontierEntry, status string, after time.Duration) {
-	if err := c.opts.Store.Complete(context.WithoutCancel(ctx), entry.ID, status, time.Now().Add(after)); err != nil {
+	completeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
+	defer cancel()
+	if err := c.opts.Store.Complete(completeCtx, entry.ID, status, time.Now().Add(after)); err != nil {
 		log.Printf("[crawler] complete %d: %v", entry.ID, err)
 	}
 }

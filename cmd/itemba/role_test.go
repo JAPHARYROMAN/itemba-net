@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestParseRoleAcceptsKnownRolesIgnoringCaseAndSpace(t *testing.T) {
 	cases := map[string]Role{
@@ -38,5 +41,20 @@ func TestRolesRunnableInThisPhase(t *testing.T) {
 	}
 	if !RoleAll.ServesConsole() || !RoleConsole.ServesConsole() || RoleCrawler.ServesConsole() {
 		t.Fatal("console and all serve the interface; crawler does not")
+	}
+}
+
+func TestWaitForCrawlerReturnsAfterCleanShutdown(t *testing.T) {
+	done := make(chan struct{})
+	close(done)
+	waitForCrawler(done, time.Hour)
+	waitForCrawler(nil, time.Hour)
+}
+
+func TestWaitForCrawlerBoundsShutdown(t *testing.T) {
+	started := time.Now()
+	waitForCrawler(make(chan struct{}), time.Millisecond)
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("waitForCrawler took %s after its timeout", elapsed)
 	}
 }

@@ -102,6 +102,28 @@ func TestFeatureCatalogDriversUseObservedFormsAndSkipHiddenAndForeignLinks(t *te
 	}
 }
 
+func TestArcoirisDriverUsesWordsForSlashesInSearchPaths(t *testing.T) {
+	d := shippedDrivers(t)["arcoiris-tv"]
+	const query = "Joe Jackson/The Playhouse"
+	const wantURL = "https://www.arcoiris.tv/search/s/Joe%20Jackson%20The%20Playhouse/type/all/"
+	if got := d.SearchURL(query, ""); got != wantURL {
+		t.Fatalf("SearchURL() = %q, want %q", got, wantURL)
+	}
+	const spacedWant = "https://www.arcoiris.tv/search/s/No%20Way%20Out%20Magnets/type/all/"
+	if got := d.SearchURL("No Way Out / Magnets", ""); got != spacedWant {
+		t.Fatalf("SearchURL() with surrounding spaces = %q, want %q", got, spacedWant)
+	}
+	fetcher := NewFetcher(roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if req.URL.String() != wantURL {
+			t.Fatalf("search URL = %q, want %q", req.URL, wantURL)
+		}
+		return htmlResponse(req, ""), nil
+	}))
+	if listings, err := d.Search(context.Background(), fetcher, query, ""); err != nil || len(listings) != 0 {
+		t.Fatalf("slash-containing title search: %+v, %v", listings, err)
+	}
+}
+
 func TestHTMLFieldReadersAndRules(t *testing.T) {
 	page, _ := url.Parse("https://h.example/list")
 	doc := `<div class="details"><span class="date"><a href="/year?v=1940">1940</a></span><h1><a href="/movie/x">  His   Girl <b>Friday</b> </a></h1><script>ignored()</script></div>`

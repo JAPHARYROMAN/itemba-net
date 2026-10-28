@@ -19,6 +19,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/andybalholm/cascadia"
 	xhtml "golang.org/x/net/html"
@@ -1388,7 +1389,8 @@ func scalarString(value any) string {
 }
 
 // expand replaces {name} and {name|filter|filter} in a template. Filters:
-// lower, upper, path (URL path escaping), query (URL query escaping) and
+// lower, upper, path (URL path escaping), path_words (slashes become word
+// separators before path escaping), query (URL query escaping) and
 // strip_article (drop a leading the, an or a). An unknown name expands to
 // nothing.
 func expand(template string, resolve func(string) string) string {
@@ -1422,6 +1424,9 @@ func expand(template string, resolve func(string) string) string {
 				value = strings.ToUpper(value)
 			case "path":
 				value = url.PathEscape(value)
+			case "path_words":
+				words := strings.FieldsFunc(value, func(r rune) bool { return r == '/' || r == '\\' || unicode.IsSpace(r) })
+				value = url.PathEscape(strings.Join(words, " "))
 			case "query":
 				value = url.QueryEscape(value)
 			case "strip_article":

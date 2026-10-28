@@ -9,7 +9,7 @@ rate:
   per_minute: 20
   concurrency: 2
 search:
-  url: https://www.arcoiris.tv/search/s/{query|path}/type/all/
+  url: https://www.arcoiris.tv/search/s/{query|path_words}/type/all/
   status_name: ArcoirisTV feature catalog
   timeout_seconds: 5
   require_relevance: exact
