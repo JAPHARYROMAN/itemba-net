@@ -127,6 +127,43 @@ test('discloses the two browser-storage keys in the trust dialog', async ({ page
   await expect(dialog).toContainText('itemba.player.prefs');
 });
 
+test('keeps the console alive when a lazy dialog fails to load', async ({ page }) => {
+  await page.route(/\/assets\/TrustDataModal-[^/]+\.js$/, (route) => route.abort());
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Data & trust' }).click();
+
+  const failure = page.getByRole('alert').filter({ hasText: 'This panel did not load' });
+  await expect(failure).toBeVisible();
+  await expect(failure.getByRole('button', { name: 'Reload console' })).toBeFocused();
+  await expect(shelfCard(page)).toBeVisible();
+
+  await failure.getByRole('button', { name: 'Close' }).click();
+  await expect(failure).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Data & trust' })).toBeFocused();
+});
+
+test('stops the page scrolling behind an open dialog', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Data & trust' }).click();
+  await expect(page.getByRole('dialog', { name: 'Data, evidence and trust' })).toBeVisible();
+  await expect(page.locator('body')).toHaveCSS('overflow-y', 'hidden');
+
+  await page.keyboard.press('Escape');
+  await expect(page.locator('body')).toHaveCSS('overflow-y', 'auto');
+});
+
+test('keeps the retry countdown out of the socket live region', async ({ page }) => {
+  // Closing every attempt puts the badge on its retry countdown for certain.
+  await page.routeWebSocket(/\/api\/ws$/, (ws) => ws.close());
+  await page.goto('/');
+  const badge = page.locator('.ws-badge');
+  const visible = badge.locator('[aria-hidden="true"]').last();
+  const spoken = badge.locator('.visually-hidden');
+
+  await expect(visible).toContainText(/Reconnecting in \d+s/);
+  expect(await spoken.textContent()).toBe('Console: Reconnecting…');
+});
+
 test('closes the data and trust dialog with Escape and restores focus', async ({ page }) => {
   await page.goto('/');
   const trigger = page.getByRole('button', { name: 'Data & trust' });

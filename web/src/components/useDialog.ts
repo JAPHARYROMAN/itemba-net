@@ -38,9 +38,15 @@ export const useDialog = <T extends HTMLElement>(onClose: () => void) => {
       }
     };
 
+    // The page behind the dialog must not scroll under it. The stable gutter
+    // in styles.css keeps the layout from jumping when the bar is removed.
+    const bodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
     document.addEventListener('keydown', onKeyDown);
     return () => {
       document.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = bodyOverflow;
       if (previous && document.contains(previous)) previous.focus();
     };
   }, []);

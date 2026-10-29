@@ -7,6 +7,7 @@ import { VaultViewport } from './components/VaultViewport';
 import './ladder.css';
 import { SearchScoutPanel } from './components/SearchScoutPanel';
 import { ShieldTelemetry } from './components/ShieldTelemetry';
+import { ChunkBoundary, ChunkError } from './components/ChunkBoundary';
 
 // The modals and the player carry copy and code an operator does not need
 // until they ask for it; lazy keeps them out of the entry chunk.
@@ -31,22 +32,38 @@ type WsConnection =
   | { phase: 'live' }
   | { phase: 'reconnecting'; retryInMs?: number };
 
-const describeWsConnection = (conn: WsConnection, t: Translate): { label: string; title: string } => {
+// The badge shows a retry countdown, but a live region would read every new
+// countdown aloud. `announcement` is the phase-only text exposed to assistive
+// technology, so an outage is announced once rather than on each retry.
+const describeWsConnection = (
+  conn: WsConnection,
+  t: Translate,
+): { label: string; title: string; announcement: string } => {
   switch (conn.phase) {
     case 'live':
-      return { label: t('app.console.live'), title: t('app.console.liveTitle') };
-    case 'reconnecting': {
-      if (conn.retryInMs === undefined) {
-        return { label: t('app.console.reconnecting'), title: t('app.console.reconnectingTitle') };
-      }
-      const secs = `${Math.round(conn.retryInMs / 1000)}s`;
       return {
-        label: t('app.console.reconnectingIn', { secs }),
-        title: t('app.console.reconnectingInTitle', { secs }),
+        label: t('app.console.live'),
+        title: t('app.console.liveTitle'),
+        announcement: t('app.console.live'),
       };
-    }
+    case 'reconnecting':
+      return conn.retryInMs === undefined
+        ? {
+            label: t('app.console.reconnecting'),
+            title: t('app.console.reconnectingTitle'),
+            announcement: t('app.console.reconnecting'),
+          }
+        : {
+            label: t('app.console.reconnectingIn', { secs: `${Math.round(conn.retryInMs / 1000)}s` }),
+            title: t('app.console.reconnectingInTitle', { secs: `${Math.round(conn.retryInMs / 1000)}s` }),
+            announcement: t('app.console.reconnecting'),
+          };
     default:
-      return { label: t('app.console.connecting'), title: t('app.console.connectingTitle') };
+      return {
+        label: t('app.console.connecting'),
+        title: t('app.console.connectingTitle'),
+        announcement: t('app.console.connecting'),
+      };
   }
 };
 
@@ -107,6 +124,10 @@ export const App: React.FC = () => {
   const searchAbortRef = useRef<AbortController | null>(null);
   const searchSequenceRef = useRef(0);
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  // A dialog that fails to load never reaches useDialog, so its fallback
+  // returns focus to the button that opened it instead.
+  const topologyTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const trustTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -396,20 +417,22 @@ export const App: React.FC = () => {
             title={wsBadge.title}
           >
             {wsConnection.phase === 'live' ? (
-              <Wifi size={12} />
+              <Wifi size={12} aria-hidden="true" />
             ) : wsConnection.phase === 'reconnecting' ? (
-              <WifiOff size={12} />
+              <WifiOff size={12} aria-hidden="true" />
             ) : (
-              <Loader size={12} />
+              <Loader size={12} aria-hidden="true" />
             )}
-            {t('app.console')} <strong>{wsBadge.label}</strong>
+            <span className="visually-hidden">{t('app.console')} {wsBadge.announcement}</span>
+            <span aria-hidden="true">{t('app.console')} <strong>{wsBadge.label}</strong></span>
           </span>
 
-          <button type="button" className="btn" onClick={() => setShowTopology(true)}>
+          <button ref={topologyTriggerRef} type="button" className="btn" onClick={() => setShowTopology(true)}>
             <Network size={13} /> {t('app.topology')}
           </button>
 
           <button
+            ref={trustTriggerRef}
             type="button"
             className="btn"
             onClick={() => setShowTrust(true)}
@@ -477,8 +500,46 @@ export const App: React.FC = () => {
       </div>
 
       <Suspense fallback={null}>
-        {showTopology && <SystemTopologyModal onClose={() => setShowTopology(false)} />}
-        {showTrust && <TrustDataModal onClose={() => setShowTrust(false)} />}
+        {showTopology && (
+          <ChunkBoundary
+            fallback={
+              <ChunkError
+                className="chunk-error--overlay"
+                title={t('app.chunk.title')}
+                body={t('app.chunk.body')}
+                action={t('app.chunk.reload')}
+                dismissLabel={t('app.close')}
+                onDismiss={() => {
+                  setShowTopology(false);
+                  topologyTriggerRef.current?.focus();
+                }}
+                onReload={() => window.location.reload()}
+              />
+            }
+          >
+            <SystemTopologyModal onClose={() => setShowTopology(false)} />
+          </ChunkBoundary>
+        )}
+        {showTrust && (
+          <ChunkBoundary
+            fallback={
+              <ChunkError
+                className="chunk-error--overlay"
+                title={t('app.chunk.title')}
+                body={t('app.chunk.body')}
+                action={t('app.chunk.reload')}
+                dismissLabel={t('app.close')}
+                onDismiss={() => {
+                  setShowTrust(false);
+                  trustTriggerRef.current?.focus();
+                }}
+                onReload={() => window.location.reload()}
+              />
+            }
+          >
+            <TrustDataModal onClose={() => setShowTrust(false)} />
+          </ChunkBoundary>
+        )}
       </Suspense>
     </div>
   );

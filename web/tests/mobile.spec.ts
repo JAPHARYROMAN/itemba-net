@@ -47,11 +47,11 @@ const stubConsole = async (page: Page) => {
   await page.route('**/api/vault/**', (route) => route.fulfill({ status: 503, body: '' }));
 };
 
-// The failure that matters on a phone is content escaping the viewport, not
-// an exact pixel measurement: compare the document and the stage with it.
+// The failure that matters on a phone is content escaping the scrollport, not
+// an exact pixel measurement: compare the document with the space it has.
 const pageFits = (page: Page) =>
   page.evaluate(() => ({
-    inner: window.innerWidth,
+    client: document.documentElement.clientWidth,
     doc: document.documentElement.scrollWidth,
   }));
 
@@ -79,7 +79,7 @@ test('keeps the protected browser chrome inside the stage', async ({ page }) => 
   expect(title.right).toBeLessThanOrEqual(stage.right + 1);
 
   const fit = await pageFits(page);
-  expect(fit.doc).toBe(fit.inner);
+  expect(fit.doc).toBeLessThanOrEqual(fit.client);
 });
 
 test('keeps both launch actions reachable with no sandbox open', async ({ page }) => {
@@ -113,7 +113,7 @@ test('switches to Arabic on a phone without widening the page', async ({ page })
   await expect(page.getByRole('button', { name: /متصفح محمي/ })).toBeVisible();
 
   const fit = await pageFits(page);
-  expect(fit.doc).toBe(fit.inner);
+  expect(fit.doc).toBeLessThanOrEqual(fit.client);
 });
 
 test('replaces the transport with a readable relay failure', async ({ page }) => {
@@ -135,7 +135,18 @@ test('replaces the transport with a readable relay failure', async ({ page }) =>
   expect(action.bottom).toBeLessThanOrEqual(stage.bottom + 1);
 
   const fit = await pageFits(page);
-  expect(fit.doc).toBe(fit.inner);
+  expect(fit.doc).toBeLessThanOrEqual(fit.client);
+});
+
+test('keeps the console usable when the player panel fails to load', async ({ page }) => {
+  await page.route(/\/assets\/MediaStage-[^/]+\.js$/, (route) => route.abort());
+  await page.goto('/');
+  await page.getByRole('button', { name: /Try in player/ }).first().click();
+
+  const failure = page.getByRole('alert').filter({ hasText: 'This panel did not load' });
+  await expect(failure).toBeVisible();
+  await expect(failure.getByRole('button', { name: 'Reload console' })).toBeFocused();
+  await expect(page.getByRole('heading', { level: 2, name: 'Find full-length movies across the web.' })).toBeVisible();
 });
 
 test('fetches the HLS runtime only for an HLS source', async ({ page }) => {

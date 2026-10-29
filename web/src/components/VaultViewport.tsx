@@ -4,6 +4,7 @@ import { ActiveRelayStream, SniffedStream, VaultStatus } from '../types';
 import { streamFromPastedUrl } from '../media/media';
 import { Translate, useI18n } from '../i18n/core';
 import { RbiViewer } from './RbiViewer';
+import { ChunkBoundary, ChunkError } from './ChunkBoundary';
 
 // The player pulls in hls.js and the media viewers; it loads when the
 // operator switches to the media stage, not with the console shell.
@@ -180,9 +181,21 @@ export const VaultViewport: React.FC<VaultViewportProps> = ({
       )}
 
       {viewportMode === 'relay' ? (
-        <Suspense fallback={<div className="media-stage media-stage--empty" aria-busy="true" />}>
-          <MediaStage stream={activeRelay} onSelectStream={onPlayRelayStream} onOpenInVault={(url) => onLaunchUrl(url, false)} />
-        </Suspense>
+        <ChunkBoundary
+          fallback={
+            <ChunkError
+              className="chunk-error--stage"
+              title={t('app.chunk.title')}
+              body={t('app.chunk.body')}
+              action={t('app.chunk.reload')}
+              onReload={() => window.location.reload()}
+            />
+          }
+        >
+          <Suspense fallback={<div className="media-stage media-stage--empty" aria-busy="true" />}>
+            <MediaStage stream={activeRelay} onSelectStream={onPlayRelayStream} onOpenInVault={(url) => onLaunchUrl(url, false)} />
+          </Suspense>
+        </ChunkBoundary>
       ) : (
         <div className={vault.active ? 'viewport-stage' : 'viewport-stage viewport-stage--empty'}>
           {vault.active ? (

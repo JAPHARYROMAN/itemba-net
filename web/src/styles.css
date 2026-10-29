@@ -13,6 +13,11 @@
   --accent-amber: #f59e0b;
   --accent-rose: #f43f5e;
   --accent-purple: #a855f7;
+  /* Native selects, scrollbars and autofill follow the dark page instead of
+     rendering light popups from the OS theme. */
+  color-scheme: dark;
+  /* Dialogs remove the scrollbar; reserving its space keeps the layout still. */
+  scrollbar-gutter: stable;
 }
 
 * {
@@ -555,8 +560,62 @@ body {
   max-width: 980px;
   max-height: 90vh;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 24px;
   box-shadow: 0 25px 60px rgba(0, 0, 0, 0.75);
+}
+
+/* A lazy panel whose code could not be fetched leaves a card instead of a
+   blank page; the rest of the console keeps working. */
+.chunk-error-card {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+  border: 1px solid rgba(244, 63, 94, 0.45);
+  border-radius: 12px;
+  background: #160b12;
+  color: #fecdd3;
+  font-size: 13px;
+}
+
+.chunk-error-card strong {
+  font-size: 14px;
+  color: #fff1f2;
+}
+
+.chunk-error-card p {
+  line-height: 1.6;
+}
+
+.chunk-error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chunk-error--stage {
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.chunk-error--stage .chunk-error-card {
+  width: min(100%, 520px);
+}
+
+.chunk-error--overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(2, 6, 23, 0.82);
+  backdrop-filter: blur(6px);
+}
+
+.chunk-error--overlay .chunk-error-card {
+  width: min(100%, 460px);
 }
 
 /* Movie discovery */

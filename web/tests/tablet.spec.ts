@@ -46,11 +46,11 @@ test('stacks the workspace into one column without sideways scrolling', async ({
   await page.goto('/');
   await expect(page.getByRole('button', { name: /Test Pattern Feature/ })).toBeVisible();
 
-  const { inner, doc } = await page.evaluate(() => ({
-    inner: window.innerWidth,
+  const { client, doc } = await page.evaluate(() => ({
+    client: document.documentElement.clientWidth,
     doc: document.documentElement.scrollWidth,
   }));
-  expect(doc).toBe(inner);
+  expect(doc).toBeLessThanOrEqual(client);
 
   const columns = await page.locator('.workspace-grid').evaluate((el) => getComputedStyle(el).gridTemplateColumns);
   expect(columns.split(' ')).toHaveLength(1);
@@ -68,5 +68,9 @@ test('keeps the trust dialog inside the tablet viewport', async ({ page }) => {
   const card = await box(page, '.modal-card');
   expect(card.left).toBeGreaterThanOrEqual(0);
   expect(card.right).toBeLessThanOrEqual(768);
-  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(768);
+  const scroll = await page.evaluate(() => ({
+    client: document.documentElement.clientWidth,
+    doc: document.documentElement.scrollWidth,
+  }));
+  expect(scroll.doc).toBeLessThanOrEqual(scroll.client);
 });
