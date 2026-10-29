@@ -66,6 +66,9 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ stream, src, isProtect
     const ctx = canvas.getContext('2d');
     if (!ctx) return undefined;
     let frame = 0;
+    const root = getComputedStyle(document.documentElement);
+    const accent = root.getPropertyValue('--accent').trim() || '#52aae0';
+    const accentText = root.getPropertyValue('--accent-text').trim() || '#a6d9f7';
     const draw = () => {
       frame = requestAnimationFrame(draw);
       analyser.getByteFrequencyData(data);
@@ -81,8 +84,8 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ stream, src, isProtect
         const barHeight = Math.max(2, level * height);
         const x = i * (barWidth + gap);
         const gradient = ctx.createLinearGradient(0, height - barHeight, 0, height);
-        gradient.addColorStop(0, '#38bdf8');
-        gradient.addColorStop(1, '#10b981');
+        gradient.addColorStop(0, accent);
+        gradient.addColorStop(1, accentText);
         ctx.fillStyle = gradient;
         ctx.fillRect(x, height - barHeight, barWidth, barHeight);
       }

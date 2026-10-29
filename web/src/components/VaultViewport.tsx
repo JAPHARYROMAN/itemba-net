@@ -123,7 +123,7 @@ export const VaultViewport: React.FC<VaultViewportProps> = ({
             else onLaunchUrl(trimmed, false);
           }}
         >
-          <ShieldCheck size={14} color="#10b981" />
+          <ShieldCheck size={14} style={{ color: 'var(--ok-text)' }} />
           <input
             className="vault-address-input"
             value={urlInput}
@@ -163,7 +163,7 @@ export const VaultViewport: React.FC<VaultViewportProps> = ({
       {observed.length > 0 && (
         <div className="vault-observed">
           <div className="vault-observed-head">
-            <Sparkles size={14} color="#10b981" />
+            <Sparkles size={14} style={{ color: 'var(--ok-text)' }} />
             <strong>{t(observed.length === 1 ? 'vault.observed.head.one' : 'vault.observed.head.other', { count: observed.length })}</strong>
             <span className="scout-muted">{t('vault.observed.note')}</span>
           </div>
@@ -202,11 +202,11 @@ export const VaultViewport: React.FC<VaultViewportProps> = ({
             <RbiViewer vault={vault} latestFrame={latestFrame} sendWsInput={sendWsInput} />
           ) : (
             <div style={{ textAlign: 'center', padding: 36, maxWidth: 620 }}>
-              <Globe size={36} color="#38bdf8" style={{ marginBottom: 12 }} />
-              <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: '#f8fafc' }}>
+              <Globe size={36} style={{ marginBottom: 12, color: 'var(--accent)' }} />
+              <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: 'var(--text-primary)' }}>
                 {t('vault.empty.title')}
               </h3>
-              <p style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.6, marginBottom: 18 }}>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 18 }}>
                 {t('vault.empty.lead')} <strong>{t('vault.empty.strong')}</strong> {t('vault.empty.rest')}
               </p>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>

@@ -141,7 +141,7 @@ export const MediaStage: React.FC<MediaStageProps> = ({ stream, onSelectStream, 
     return (
       <div className="media-stage media-stage--empty">
         <div className="media-empty">
-          <Radio size={34} color="#38bdf8" />
+          <Radio size={34} style={{ color: 'var(--accent)' }} />
           <h3>{t('stage.empty.title')}</h3>
           <p>
             {t('stage.empty.lead')} <strong>{t('stage.empty.strong')}</strong>{t('stage.empty.rest')}

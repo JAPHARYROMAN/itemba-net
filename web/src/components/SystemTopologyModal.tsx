@@ -16,11 +16,11 @@ interface TopologyStep {
 }
 
 const TOPOLOGY_STEPS: TopologyStep[] = [
-  { step: 1, daemon: 'itemba-scout', color: '#38bdf8', title: 'topology.step1.title', boundary: 'topology.step1.boundary', detail: 'topology.step1.detail' },
-  { step: 2, daemon: 'itemba-shield (Layer 1)', color: '#f59e0b', title: 'topology.step2.title', boundary: 'topology.step2.boundary', detail: 'topology.step2.detail' },
-  { step: 3, daemon: 'itemba-shield (Layer 2)', color: '#a855f7', title: 'topology.step3.title', boundary: 'topology.step3.boundary', detail: 'topology.step3.detail' },
-  { step: 4, daemon: 'itemba-shield (Layer 3)', color: '#f43f5e', title: 'topology.step4.title', boundary: 'topology.step4.boundary', detail: 'topology.step4.detail' },
-  { step: 5, daemon: 'itemba-vault', color: '#10b981', title: 'topology.step5.title', boundary: 'topology.step5.boundary', detail: 'topology.step5.detail' },
+  { step: 1, daemon: 'itemba-scout', color: 'var(--text-secondary)', title: 'topology.step1.title', boundary: 'topology.step1.boundary', detail: 'topology.step1.detail' },
+  { step: 2, daemon: 'itemba-shield (Layer 1)', color: 'var(--warn-text)', title: 'topology.step2.title', boundary: 'topology.step2.boundary', detail: 'topology.step2.detail' },
+  { step: 3, daemon: 'itemba-shield (Layer 2)', color: 'var(--accent-text)', title: 'topology.step3.title', boundary: 'topology.step3.boundary', detail: 'topology.step3.detail' },
+  { step: 4, daemon: 'itemba-shield (Layer 3)', color: 'var(--danger-text)', title: 'topology.step4.title', boundary: 'topology.step4.boundary', detail: 'topology.step4.detail' },
+  { step: 5, daemon: 'itemba-vault', color: 'var(--ok-text)', title: 'topology.step5.title', boundary: 'topology.step5.boundary', detail: 'topology.step5.detail' },
 ];
 
 export const SystemTopologyModal: React.FC<SystemTopologyModalProps> = ({ onClose }) => {
@@ -43,10 +43,10 @@ export const SystemTopologyModal: React.FC<SystemTopologyModalProps> = ({ onClos
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
           <div>
-            <h2 id="topology-title" style={{ fontSize: 18, fontWeight: 800, color: '#f8fafc' }}>
+            <h2 id="topology-title" style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)' }}>
               {t('topology.title')}
             </h2>
-            <p style={{ fontSize: 12.5, color: '#94a3b8', marginTop: 2 }}>
+            <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginTop: 2 }}>
               {t('topology.intro')}
             </p>
           </div>
@@ -73,8 +73,8 @@ export const SystemTopologyModal: React.FC<SystemTopologyModalProps> = ({ onClos
                 aria-pressed={isSelected}
                 onClick={() => setActiveStep(item.step)}
                 style={{
-                  background: isSelected ? 'rgba(56, 189, 248, 0.12)' : '#111726',
-                  border: `1px solid ${isSelected ? item.color : '#1e293b'}`,
+                  background: isSelected ? 'rgba(82, 170, 224, 0.14)' : 'var(--bg-card)',
+                  border: `1px solid ${isSelected ? item.color : 'var(--border-subtle)'}`,
                   borderRadius: 10,
                   padding: 12,
                   cursor: 'pointer',
@@ -97,7 +97,7 @@ export const SystemTopologyModal: React.FC<SystemTopologyModalProps> = ({ onClos
                 >
                   {t('topology.stage', { step: item.step })} • {item.daemon}
                 </span>
-                <span style={{ display: 'block', fontSize: 12.5, fontWeight: 700, color: '#f1f5f9' }}>{t(item.title)}</span>
+                <span style={{ display: 'block', fontSize: 12.5, fontWeight: 700, color: 'var(--text-primary)' }}>{t(item.title)}</span>
               </button>
             );
           })}
@@ -106,7 +106,7 @@ export const SystemTopologyModal: React.FC<SystemTopologyModalProps> = ({ onClos
         {/* Active Stage Inspector */}
         <div
           style={{
-            background: '#090d16',
+            background: 'var(--bg-inset)',
             border: `1px solid ${current.color}`,
             borderRadius: 12,
             padding: 20,
@@ -121,8 +121,8 @@ export const SystemTopologyModal: React.FC<SystemTopologyModalProps> = ({ onClos
             </span>
             <span className="pill-badge">{t(current.boundary)}</span>
           </div>
-          <h3 style={{ fontSize: 17, fontWeight: 800, color: '#f8fafc', marginBottom: 8 }}>{t(current.title)}</h3>
-          <p style={{ fontSize: 13.5, color: '#cbd5e1', lineHeight: 1.65 }}>{t(current.detail)}</p>
+          <h3 style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 8 }}>{t(current.title)}</h3>
+          <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', lineHeight: 1.65 }}>{t(current.detail)}</p>
         </div>
       </div>
     </div>

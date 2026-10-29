@@ -42,10 +42,10 @@ export const TrustDataModal: React.FC<TrustDataModalProps> = ({ onClose }) => {
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 18 }}>
           <div>
-            <h2 id="trust-data-title" style={{ fontSize: 18, fontWeight: 800, color: '#f8fafc' }}>
+            <h2 id="trust-data-title" style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)' }}>
               {t('trust.title')}
             </h2>
-            <p style={{ fontSize: 12.5, color: '#94a3b8', marginTop: 2 }}>
+            <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginTop: 2 }}>
               {t('trust.subtitle')}
             </p>
           </div>
@@ -58,16 +58,16 @@ export const TrustDataModal: React.FC<TrustDataModalProps> = ({ onClose }) => {
           {SECTIONS.map((section) => (
             <section
               key={section.title}
-              style={{ background: '#090d16', border: '1px solid #1e293b', borderRadius: 12, padding: '14px 18px' }}
+              style={{ background: 'var(--bg-inset)', border: '1px solid var(--border-subtle)', borderRadius: 12, padding: '14px 18px' }}
             >
-              <h3 style={{ fontSize: 14, fontWeight: 800, color: '#f1f5f9', marginBottom: 6 }}>{t(section.title)}</h3>
+              <h3 style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 6 }}>{t(section.title)}</h3>
               {section.intro && (
-                <p style={{ fontSize: 13, color: '#cbd5e1', lineHeight: 1.6 }}>{t(section.intro)}</p>
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>{t(section.intro)}</p>
               )}
               {section.points.length > 0 && (
                 <ul style={{ margin: 0, marginTop: section.intro ? 8 : 0, paddingInlineStart: 18, display: 'grid', gap: 6 }}>
                   {section.points.map((point) => (
-                    <li key={point} style={{ fontSize: 13, color: '#cbd5e1', lineHeight: 1.6 }}>
+                    <li key={point} style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
                       {t(point)}
                     </li>
                   ))}

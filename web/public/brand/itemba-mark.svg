@@ -2,16 +2,16 @@
   <title id="itemba-mark-title">ITEMBA NET</title>
   <defs>
     <linearGradient id="itemba-tile" x1="8" y1="4" x2="56" y2="60" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#38bdf8"/>
-      <stop offset="0.52" stop-color="#0ea5e9"/>
-      <stop offset="1" stop-color="#10b981"/>
+      <stop stop-color="#52aae0"/>
+      <stop offset="0.52" stop-color="#3f97cd"/>
+      <stop offset="1" stop-color="#2e6f9c"/>
     </linearGradient>
     <linearGradient id="itemba-play" x1="27" y1="24" x2="42" y2="40" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#7dd3fc"/>
-      <stop offset="1" stop-color="#34d399"/>
+      <stop stop-color="#bfe2fa"/>
+      <stop offset="1" stop-color="#7cb8e6"/>
     </linearGradient>
   </defs>
   <rect x="1" y="1" width="62" height="62" rx="15" fill="url(#itemba-tile)"/>
-  <path d="M32 12.6 47.6 18.5v14c0 8.9-6.7 15.2-15.6 17.4-8.9-2.2-15.6-8.5-15.6-17.4v-14Z" fill="#04121b"/>
+  <path d="M32 12.6 47.6 18.5v14c0 8.9-6.7 15.2-15.6 17.4-8.9-2.2-15.6-8.5-15.6-17.4v-14Z" fill="#081019"/>
   <path d="M27.4 24.2 41.6 32 27.4 39.8Z" fill="url(#itemba-play)" stroke="url(#itemba-play)" stroke-width="1.8" stroke-linejoin="round"/>
 </svg>

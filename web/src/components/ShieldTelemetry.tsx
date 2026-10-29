@@ -84,18 +84,18 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
       <div className="shield-header">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <div style={{ fontSize: 12.5, fontWeight: 800, letterSpacing: '0.05em', color: '#f8fafc' }}>
+            <div style={{ fontSize: 12.5, fontWeight: 800, letterSpacing: '0.05em', color: 'var(--text-primary)' }}>
               ITEMBA-SHIELD INSPECTOR
             </div>
-            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
               {t('shield.subtitle')}
             </div>
           </div>
           <div
             style={{
-              background: 'rgba(244, 63, 94, 0.14)',
-              border: '1px solid rgba(244, 63, 94, 0.45)',
-              color: '#fb7185',
+              background: 'rgba(185, 87, 95, 0.16)',
+              border: '1px solid rgba(185, 87, 95, 0.5)',
+              color: 'var(--danger-text)',
               padding: '4px 10px',
               borderRadius: 8,
               fontFamily: 'monospace',
@@ -114,11 +114,11 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
         <button
           type="button"
           className="layer-stat-box"
-          style={{ borderColor: layerFilter === 'L1' ? '#f59e0b' : undefined }}
+          style={{ borderColor: layerFilter === 'L1' ? 'var(--warn)' : undefined }}
           aria-pressed={layerFilter === 'L1'}
           onClick={() => setLayerFilter(layerFilter === 'L1' ? 'ALL' : 'L1')}
         >
-          <div style={{ fontSize: 10, color: '#f59e0b', fontWeight: 700 }}>{t('shield.l1')}</div>
+          <div style={{ fontSize: 10, color: 'var(--warn-text)', fontWeight: 700 }}>{t('shield.l1')}</div>
           <div style={{ fontSize: 17, fontWeight: 800, fontFamily: 'monospace', marginTop: 2 }}>
             {shield.layer1DnsCount}
           </div>
@@ -130,11 +130,11 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
         <button
           type="button"
           className="layer-stat-box"
-          style={{ borderColor: layerFilter === 'L2' ? '#38bdf8' : undefined }}
+          style={{ borderColor: layerFilter === 'L2' ? 'var(--accent)' : undefined }}
           aria-pressed={layerFilter === 'L2'}
           onClick={() => setLayerFilter(layerFilter === 'L2' ? 'ALL' : 'L2')}
         >
-          <div style={{ fontSize: 10, color: '#38bdf8', fontWeight: 700 }}>{t('shield.l2')}</div>
+          <div style={{ fontSize: 10, color: 'var(--accent-text)', fontWeight: 700 }}>{t('shield.l2')}</div>
           <div style={{ fontSize: 17, fontWeight: 800, fontFamily: 'monospace', marginTop: 2 }}>
             {shield.layer2CdpCount}
           </div>
@@ -146,11 +146,11 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
         <button
           type="button"
           className="layer-stat-box"
-          style={{ borderColor: layerFilter === 'L3' ? '#f43f5e' : undefined }}
+          style={{ borderColor: layerFilter === 'L3' ? 'var(--danger)' : undefined }}
           aria-pressed={layerFilter === 'L3'}
           onClick={() => setLayerFilter(layerFilter === 'L3' ? 'ALL' : 'L3')}
         >
-          <div style={{ fontSize: 10, color: '#f43f5e', fontWeight: 700 }}>{t('shield.l3')}</div>
+          <div style={{ fontSize: 10, color: 'var(--danger-text)', fontWeight: 700 }}>{t('shield.l3')}</div>
           <div style={{ fontSize: 17, fontWeight: 800, fontFamily: 'monospace', marginTop: 2 }}>
             {l3Total}
           </div>
@@ -165,8 +165,8 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
           gridTemplateColumns: 'repeat(3, 1fr)',
           gap: 4,
           padding: '8px 12px',
-          borderBottom: '1px solid #1e293b',
-          background: '#090d16',
+          borderBottom: '1px solid var(--border-subtle)',
+          background: 'var(--bg-inset)',
         }}
       >
         <button
@@ -216,10 +216,10 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
                       fontFamily: 'monospace',
                       color:
                         ev.layer === 'L1_DNS_SINKHOLE'
-                          ? '#f59e0b'
+                          ? 'var(--warn-text)'
                           : ev.layer === 'L2_CDP_FILTER'
-                          ? '#38bdf8'
-                          : '#fb7185',
+                          ? 'var(--accent-text)'
+                          : 'var(--danger-text)',
                     }}
                   >
                     {t(layerBadgeKey(ev.layer))}
@@ -228,12 +228,12 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
                     {ev.timestamp}
                   </span>
                 </div>
-                <div style={{ fontWeight: 600, color: '#e2e8f0' }}>{ev.category}</div>
+                <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{ev.category}</div>
                 <div
                   style={{
                     fontFamily: 'monospace',
                     fontSize: 10.5,
-                    color: '#94a3b8',
+                    color: 'var(--text-secondary)',
                     wordBreak: 'break-all',
                   }}
                 >
@@ -269,7 +269,7 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
               <div
                 key={idx}
                 className="threat-item"
-                style={{ borderInlineStartColor: '#10b981', gap: 6 }}
+                style={{ borderInlineStartColor: 'var(--ok)', gap: 6 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span
@@ -277,7 +277,7 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
                       fontSize: 10,
                       fontWeight: 800,
                       fontFamily: 'monospace',
-                      color: '#34d399',
+                      color: 'var(--ok-text)',
                     }}
                   >
                     {st.format} • {st.sourceLayer}
@@ -290,13 +290,13 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
                   style={{
                     fontFamily: 'monospace',
                     fontSize: 10.5,
-                    color: '#cbd5e1',
+                    color: 'var(--text-primary)',
                     wordBreak: 'break-all',
                   }}
                 >
                   {st.url}
                 </div>
-                <p style={{ fontSize: 11, color: '#94a3b8', lineHeight: 1.5 }}>
+                <p style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
                   {t('shield.streams.note')}
                 </p>
               </div>
@@ -311,13 +311,13 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
           {/* Live Rule Tester */}
           <div
             style={{
-              background: '#111726',
-              border: '1px solid #1e293b',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-subtle)',
               borderRadius: 8,
               padding: 12,
             }}
           >
-            <div style={{ fontSize: 11.5, fontWeight: 700, color: '#f8fafc', marginBottom: 6 }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>
               {t('shield.test.title')}
             </div>
             <form onSubmit={handleTestUrl} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -326,11 +326,11 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
                 onChange={(e) => setTestUrlInput(e.target.value)}
                 placeholder={t('shield.test.placeholder')}
                 style={{
-                  background: '#090d16',
-                  border: '1px solid #1e293b',
+                  background: 'var(--bg-inset)',
+                  border: '1px solid var(--border-subtle)',
                   borderRadius: 6,
                   padding: '6px 9px',
-                  color: '#f1f5f9',
+                  color: 'var(--text-primary)',
                   fontSize: 11,
                   fontFamily: 'monospace',
                 }}
@@ -349,10 +349,10 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
                   fontSize: 11,
                   fontFamily: 'monospace',
                   background: testResult.blocked
-                    ? 'rgba(244, 63, 94, 0.12)'
-                    : 'rgba(16, 185, 129, 0.12)',
-                  border: `1px solid ${testResult.blocked ? '#f43f5e' : '#10b981'}`,
-                  color: testResult.blocked ? '#fb7185' : '#34d399',
+                    ? 'rgba(185, 87, 95, 0.14)'
+                    : 'rgba(61, 154, 102, 0.14)',
+                  border: `1px solid ${testResult.blocked ? 'var(--danger)' : 'var(--ok)'}`,
+                  color: testResult.blocked ? 'var(--danger-text)' : 'var(--ok-text)',
                 }}
               >
                 {testResult.blocked ? (
@@ -360,8 +360,8 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
                     <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontWeight: 700 }}>
                       <XCircle size={13} /> {t('shield.test.blocked', { layer: testResult.layer ?? '' })}
                     </div>
-                    <div style={{ color: '#e2e8f0', marginTop: 3 }}>{t('shield.test.rule', { rule: testResult.rule ?? '' })}</div>
-                    <div style={{ color: '#94a3b8' }}>{t('shield.test.source', { source: testResult.listSource ?? '' })}</div>
+                    <div style={{ color: 'var(--text-primary)', marginTop: 3 }}>{t('shield.test.rule', { rule: testResult.rule ?? '' })}</div>
+                    <div style={{ color: 'var(--text-secondary)' }}>{t('shield.test.source', { source: testResult.listSource ?? '' })}</div>
                   </div>
                 ) : (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontWeight: 700 }}>
@@ -375,16 +375,16 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
           {/* Custom ABP / Hosts Rule Compiler */}
           <div
             style={{
-              background: '#111726',
-              border: '1px solid #1e293b',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-subtle)',
               borderRadius: 8,
               padding: 12,
             }}
           >
-            <div style={{ fontSize: 11.5, fontWeight: 700, color: '#f8fafc', marginBottom: 4 }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
               {t('shield.compile.title')}
             </div>
-            <div style={{ fontSize: 10.5, color: '#94a3b8', marginBottom: 8 }}>
+            <div style={{ fontSize: 10.5, color: 'var(--text-secondary)', marginBottom: 8 }}>
               {t('shield.compile.hint')}
             </div>
             <form
@@ -402,11 +402,11 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
                 placeholder={t('shield.compile.placeholder')}
                 style={{
                   flex: 1,
-                  background: '#090d16',
-                  border: '1px solid #1e293b',
+                  background: 'var(--bg-inset)',
+                  border: '1px solid var(--border-subtle)',
                   borderRadius: 6,
                   padding: '6px 9px',
-                  color: '#f1f5f9',
+                  color: 'var(--text-primary)',
                   fontSize: 11,
                   fontFamily: 'monospace',
                 }}
@@ -420,14 +420,14 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
           {/* Live HTTPS Blocklist Sync */}
           <div
             style={{
-              background: '#111726',
-              border: '1px solid #1e293b',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-subtle)',
               borderRadius: 8,
               padding: 12,
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <span style={{ fontSize: 11.5, fontWeight: 700, color: '#f8fafc' }}>
+              <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-primary)' }}>
                 {t('shield.lists.title')}
               </span>
               <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'monospace' }}>
@@ -440,13 +440,13 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
                   key={i}
                   style={{
                     fontSize: 11,
-                    color: '#cbd5e1',
+                    color: 'var(--text-primary)',
                     display: 'flex',
                     alignItems: 'center',
                     gap: 6,
                   }}
                 >
-                  <span style={{ color: '#10b981' }}>●</span> {list}
+                  <span style={{ color: 'var(--ok-text)' }}>●</span> {list}
                 </div>
               ))}
             </div>
@@ -461,7 +461,7 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
               {syncing ? t('shield.lists.syncing') : t('shield.lists.sync')}
             </button>
             {syncMsg && (
-              <div style={{ marginTop: 6, fontSize: 10.5, color: '#34d399', fontFamily: 'monospace' }}>
+              <div style={{ marginTop: 6, fontSize: 10.5, color: 'var(--ok-text)', fontFamily: 'monospace' }}>
                 ✓ {syncMsg}
               </div>
             )}
