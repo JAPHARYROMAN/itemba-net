@@ -127,6 +127,29 @@ test('discloses the two browser-storage keys in the trust dialog', async ({ page
   await expect(dialog).toContainText('itemba.player.prefs');
 });
 
+test('filters the threat feed by layer from the keyboard', async ({ page }) => {
+  await page.goto('/');
+  const layer = page.getByRole('button', { name: /L1 DNS/ });
+  await expect(layer).toHaveAttribute('aria-pressed', 'false');
+
+  await layer.focus();
+  await page.keyboard.press('Enter');
+  await expect(layer).toHaveAttribute('aria-pressed', 'true');
+
+  await page.keyboard.press('Space');
+  await expect(layer).toHaveAttribute('aria-pressed', 'false');
+});
+
+test('marks the active inspector tab for assistive technology', async ({ page }) => {
+  await page.goto('/');
+  const engine = page.getByRole('button', { name: 'Engine', exact: true });
+  await expect(engine).toHaveAttribute('aria-pressed', 'false');
+
+  await engine.click();
+  await expect(engine).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: /^Threats/ })).toHaveAttribute('aria-pressed', 'false');
+});
+
 test('keeps the console alive when a lazy dialog fails to load', async ({ page }) => {
   await page.route(/\/assets\/TrustDataModal-[^/]+\.js$/, (route) => route.abort());
   await page.goto('/');

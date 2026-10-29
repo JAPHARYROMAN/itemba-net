@@ -111,54 +111,51 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
 
       {/* 3-Layer Counter Boxes (Click to Filter) */}
       <div className="layer-counters">
-        <div
+        <button
+          type="button"
           className="layer-stat-box"
-          style={{
-            cursor: 'pointer',
-            borderColor: layerFilter === 'L1' ? '#f59e0b' : undefined,
-          }}
+          style={{ borderColor: layerFilter === 'L1' ? '#f59e0b' : undefined }}
+          aria-pressed={layerFilter === 'L1'}
           onClick={() => setLayerFilter(layerFilter === 'L1' ? 'ALL' : 'L1')}
         >
           <div style={{ fontSize: 10, color: '#f59e0b', fontWeight: 700 }}>{t('shield.l1')}</div>
           <div style={{ fontSize: 17, fontWeight: 800, fontFamily: 'monospace', marginTop: 2 }}>
             {shield.layer1DnsCount}
           </div>
-          <div style={{ fontSize: 9.5, color: '#64748b' }}>
+          <div style={{ fontSize: 9.5, color: 'var(--text-muted)' }}>
             {t('shield.l1Hosts', { count: shield.engineStats?.dnsSinkholeDomains || 80 })}
           </div>
-        </div>
+        </button>
 
-        <div
+        <button
+          type="button"
           className="layer-stat-box"
-          style={{
-            cursor: 'pointer',
-            borderColor: layerFilter === 'L2' ? '#38bdf8' : undefined,
-          }}
+          style={{ borderColor: layerFilter === 'L2' ? '#38bdf8' : undefined }}
+          aria-pressed={layerFilter === 'L2'}
           onClick={() => setLayerFilter(layerFilter === 'L2' ? 'ALL' : 'L2')}
         >
           <div style={{ fontSize: 10, color: '#38bdf8', fontWeight: 700 }}>{t('shield.l2')}</div>
           <div style={{ fontSize: 17, fontWeight: 800, fontFamily: 'monospace', marginTop: 2 }}>
             {shield.layer2CdpCount}
           </div>
-          <div style={{ fontSize: 9.5, color: '#64748b' }}>
+          <div style={{ fontSize: 9.5, color: 'var(--text-muted)' }}>
             {t('shield.l2Rules', { count: shield.engineStats?.cdpFilterRules || 23 })}
           </div>
-        </div>
+        </button>
 
-        <div
+        <button
+          type="button"
           className="layer-stat-box"
-          style={{
-            cursor: 'pointer',
-            borderColor: layerFilter === 'L3' ? '#f43f5e' : undefined,
-          }}
+          style={{ borderColor: layerFilter === 'L3' ? '#f43f5e' : undefined }}
+          aria-pressed={layerFilter === 'L3'}
           onClick={() => setLayerFilter(layerFilter === 'L3' ? 'ALL' : 'L3')}
         >
           <div style={{ fontSize: 10, color: '#f43f5e', fontWeight: 700 }}>{t('shield.l3')}</div>
           <div style={{ fontSize: 17, fontWeight: 800, fontFamily: 'monospace', marginTop: 2 }}>
             {l3Total}
           </div>
-          <div style={{ fontSize: 9.5, color: '#64748b' }}>{t('shield.l3Note')}</div>
-        </div>
+          <div style={{ fontSize: 9.5, color: 'var(--text-muted)' }}>{t('shield.l3Note')}</div>
+        </button>
       </div>
 
       {/* Inspector Navigation Tabs */}
@@ -176,6 +173,7 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
           type="button"
           className={`btn ${activeTab === 'intercepts' ? 'btn-primary' : ''}`}
           style={{ padding: '5px 6px', fontSize: 11 }}
+          aria-pressed={activeTab === 'intercepts'}
           onClick={() => setActiveTab('intercepts')}
         >
           <Shield size={12} /> {t('shield.tab.threats')} ({filteredEvents.length})
@@ -184,6 +182,7 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
           type="button"
           className={`btn ${activeTab === 'streams' ? 'btn-primary' : ''}`}
           style={{ padding: '5px 6px', fontSize: 11 }}
+          aria-pressed={activeTab === 'streams'}
           onClick={() => setActiveTab('streams')}
         >
           <Radio size={12} /> {t('shield.tab.media')} ({shield.sniffedStreams?.length || 0})
@@ -192,6 +191,7 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
           type="button"
           className={`btn ${activeTab === 'engine' ? 'btn-primary' : ''}`}
           style={{ padding: '5px 6px', fontSize: 11 }}
+          aria-pressed={activeTab === 'engine'}
           onClick={() => setActiveTab('engine')}
         >
           <Sliders size={12} /> {t('shield.tab.engine')}
@@ -202,7 +202,7 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
       {activeTab === 'intercepts' && (
         <div className="threat-feed">
           {filteredEvents.length === 0 ? (
-            <div style={{ color: '#64748b', fontSize: 12, textAlign: 'center', padding: '28px 12px' }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: 12, textAlign: 'center', padding: '28px 12px' }}>
               {t('shield.feed.empty')}
             </div>
           ) : (
@@ -224,7 +224,7 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
                   >
                     {t(layerBadgeKey(ev.layer))}
                   </span>
-                  <span style={{ fontSize: 10, color: '#64748b', fontFamily: 'monospace' }}>
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'monospace' }}>
                     {ev.timestamp}
                   </span>
                 </div>
@@ -244,7 +244,7 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
                     display: 'flex',
                     justifyContent: 'space-between',
                     fontSize: 10,
-                    color: '#64748b',
+                    color: 'var(--text-muted)',
                     marginTop: 2,
                   }}
                 >
@@ -261,7 +261,7 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
       {activeTab === 'streams' && (
         <div className="threat-feed">
           {!shield.sniffedStreams || shield.sniffedStreams.length === 0 ? (
-            <div style={{ color: '#64748b', fontSize: 12, textAlign: 'center', padding: '28px 12px' }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: 12, textAlign: 'center', padding: '28px 12px' }}>
               {t('shield.streams.empty')}
             </div>
           ) : (
@@ -282,7 +282,7 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
                   >
                     {st.format} • {st.sourceLayer}
                   </span>
-                  <span style={{ fontSize: 10, color: '#64748b', fontFamily: 'monospace' }}>
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'monospace' }}>
                     {st.discoveredAt}
                   </span>
                 </div>
@@ -430,7 +430,7 @@ export const ShieldTelemetry: React.FC<ShieldTelemetryProps> = ({
               <span style={{ fontSize: 11.5, fontWeight: 700, color: '#f8fafc' }}>
                 {t('shield.lists.title')}
               </span>
-              <span style={{ fontSize: 10, color: '#64748b', fontFamily: 'monospace' }}>
+              <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'monospace' }}>
                 {shield.engineStats?.lastSyncedAt}
               </span>
             </div>

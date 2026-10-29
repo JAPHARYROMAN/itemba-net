@@ -504,6 +504,15 @@ body {
   border-radius: 8px;
   padding: 9px;
   text-align: center;
+  /* Each box filters the feed, so it is a button that keeps the card look. */
+  width: 100%;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.layer-stat-box[aria-pressed='true'] {
+  background: var(--bg-elevated);
 }
 
 .threat-feed {
